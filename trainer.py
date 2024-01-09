@@ -47,6 +47,12 @@ class Trainer:
             num_classes = 345
             self.dataset_size = [224,224,3]
             self.top_k = 1
+        elif args.dataset == 'CGQA':
+            num_classes = 100
+            Dataset = dataloaders.CGQA
+        elif args.dataset == 'COBJ':
+            num_classes = 30
+            Dataset = dataloaders.COBJ
         else:
             raise ValueError('Dataset not implemented!')
 
@@ -196,6 +202,7 @@ class Trainer:
             # learn
             self.test_dataset.load_dataset(i, train=False)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
+            # no use during training
             model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
             if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
             avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, model_save_dir, test_loader)

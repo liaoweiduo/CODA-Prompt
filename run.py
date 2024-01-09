@@ -171,7 +171,8 @@ if __name__ == '__main__':
         print('===Summary of experiment repeats:',r+1,'/',args.repeat,'===')
         for mkey in metric_keys: 
             print(mkey, ' | mean:', avg_metrics[mkey]['global'][-1,:r+1].mean(), 'std:', avg_metrics[mkey]['global'][-1,:r+1].std())
-    
-    
+
+        '''nvidia-smi'''
+        print(os.system('nvidia-smi'))
 
 

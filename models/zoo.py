@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -365,8 +367,14 @@ class ViTZoo(nn.Module):
                                         num_heads=12, ckpt_layer=0,
                                         drop_path_rate=0
                                         )
-            from timm.models import vit_base_patch16_224
-            load_dict = vit_base_patch16_224(pretrained=True).state_dict()
+            try:
+                from timm.models import vit_base_patch16_224
+                load_dict = vit_base_patch16_224(pretrained=True).state_dict()
+            except:
+                print(f'Load vit_base_patch16_224 from local file: '
+                      f'{os.path.abspath("../checkpoints/vit_base_patch16_224.pth")}')
+                load_dict = torch.load("../checkpoints/vit_base_patch16_224.pth")
+
             del load_dict['head.weight']; del load_dict['head.bias']
             zoo_model.load_state_dict(load_dict)
 
