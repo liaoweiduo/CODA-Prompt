@@ -18,7 +18,7 @@ class CFSTDataset(data.Dataset):
         self.train = train  # training set or test set
         self.validation = validation        # if val, load val set instead of test set
         self.seed = seed
-        # self.tasks = tasks      # no use
+        # self.tasks = tasks      # load specific true_classes; no use
         # self.download_flag = download_flag  # no use
         self.mode = mode        # [continual, sys, pro, sub, non, noc]
 
@@ -73,7 +73,7 @@ class CFSTDataset(data.Dataset):
 class CGQA(CFSTDataset):
 
     def load(self):
-        import cgqa
+        from dataloaders import cgqa
         if self.mode == 'continual':
             self.benchmark = cgqa.continual_training_benchmark(
                 10, image_size=(224, 224), return_task_id=False,
@@ -96,7 +96,7 @@ class CGQA(CFSTDataset):
 class COBJ(CFSTDataset):
 
     def load(self):
-        import cobj
+        from dataloaders import cobj
         if self.mode == 'continual':
             self.benchmark = cobj.continual_training_benchmark(
                 3, image_size=(224, 224), return_task_id=False,

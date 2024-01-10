@@ -49,9 +49,16 @@ class Prompt(NormalNN):
         # parse optimizer args
         # Multi-GPU
         if len(self.config['gpuid']) > 1:
-            params_to_opt = list(self.model.module.prompt.parameters()) + list(self.model.module.last.parameters())
+            if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
+                # if fewshot testing self.config['mode'], only learn classifier: model.last
+                params_to_opt = list(self.model.module.last.parameters())
+            else:
+                params_to_opt = list(self.model.module.prompt.parameters()) + list(self.model.module.last.parameters())
         else:
-            params_to_opt = list(self.model.prompt.parameters()) + list(self.model.last.parameters())
+            if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
+                params_to_opt = list(self.model.last.parameters())
+            else:
+                params_to_opt = list(self.model.prompt.parameters()) + list(self.model.last.parameters())
         print('*****************************************')
         optimizer_arg = {'params':params_to_opt,
                          'lr':self.config['lr'],

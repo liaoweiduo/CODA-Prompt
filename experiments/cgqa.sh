@@ -4,7 +4,7 @@ DATASET=CGQA
 N_CLASS=100
 
 # save directory
-OUTDIR=outputs/${DATASET}/10-task
+OUTDIR=../outputs/${DATASET}/10-task
 
 # hard coded inputs
 GPUID='0 1 2 3'

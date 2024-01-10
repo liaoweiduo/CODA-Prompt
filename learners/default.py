@@ -221,8 +221,16 @@ class NormalNN(nn.Module):
         torch.save(model_state, filename + 'class.pth')
         self.log('=> Save Done')
 
-    def load_model(self, filename):
-        self.model.load_state_dict(torch.load(filename + 'class.pth'))
+    def load_model(self, filename, drop_last=False):
+        if drop_last:
+            state_dict = torch.load(filename + 'class.pth')
+            if 'module.last.weight' in state_dict:
+                del state_dict['module.last.weight']; del state_dict['module.last.bias']
+            else:
+                del state_dict['last.weight']; del state_dict['last.bias']
+            self.model.load_state_dict(state_dict, strict=False)
+        else:
+            self.model.load_state_dict(torch.load(filename + 'class.pth'))
         self.log('=> Load Done')
         if self.gpu:
             self.model = self.model.cuda()

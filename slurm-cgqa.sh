@@ -22,5 +22,5 @@ echo "END unpack data"
 #ln -s ../checkpoints ~/.cache/torch/hub/
 date
 
-sh experiments/cgqa.sh
+sh experiments/cgqa-ft.sh
 

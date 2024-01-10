@@ -20,8 +20,10 @@ class Trainer:
         self.metric_keys = metric_keys
         self.save_keys = save_keys
         self.log_dir = args.log_dir
-        self.batch_size = args.batch_size
+        self.batch_size = 100   # args.batch_size
         self.workers = args.workers
+
+        self.test_model = args.test_model
         
         # model load directory
         self.model_top_dir = args.log_dir
@@ -29,25 +31,7 @@ class Trainer:
         # select dataset
         self.grayscale_vis = False
         self.top_k = 1
-        if args.dataset == 'CIFAR10':
-            Dataset = dataloaders.iCIFAR10
-            num_classes = 10
-            self.dataset_size = [32,32,3]
-        elif args.dataset == 'CIFAR100':
-            Dataset = dataloaders.iCIFAR100
-            num_classes = 100
-            self.dataset_size = [32,32,3]
-        elif args.dataset == 'ImageNet_R':
-            Dataset = dataloaders.iIMAGENET_R
-            num_classes = 200
-            self.dataset_size = [224,224,3]
-            self.top_k = 1
-        elif args.dataset == 'DomainNet':
-            Dataset = dataloaders.iDOMAIN_NET
-            num_classes = 345
-            self.dataset_size = [224,224,3]
-            self.top_k = 1
-        elif args.dataset == 'CGQA':
+        if args.dataset == 'CGQA':
             num_classes = 100
             Dataset = dataloaders.CGQA
         elif args.dataset == 'COBJ':
@@ -80,14 +64,7 @@ class Trainer:
             self.tasks.append(class_order[p:p+inc])
             self.tasks_logits.append(class_order_logits[p:p+inc])
             p += inc
-        self.num_tasks = len(self.tasks)
-        self.task_names = [str(i+1) for i in range(self.num_tasks)]
-
-        # number of tasks to perform
-        if args.max_task > 0:
-            self.max_task = min(args.max_task, len(self.task_names))
-        else:
-            self.max_task = len(self.task_names)
+        self.num_tasks = len(self.tasks)        # 10
 
         # datasets and dataloaders
         k = 1 # number of transforms per image
@@ -98,15 +75,22 @@ class Trainer:
         train_transform = dataloaders.utils.get_transform(dataset=args.dataset, phase='train', aug=args.train_aug, resize_imnet=resize_imnet)
         test_transform  = dataloaders.utils.get_transform(dataset=args.dataset, phase='test', aug=args.train_aug, resize_imnet=resize_imnet)
         self.train_dataset = Dataset(args.dataroot, train=True, lab = True, tasks=self.tasks,
-                            download_flag=True, transform=train_transform, 
-                            seed=self.seed, rand_split=args.rand_split, validation=args.validation)
+                                     download_flag=True, transform=train_transform,
+                                     seed=self.seed, rand_split=args.rand_split, validation=args.validation,
+                                     mode=args.mode)
         self.test_dataset  = Dataset(args.dataroot, train=False, tasks=self.tasks,
-                                download_flag=False, transform=test_transform, 
-                                seed=self.seed, rand_split=args.rand_split, validation=args.validation)
+                                     download_flag=False, transform=test_transform,
+                                     seed=self.seed, rand_split=args.rand_split, validation=args.validation,
+                                     mode=args.mode)
+
+        self.max_task = self.train_dataset.benchmark.n_experiences      # 300
+        self.task_names = [str(i+1) for i in range(self.max_task)]      # 300
 
         # for oracle
         self.oracle_flag = args.oracle_flag
-        self.add_dim = 0
+        self.add_dim = self.num_tasks
+
+        args.schedule = 20
 
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
@@ -144,7 +128,7 @@ class Trainer:
         self.test_dataset.load_dataset(t_index, train=True)
         test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
         if local:
-            return self.learner.validation(test_loader, task_in = self.tasks_logits[t_index], task_metric=task)
+            return self.learner.validation(test_loader, task_in = self.tasks_logits[0], task_metric=task)
         else:
             return self.learner.validation(test_loader, task_metric=task)
 
@@ -157,39 +141,49 @@ class Trainer:
         if not os.path.exists(temp_dir): os.makedirs(temp_dir)
 
         # for each task
-        for i in range(self.max_task):      # for few-shot testing, if should start from an offset
+        for i in range(self.max_task):      # for few-shot testing, it should start from an offset
+
+            self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
+
+            # do prompt increases, since prompt may extend as num_task increasing
+            for j in range(self.test_model):        # load task-args.test_model model
+                # increment task id in prompting modules
+                if j > 0:
+                    try:
+                        if self.learner.model.module.prompt is not None:
+                            self.learner.model.module.prompt.process_task_count()
+                    except:
+                        if self.learner.model.prompt is not None:
+                            self.learner.model.prompt.process_task_count()
+                self.learner.task_count = j
+                self.learner.pre_steps()
+
+            self.learner.add_valid_output_dim(len(self.tasks_logits[0]))      # only for one task
+            # this is important in model updating (mask out valid_out_dim)
+            # load model
+            model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+f'/task-{self.test_model}/'
+            self.learner.load_model(model_save_dir, drop_last=True)
+
+            # set task id for model (needed for prompting)
+            try:
+                self.learner.model.module.task_id = self.num_tasks
+                # use task_offset. this num_tasks is continual training's num_tasks
+            except:
+                self.learner.model.task_id = self.num_tasks
 
             # save current task index
-            self.current_t_index = i
+            self.current_t_index = self.num_tasks
 
             # print name
             train_name = self.task_names[i]
             print('======================', train_name, '=======================')
 
             # load dataset for task
-            task = self.tasks_logits[i]
-            if self.oracle_flag:
-                self.train_dataset.load_dataset(i, train=False)
-                self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
-                self.add_dim += len(task)
-            else:
-                self.train_dataset.load_dataset(i, train=True)
-                self.add_dim = len(task)
-
-            # set task id for model (needed for prompting)
-            try:
-                self.learner.model.module.task_id = i
-            except:
-                self.learner.model.task_id = i
-
-            # add valid class to classifier
-            self.learner.add_valid_output_dim(self.add_dim)
-
-            # load dataset with memory
-            self.train_dataset.append_coreset(only=False)
+            task = self.tasks_logits[0]
+            self.train_dataset.load_dataset(i, train=True)
 
             # load dataloader
-            train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=int(self.workers))
+            train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=int(self.workers))
 
             # increment task id in prompting modules
             if i > 0:
@@ -204,26 +198,17 @@ class Trainer:
             self.test_dataset.load_dataset(i, train=False)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
             # no use during training
-            model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
-            if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
-            avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, model_save_dir, test_loader)
+            # model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
+            # if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
+            avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, test_loader)
 
-            # save model
-            self.learner.save_model(model_save_dir)
-            
-            # evaluate acc
-            acc_table = []
-            acc_table_ssl = []
-            self.reset_cluster_labels = True
-            for j in range(i+1):
-                acc_table.append(self.task_eval(j))
-            temp_table['acc'].append(np.mean(np.asarray(acc_table)))
+            # # save model
+            # self.learner.save_model(model_save_dir)
 
-            # save temporary acc results
-            for mkey in ['acc']:
-                save_file = temp_dir + mkey + '.csv'
-                np.savetxt(save_file, np.asarray(temp_table[mkey]), delimiter=",", fmt='%.2f')  
-
+            # eval and save to avg_metrics
+            acc = self.task_eval(i)
+            # acc_local = self.task_eval(i, local=True)
+            avg_metrics['acc']['global'][i, self.seed] = acc        # [max_task, repeat]
             if avg_train_time is not None: avg_metrics['time']['global'][i] = avg_train_time
 
         return avg_metrics 

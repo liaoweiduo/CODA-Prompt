@@ -21,7 +21,11 @@ dataset_stats = {
     'ImageNet_R': {
                  'size' : 224}, 
     'DomainNet': {
-                 'size' : 224},  
+                 'size' : 224},
+    'CGQA': {
+                 'size' : 224},
+    'COBJ': {
+                 'size' : 224},
                 }
                 
 # transformations
