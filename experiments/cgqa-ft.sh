@@ -4,10 +4,10 @@ DATASET=CGQA
 N_CLASS=100
 
 # save directory
-OUTDIR=../outputs/${DATASET}/10-task
+OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0 1 2 3'
+GPUID='0'   # '0 1 2 3'
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -16,6 +16,9 @@ OVERWRITE=0
 
 # process inputs
 mkdir -p $OUTDIR
+
+# CODA-P-Replay
+
 
 # CODA-P
 #
@@ -30,6 +33,7 @@ do
       --prompt_param 100 8 0.0 \
       --log_dir ${OUTDIR}/coda-p \
       --mode ${mode}
+  date
 done
 
 # DualPrompt
@@ -45,6 +49,7 @@ do
       --prompt_param 10 20 6 \
       --log_dir ${OUTDIR}/dual-prompt \
       --mode ${mode}
+  date
 done
 
 # L2P++
@@ -60,4 +65,5 @@ do
       --prompt_param 30 20 -1 \
       --log_dir ${OUTDIR}/l2p++ \
       --mode ${mode}
+  date
 done

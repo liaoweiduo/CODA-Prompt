@@ -90,7 +90,7 @@ class Trainer:
         self.oracle_flag = args.oracle_flag
         self.add_dim = self.num_tasks
 
-        args.schedule = 20
+        args.schedule = [20]
 
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
@@ -145,7 +145,7 @@ class Trainer:
 
             self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
-            # do prompt increases, since prompt may extend as num_task increasing
+            # do prompt increases, since prompt may extend as num_task increasing for some methods
             for j in range(self.test_model):        # load task-args.test_model model
                 # increment task id in prompting modules
                 if j > 0:
@@ -184,15 +184,6 @@ class Trainer:
 
             # load dataloader
             train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=int(self.workers))
-
-            # increment task id in prompting modules
-            if i > 0:
-                try:
-                    if self.learner.model.module.prompt is not None:
-                        self.learner.model.module.prompt.process_task_count()
-                except:
-                    if self.learner.model.prompt is not None:
-                        self.learner.model.prompt.process_task_count()
 
             # learn
             self.test_dataset.load_dataset(i, train=False)

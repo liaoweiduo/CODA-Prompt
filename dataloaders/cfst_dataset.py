@@ -3,6 +3,9 @@ import numpy as np
 import torch
 import torch.utils.data as data
 
+from learners.pmo_utils import Pool
+
+
 class CFSTDataset(data.Dataset):
 
     def __init__(self, root,
@@ -25,6 +28,9 @@ class CFSTDataset(data.Dataset):
         # load dataset
         self.load()
         self.num_classes = self.benchmark.n_classes
+
+        # Pool
+        self.pool = Pool(0, self.seed)   # memory size will change in update_coreset()
 
         # define task
         self.dataset = None
@@ -59,10 +65,34 @@ class CFSTDataset(data.Dataset):
         self.t = t
 
     def append_coreset(self, only=False, interp=False):
-        pass        # implemented in self.benchmark itself.
+        if self.train and (len(self.pool) > 0):
+            if only:
+                self.dataset = self.pool
+            else:
+                coreset = self.pool.return_random_dataset(size=len(self.dataset))
+                self.dataset = torch.utils.data.ConcatDataset([self.dataset, coreset])
 
     def update_coreset(self, coreset_size, seen):
-        pass        # implemented in self.benchmark itself.
+        print(f'Update coreset for task {self.t}.')
+        if self.mode != 'continual':    # for few-shot testing, do not use replay
+            print(f'Not continual mode (current {self.mode}), pass')
+            return
+
+        # update pool.memory_size
+        self.pool.memory_size = coreset_size
+
+        # put images to pool
+        images, targets, tasks = [], [], []
+        for item, (img, target) in enumerate(self.dataset):
+            # img: tensor, target: numpy, task: numpy or int
+            images.append(img)
+            targets.append(target)
+            tasks.append(self.dataset.get_task_label(item))
+        images = torch.stack(images)
+        targets = np.array(targets)
+        tasks = np.array(tasks)
+
+        self.pool.put(images, {'labels': targets, 'tasks': tasks})
 
     def load(self):
         """need to implement,
@@ -82,6 +112,7 @@ class CGQA(CFSTDataset):
                 eval_transform=cgqa.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,
+                load_set='train' if self.train else ('val' if self.validation else 'test'),
             )
         else:
             self.benchmark = cgqa.fewshot_testing_benchmark(
@@ -105,6 +136,7 @@ class COBJ(CFSTDataset):
                 eval_transform=cobj.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,
+                load_set='train' if self.train else ('val' if self.validation else 'test'),
             )
         else:
             self.benchmark = cobj.fewshot_testing_benchmark(

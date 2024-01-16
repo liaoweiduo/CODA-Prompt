@@ -12,6 +12,7 @@ from typing import Optional, Sequence, Union, Any, Dict, List
 import json
 from PIL import Image
 from timm.data import create_transform
+from tqdm import tqdm
 
 import numpy as np
 from torchvision import transforms
@@ -90,6 +91,7 @@ def continual_training_benchmark(
         dataset_root: Union[str, Path] = None,
         memory_size: int = 0,
         num_samples_each_label: Optional[int] = None,
+        load_set: str = 'train',
 ):
     """
     Creates a CL benchmark using the pre-processed GQA dataset.
@@ -125,6 +127,9 @@ def continual_training_benchmark(
         Each class has equal number of instances in the memory.
     :param num_samples_each_label: Number of samples for each label,
         -1 or None means all data are used.
+    :param load_set: train -> only pre-load train set;
+        val -> only pre-load val set;
+        test -> only pre-load test set.
 
     :returns: A properly initialized instance: `GenericCLScenario`
         with train_stream, val_stream, test_stream.
@@ -142,7 +147,8 @@ def continual_training_benchmark(
         num_samples_each_label = None
 
     datasets, label_info = _get_obj365_datasets(dataset_root, mode='continual', image_size=image_size,
-                                                num_samples_each_label=num_samples_each_label)
+                                                num_samples_each_label=num_samples_each_label,
+                                                load_set=load_set)
     train_set, val_set, test_set = datasets['train'], datasets['val'], datasets['test']
     label_set, map_tuple_label_to_int, map_int_label_to_tuple = label_info
 
@@ -406,6 +412,7 @@ def _get_obj365_datasets(
         mode='continual',
         num_samples_each_label=None,
         label_offset=0,
+        load_set='train',
 ):
     """
     Create GQA dataset, with given json files,
@@ -427,10 +434,9 @@ def _get_obj365_datasets(
         is used to sample.
         Only for continual mode, only apply to train dataset.
     :param label_offset: specified if relative label not start from 0.
-    :param preprocessed (DISABLED): True, just load preprocessed images,
-        specified by newImageName,
-        while False, construct new image by the defined object list.
-        Default True.
+    :param load_set: train -> only pre-load train set;
+        val -> only pre-load val set;
+        test -> only pre-load test set.
 
     :return data_sets defined by json file and label information.
     """
@@ -514,19 +520,24 @@ def _get_obj365_datasets(
             train_list = [train_list[idx] for idx in order]
 
         '''generate train_set and test_set using PathsDataset'''
-        '''TBD: use TensorDataset if pre-loading in memory'''
         train_set = PathsDataset(
             root=img_folder_path,
             files=train_list,
-            transform=transforms.Compose([transforms.Resize(image_size)]))
+            transform=transforms.Compose([transforms.Resize(image_size)]),
+            loaded=load_set == 'train',
+        )
         val_set = PathsDataset(
             root=img_folder_path,
             files=val_list,
-            transform=transforms.Compose([transforms.Resize(image_size)]))
+            transform=transforms.Compose([transforms.Resize(image_size)]),
+            loaded=load_set == 'val',
+        )
         test_set = PathsDataset(
             root=img_folder_path,
             files=test_list,
-            transform=transforms.Compose([transforms.Resize(image_size)]))
+            transform=transforms.Compose([transforms.Resize(image_size)]),
+            loaded=load_set == 'test',
+        )
 
         datasets = {'train': train_set, 'val': val_set, 'test': test_set}
         label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple)
@@ -580,6 +591,7 @@ class PathsDataset(torch.utils.data.Dataset):
         transform=None,
         target_transform=None,
         loader=default_image_loader,
+        loaded=True,
     ):
         """
         Creates a File Dataset from a list of files and labels.
@@ -593,6 +605,9 @@ class PathsDataset(torch.utils.data.Dataset):
         :param target_transform: eventual transformation to add to the targets
             (y)
         :param loader: loader function to use (for the real data) given path.
+        :param loaded: True, load images into memory.
+        If False, load when call getitem.
+        Default True.
         """
 
         if root is not None:
@@ -604,6 +619,23 @@ class PathsDataset(torch.utils.data.Dataset):
         self.transform = transform
         self.target_transform = target_transform
         self.loader = loader
+        self.loaded = loaded
+
+        if self.loaded:
+            self.load_data()
+
+    def load_data(self):
+        """
+        load all data and replace imgs.
+        """
+        print('Load OBJ data:')
+        for index in tqdm(range(len(self.imgs))):
+            impath = self.imgs[index][0]
+            if self.root is not None:
+                impath = self.root / impath
+            img = self.loader(impath)
+
+            self.imgs[index] = (img, *self.imgs[index][1:])
 
     def __getitem__(self, index):
         """
@@ -620,9 +652,12 @@ class PathsDataset(torch.utils.data.Dataset):
         if len(img_description) > 2:
             bbox = img_description[2]
 
-        if self.root is not None:
-            impath = self.root / impath
-        img = self.loader(impath)
+        if self.loaded:
+            img = impath
+        else:
+            if self.root is not None:
+                impath = self.root / impath
+            img = self.loader(impath)
 
         # If a bounding box is provided, crop the image before passing it to
         # any user-defined transformation.

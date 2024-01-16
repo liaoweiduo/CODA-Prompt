@@ -20,6 +20,7 @@ class NormalNN(nn.Module):
     def __init__(self, learner_config):
 
         super(NormalNN, self).__init__()
+        self.debug_mode = learner_config['debug_mode']
         self.log = print
         self.config = learner_config
         self.out_dim = learner_config['out_dim']

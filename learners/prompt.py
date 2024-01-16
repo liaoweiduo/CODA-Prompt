@@ -95,6 +95,7 @@ class Prompt(NormalNN):
             self.model = torch.nn.DataParallel(self.model, device_ids=self.config['gpuid'], output_device=self.config['gpuid'][0])
         return self
 
+
 # Our method!
 class CODAPrompt(Prompt):
 
@@ -105,6 +106,21 @@ class CODAPrompt(Prompt):
         cfg = self.config
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda',prompt_param=self.prompt_param)
         return model
+
+
+# CODA-Prompt with memory replay
+class CODAPromptR(Prompt):
+    """
+    can overwrite learn_batch to inject some modification.
+    """
+    def __init__(self, learner_config):
+        super(CODAPromptR, self).__init__(learner_config)
+
+    def create_model(self):
+        cfg = self.config
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda_r',prompt_param=self.prompt_param)
+        return model
+
 
 # @article{wang2022dualprompt,
 #   title={DualPrompt: Complementary Prompting for Rehearsal-free Continual Learning},

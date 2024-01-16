@@ -9,7 +9,7 @@ source activate coda
 
 date
 echo "START unpack data"
-tar -xf ../datasets_cgqa.tar -C /dev/shm
+tar -xf ../datasets_cobj.tar -C /dev/shm
 ln -s /dev/shm/datasets .
 rm data
 mv datasets data
@@ -22,5 +22,5 @@ echo "END unpack data"
 #ln -s ../checkpoints ~/.cache/torch/hub/
 date
 
-sh experiments/cgqa.sh
+sh experiments/cobj.sh
 

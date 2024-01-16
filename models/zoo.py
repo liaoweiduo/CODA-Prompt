@@ -10,6 +10,7 @@ from .vit import VisionTransformer
 import numpy as np
 import copy
 
+
 # Our method!
 class CodaPrompt(nn.Module):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
@@ -30,8 +31,8 @@ class CodaPrompt(nn.Module):
             # in the original paper, we used ortho init at the start - this modification is more 
             # fair in the spirit of continual learning and has little affect on performance
             e_l = self.e_p_length
-            p = tensor_prompt(self.e_pool_size, e_l, emb_d)
-            k = tensor_prompt(self.e_pool_size, self.key_d)
+            p = tensor_prompt(self.e_pool_size, e_l, emb_d)         # [100, 8, 768]
+            k = tensor_prompt(self.e_pool_size, self.key_d)         # [100, 768]
             a = tensor_prompt(self.e_pool_size, self.key_d)
             p = self.gram_schmidt(p)
             k = self.gram_schmidt(k)
@@ -43,12 +44,12 @@ class CodaPrompt(nn.Module):
     def _init_smart(self, emb_d, prompt_param):
 
         # prompt basic param
-        self.e_pool_size = int(prompt_param[0])
-        self.e_p_length = int(prompt_param[1])
+        self.e_pool_size = int(prompt_param[0])     # 100
+        self.e_p_length = int(prompt_param[1])      # 8
         self.e_layers = [0,1,2,3,4]
 
         # strenth of ortho penalty
-        self.ortho_mu = prompt_param[2]
+        self.ortho_mu = prompt_param[2]             # 0.0
         
     def process_task_count(self):
         self.task_count += 1
@@ -74,7 +75,7 @@ class CodaPrompt(nn.Module):
 
     # code for this function is modified from:
     # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
-    def gram_schmidt(self, vv):
+    def gram_schmidt(self, vv):     # 施密特正交化
 
         def projection(u, v):
             denominator = (u * u).sum()
@@ -138,13 +139,13 @@ class CodaPrompt(nn.Module):
         e_valid = False
         if l in self.e_layers:
             e_valid = True
-            B, C = x_querry.shape
+            B, C = x_querry.shape                # [bs, 768]
 
-            K = getattr(self,f'e_k_{l}')
-            A = getattr(self,f'e_a_{l}')
-            p = getattr(self,f'e_p_{l}')
-            pt = int(self.e_pool_size / (self.n_tasks))
-            s = int(self.task_count * pt)
+            K = getattr(self,f'e_k_{l}')         # [100, 768]
+            A = getattr(self,f'e_a_{l}')         # [100, 768]
+            p = getattr(self,f'e_p_{l}')         # [100, 8, 768]
+            pt = int(self.e_pool_size / (self.n_tasks))     # 100/10=10
+            s = int(self.task_count * pt)           # 10 prompts for one task
             f = int((self.task_count + 1) * pt)
             
             # freeze/control past tasks
@@ -162,18 +163,19 @@ class CodaPrompt(nn.Module):
                 A = A[0:f]
                 p = p[0:f]
 
+            # b = bs, d = 768, k = 100, l=8
             # with attention and cosine sim
             # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
             a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
             # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
             n_K = nn.functional.normalize(K, dim=1)
             q = nn.functional.normalize(a_querry, dim=2)
-            aq_k = torch.einsum('bkd,kd->bk', q, n_K)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)       # aq_k is alpha (cosine similarity) [bs, 100]
             # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
             P_ = torch.einsum('bk,kld->bld', aq_k, p)
 
             # select prompts
-            i = int(self.e_p_length/2)
+            i = int(self.e_p_length/2)      # 8 / 2
             Ek = P_[:,:i,:]
             Ev = P_[:,i:,:]
 
@@ -196,8 +198,77 @@ class CodaPrompt(nn.Module):
         # return
         return p_return, loss, x_block
 
+
 def ortho_penalty(t):
     return ((t @t.T - torch.eye(t.shape[0]).cuda())**2).mean()
+
+
+# CODA-Prompt with memory replay
+class CodaPromptR(CodaPrompt):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+        super(CodaPromptR, self).__init__(emb_d, n_tasks, prompt_param, key_dim=768)
+
+    def forward(self, x_querry, l, x_block, train=False, task_id=None):
+        """difference:
+        do not freeze old tasks' KAP, select all involved prompts.
+        """
+        # debug
+        # print(f'in CodaPromptR forward: task_id={task_id}.')
+
+        B, C = x_querry.shape  # [bs, 768]
+
+        # e prompts
+        e_valid = False
+        if l in self.e_layers:
+            e_valid = True
+
+            K = getattr(self, f'e_k_{l}')  # [100, 768]
+            A = getattr(self, f'e_a_{l}')  # [100, 768]
+            p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+            pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+            s = int(task_id * pt)  # 10 prompts for one task
+            f = int((task_id + 1) * pt)
+
+            # select all involved prompts
+            K = K[0:f]
+            A = A[0:f]
+            p = p[0:f]
+
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+            # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
+            P_ = torch.einsum('bk,kld->bld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :i, :]
+            Ev = P_[:, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        # return
+        return p_return, loss, x_block
+
 
 # @article{wang2022dualprompt,
 #   title={DualPrompt: Complementary Prompting for Rehearsal-free Continual Learning},
@@ -258,7 +329,7 @@ class DualPrompt(nn.Module):
             q = nn.functional.normalize(x_querry, dim=1).detach()
             cos_sim = torch.einsum('bj,kj->bk', q, n_K)
             
-            if train:
+            if train and task_id < self.n_tasks:        # for continual training tasks
                 # dual prompt during training uses task id
                 if self.task_id_bootstrap:
                     loss = (1.0 - cos_sim[:,task_id]).sum()
@@ -268,13 +339,14 @@ class DualPrompt(nn.Module):
                     k_idx = top_k.indices
                     loss = (1.0 - cos_sim[:,k_idx]).sum()
                     P_ = p[k_idx]
-            else:
+            else:       # inference or fewshot tasks
                 top_k = torch.topk(cos_sim, self.top_k, dim=1)
                 k_idx = top_k.indices
+                loss = 0
                 P_ = p[k_idx]
                 
             # select prompts
-            if train and self.task_id_bootstrap:
+            if train and self.task_id_bootstrap and task_id < self.n_tasks:        # for continual training tasks
                 i = int(self.e_p_length/2)
                 Ek = P_[:,:i,:].reshape((B,-1,self.emb_d))
                 Ev = P_[:,i:,:].reshape((B,-1,self.emb_d))
@@ -362,6 +434,7 @@ class ViTZoo(nn.Module):
         self.task_id = None
 
         # get feature encoder
+        zoo_model = None
         if pt:
             zoo_model = VisionTransformer(img_size=224, patch_size=16, embed_dim=768, depth=12,
                                         num_heads=12, ckpt_layer=0,
@@ -388,6 +461,9 @@ class ViTZoo(nn.Module):
             self.prompt = DualPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'coda':
             self.prompt = CodaPrompt(768, prompt_param[0], prompt_param[1])
+        elif self.prompt_flag == 'coda_r':
+            self.prompt = CodaPromptR(768, prompt_param[0], prompt_param[1])
+            # do not freeze learned prompts for old tasks.
         else:
             self.prompt = None
         

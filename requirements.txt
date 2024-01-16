@@ -4,3 +4,8 @@ argparse
 pyaml
 pillow
 opencv-python
+pymoo
+pandas
+matplotlib
+seaborn
+tqdm

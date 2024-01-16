@@ -38,6 +38,11 @@ def create_args():
     parser.add_argument('--prompt_param', nargs="+", type=float, default=[1, 1, 1],
                          help="e prompt pool size, e prompt length, g prompt length")
 
+    # CFST Args
+    parser.add_argument('--mode', type=str, default='continual',
+                        help="choices: [continual, sys, pro, sub, non, noc]")
+    parser.add_argument('--test_model', type=int, default=-1, help="-1 for last model, starting from 1. ")
+
     # Config Arg
     parser.add_argument('--config', type=str, default="configs/config.yaml",
                          help="yaml experiment config input")
