@@ -66,7 +66,7 @@ class Pool(data.Dataset):     # (nn.Module)
         # locate image
         image_idx = item - item_offset
 
-        return (self.clusters[task_idx][class_idx]['images'][image_idx],
+        return (torch.from_numpy(self.clusters[task_idx][class_idx]['images'][image_idx]),
                 self.clusters[task_idx][class_idx]['label'],
                 task_idx)
 

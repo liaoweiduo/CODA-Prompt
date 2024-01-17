@@ -37,8 +37,13 @@ class CFSTDataset(data.Dataset):
         self.t = -1     # task id
 
     def __getitem__(self, index, simple = False):
-        img, target = self.dataset[index]
-        return img, target, self.t
+        data = self.dataset[index]
+        if len(data) == 2:
+            img, target = data
+            t = self.t
+        else:
+            img, target, t = data
+        return img, target, t
 
     def __len__(self):
         return len(self.dataset)
