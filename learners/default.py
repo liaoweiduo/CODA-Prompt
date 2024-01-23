@@ -106,7 +106,10 @@ class NormalNN(nn.Module):
                     if self.gpu:
                         x = x.cuda()
                         y = y.cuda()
-                    
+
+                    # # debug
+                    # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
                     # model update
                     loss, output= self.update_model(x, y)
 
@@ -122,7 +125,7 @@ class NormalNN(nn.Module):
 
                 # eval update
                 self.log('Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch+1,total=self.config['schedule'][-1]))
-                self.log(' * Loss {loss.avg:.3f} | Train Acc {acc.avg:.3f}'.format(loss=losses,acc=acc))
+                self.log(' * Loss {loss.avg:.3f} | Train Acc {acc.avg:.3f} | Time {time.avg:.3f}'.format(loss=losses,acc=acc, time=batch_time))
 
                 # reset
                 losses = AverageMeter()
@@ -172,12 +175,18 @@ class NormalNN(nn.Module):
         model.eval()
         for i, (input, target, task) in enumerate(dataloader):
 
+            if self.debug_mode:
+                print(f'batch{i}: \ntarget:{target} \ntask:{task}')
             if self.gpu:
                 with torch.no_grad():
                     input = input.cuda()
                     target = target.cuda()
             if task_in is None:
                 output = model.forward(input)[:, :self.valid_out_dim]
+
+                if self.debug_mode:
+                    print(f'batch{i}: \noutput:{output}')
+
                 acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
             else:
                 mask = target >= task_in[0]
@@ -223,15 +232,22 @@ class NormalNN(nn.Module):
         self.log('=> Save Done')
 
     def load_model(self, filename, drop_last=False):
-        if drop_last:
-            state_dict = torch.load(filename + 'class.pth')
-            if 'module.last.weight' in state_dict:
-                del state_dict['module.last.weight']; del state_dict['module.last.bias']
+        state_dict = torch.load(filename + 'class.pth')
+        # complete with/without module.
+        for key in list(state_dict.keys()):
+            if 'module' in key:
+                state_dict[key[7:]] = state_dict[key]
             else:
-                del state_dict['last.weight']; del state_dict['last.bias']
-            self.model.load_state_dict(state_dict, strict=False)
-        else:
-            self.model.load_state_dict(torch.load(filename + 'class.pth'))
+                state_dict[f'module.{key}'] = state_dict[key]
+        if drop_last:
+            del state_dict['module.last.weight']; del state_dict['module.last.bias']
+            del state_dict['last.weight']; del state_dict['last.bias']
+            # if 'module.last.weight' in state_dict:
+            #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
+            # else:
+            #     del state_dict['last.weight']; del state_dict['last.bias']
+            # self.model.load_state_dict(state_dict, strict=False)
+        self.model.load_state_dict(state_dict, strict=False)
         self.log('=> Load Done')
         if self.gpu:
             self.model = self.model.cuda()

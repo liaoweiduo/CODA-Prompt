@@ -98,7 +98,7 @@ class Trainer:
         train_transform = dataloaders.utils.get_transform(dataset=args.dataset, phase='train', aug=args.train_aug, resize_imnet=resize_imnet)
         test_transform  = dataloaders.utils.get_transform(dataset=args.dataset, phase='test', aug=args.train_aug, resize_imnet=resize_imnet)
         self.train_dataset = Dataset(args.dataroot, train=True, lab = True, tasks=self.tasks,
-                            download_flag=True, transform=train_transform, 
+                            download_flag=True if (args.debug_mode == 0) else False, transform=train_transform,
                             seed=self.seed, rand_split=args.rand_split, validation=args.validation)
         self.test_dataset  = Dataset(args.dataroot, train=False, tasks=self.tasks,
                                 download_flag=False, transform=test_transform, 
@@ -187,6 +187,9 @@ class Trainer:
 
             # load dataset with memory
             self.train_dataset.append_coreset(only=False)
+
+            # # debug
+            # self.train_dataset.update_coreset(self.learner.memory_size, np.arange(self.learner.last_valid_out_dim))
 
             # load dataloader
             train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=int(self.workers))

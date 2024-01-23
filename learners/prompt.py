@@ -28,10 +28,17 @@ class Prompt(NormalNN):
         logits, prompt_loss = self.model(inputs, train=True)
         logits = logits[:,:self.valid_out_dim]
 
+        # # debug
+        # print(f'prompt_loss: {prompt_loss}')
+
         # ce with heuristic
-        logits[:,:self.last_valid_out_dim] = -float('inf')
+        if self.memory_size == 0:       # replay-based will have old tasks which may cause inf loss
+            logits[:,:self.last_valid_out_dim] = -float('inf')
         dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
         total_loss = self.criterion(logits, targets.long(), dw_cls)
+
+        # # debug
+        # print(f'classification loss: {total_loss}')
 
         # ce loss
         total_loss = total_loss + prompt_loss.sum()
@@ -116,10 +123,165 @@ class CODAPromptR(Prompt):
     def __init__(self, learner_config):
         super(CODAPromptR, self).__init__(learner_config)
 
+        self.task_dim_list = []    # list: [num_tsks, dim] pattern: [0,1,2,3,4,5,6,7,8,9], [10,11,12,13,...]
+
+    def add_valid_output_dim(self, dim=0):
+        """Difference:
+        Maintain a task_dim_list, recording dim ranges for all tasks.
+        """
+        # This function is kind of ad-hoc, but it is the simplest way to support incremental class learning
+        self.log('Incremental class: Old valid output dimension:', self.valid_out_dim)
+        dim_from = self.valid_out_dim
+        self.valid_out_dim += dim
+        self.log('Incremental class: New Valid output dimension:', self.valid_out_dim)
+        dim_to = self.valid_out_dim
+        self.task_dim_list.append(np.arange(dim_from, dim_to))
+
+        return self.valid_out_dim
+
     def create_model(self):
         cfg = self.config
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda_r',prompt_param=self.prompt_param)
         return model
+
+    def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
+        """Difference: forward tasks_id for a batch of samples to update_model()"""
+
+        # try to load model
+        need_train = True
+        if not self.overwrite:
+            try:
+                self.load_model(model_save_dir)
+                need_train = False
+            except:
+                pass
+
+        # trains
+        if self.reset_optimizer:  # Reset optimizer before learning each task
+            self.log('Optimizer is reset!')
+            self.init_optimizer()
+        if need_train:
+
+            # data weighting
+            self.data_weighting(train_dataset)
+            losses = AverageMeter()
+            acc = AverageMeter()
+            batch_time = AverageMeter()
+            batch_timer = Timer()
+            for epoch in range(self.config['schedule'][-1]):
+                self.epoch = epoch
+
+                if epoch > 0: self.scheduler.step()
+                for param_group in self.optimizer.param_groups:
+                    self.log('LR:', param_group['lr'])
+                batch_timer.tic()
+                for i, (x, y, task) in enumerate(train_loader):
+
+                    # verify in train mode
+                    self.model.train()
+
+                    # send data to gpu
+                    if self.gpu:
+                        x = x.cuda()
+                        y = y.cuda()
+
+                    # # debug
+                    # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                    # model update
+                    loss, output = self.update_model(x, y, task)
+
+                    # measure elapsed time
+                    batch_time.update(batch_timer.toc())
+                    batch_timer.tic()
+
+                    # measure accuracy and record loss
+                    y = y.detach()
+                    accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                    losses.update(loss, y.size(0))
+                    batch_timer.tic()
+
+                # eval update
+                self.log(
+                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
+                self.log(' * Loss {loss.avg:.3f} | Train Acc {acc.avg:.3f} | Time {time.avg:.3f}'.format(loss=losses,
+                                                                                                         acc=acc,
+                                                                                                         time=batch_time))
+
+                # reset
+                losses = AverageMeter()
+                acc = AverageMeter()
+
+        self.model.eval()
+
+        self.last_valid_out_dim = self.valid_out_dim
+        self.first_task = False
+
+        # Extend memory
+        self.task_count += 1
+        if self.memory_size > 0:
+            train_dataset.update_coreset(self.memory_size, np.arange(self.last_valid_out_dim))
+
+        try:
+            return batch_time.avg
+        except:
+            return None
+
+    def update_model(self, inputs, targets, tasks):
+        """Difference:
+        Intro tasks_id for batch of samples to support ce with heuristic
+        Change self.model.prompt.batch_task_ids to this batch of samples
+            to support awareness of task id for prompt's forward
+        Logits mask according to sample's taskid but not current taskid.
+            dim region is based on self.task_dim_list to np array.
+        """
+        # record task ids
+        # for prompt to select correct KAP
+        try:
+            self.model.module.prompt.batch_task_ids = tasks
+        except:
+            self.model.prompt.batch_task_ids = tasks
+
+        if self.debug_mode:
+            print(f'train batch: \ntargets:{targets} \ntasks:{tasks}')
+
+        # logits
+        logits, prompt_loss = self.model(inputs, train=True)
+        logits = logits[:,:self.valid_out_dim]
+
+        if self.debug_mode:
+            print(f'prompt_loss: {prompt_loss}')
+
+        # ce with heuristic
+        # logits[:,:self.last_valid_out_dim] = -float('inf')
+        task_dim_list = self.task_dim_list     # [[0,1,2,...,9],[10,11,...,19],...]
+        mask = torch.ones_like(logits, dtype=torch.bool)
+        filter_indices = torch.tensor(
+            [[idx, value] for idx, task in enumerate(tasks) for value in task_dim_list[task]],
+            device=logits.device
+        )
+        mask[filter_indices[:, 0], filter_indices[:, 1]] = False    # valid region to 0, thus masked_fill all 1 to -inf
+        # mask = torch.BoolTensor(mask).to(logits.device)
+        logits = logits.masked_fill(mask, value=-float('inf'))
+
+        if self.debug_mode:
+            print(f'masked logits: {logits}')
+
+        dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
+        total_loss = self.criterion(logits, targets.long(), dw_cls)
+
+        if self.debug_mode:
+            print(f'classification loss: {total_loss}')
+
+        # ce loss
+        total_loss = total_loss + prompt_loss.sum()
+
+        # step
+        self.optimizer.zero_grad()
+        total_loss.backward()
+        self.optimizer.step()
+
+        return total_loss.detach(), logits
 
 
 # @article{wang2022dualprompt,

@@ -208,9 +208,11 @@ class CodaPromptR(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(CodaPromptR, self).__init__(emb_d, n_tasks, prompt_param, key_dim=768)
 
+        self.batch_task_ids = None      # np array [bs]
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
-        """difference:
-        do not freeze old tasks' KAP, select all involved prompts.
+        """difference: (currently nothing change)
+        batch_task_ids w.r.t. x_querry (no use currently), task_id w.r.t. current task
         """
         # debug
         # print(f'in CodaPromptR forward: task_id={task_id}.')
@@ -226,13 +228,23 @@ class CodaPromptR(CodaPrompt):
             A = getattr(self, f'e_a_{l}')  # [100, 768]
             p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
             pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
-            s = int(task_id * pt)  # 10 prompts for one task
-            f = int((task_id + 1) * pt)
+            s = int(self.task_count * pt)  # 10 prompts for one task
+            f = int((self.task_count + 1) * pt)
 
-            # select all involved prompts
-            K = K[0:f]
-            A = A[0:f]
-            p = p[0:f]
+            if train:
+                if self.task_count > 0:
+                    K = torch.cat((K[:s].detach().clone(),K[s:f]), dim=0)
+                    A = torch.cat((A[:s].detach().clone(),A[s:f]), dim=0)
+                    p = torch.cat((p[:s].detach().clone(),p[s:f]), dim=0)
+                else:
+                    K = K[s:f]
+                    A = A[s:f]
+                    p = p[s:f]
+            else:
+                # select all involved prompts
+                K = K[0:f]
+                A = A[0:f]
+                p = p[0:f]
 
             # b = bs, d = 768, k = 100, l=8
             # with attention and cosine sim

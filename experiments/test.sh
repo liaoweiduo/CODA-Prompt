@@ -30,7 +30,7 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPromptR \
     --prompt_param 100 8 0.0 \
-    --memory 100 \
+    --memory 1000 \
     --log_dir ${OUTDIR}/debug
 
 rm data

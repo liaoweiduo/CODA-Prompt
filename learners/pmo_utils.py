@@ -71,6 +71,7 @@ class Pool(data.Dataset):     # (nn.Module)
                 task_idx)
 
     def return_random_dataset(self, size):
+        """Return a dataset with num_samples = size, randomly sampled from the pool"""
         class PoolRandomDataset(data.Dataset):
             def __init__(self, _pool, _size):
                 self.pool = _pool
@@ -81,11 +82,23 @@ class Pool(data.Dataset):     # (nn.Module)
                 # mapping of item to exact item in pool
                 # size can > pool_size
 
+                self.images = []
+                self.targets = []
+                self.tasks = []
+                for item in self.items:
+                    self.images.append(self.pool[item][0])
+                    self.targets.append(self.pool[item][1])
+                    self.tasks.append(self.pool[item][2])
+                self.images = torch.stack(self.images)
+                self.targets = np.array(self.targets)
+                self.tasks = np.array(self.tasks)
+
             def __len__(self):
                 return self.size
 
             def __getitem__(self, item):
-                return self.pool[self.items[item]]
+                return self.images[item], self.targets[item], self.tasks[item]
+                # return self.pool[self.items[item]]
 
         return PoolRandomDataset(self, size)
 
@@ -153,7 +166,7 @@ class Pool(data.Dataset):     # (nn.Module)
                 if (cls['label'] == label).all():       # (0, str) == (0, str) ? int
                     return cluster_idx, cls_idx
         else:
-            for cluster_idx, cluster in enumerate(self.clusters):
+            for cluster_idx, cluster in enumerate(self.clusters.values()):
                 for cls_idx, cls in enumerate(cluster):
                     if (cls['label'] == label).all():       # (0, str) == (0, str) ? int
                         return cluster_idx, cls_idx
@@ -165,7 +178,7 @@ class Pool(data.Dataset):     # (nn.Module)
         Return current classes stored in the pool (name, num_images)
         """
         clses = []
-        for cluster in self.clusters:
+        for cluster in self.clusters.values():
             clses_in_cluster = []
             for cls in cluster:
                 clses_in_cluster.append((cls['label'], cls['images'].shape[0]))
@@ -184,7 +197,7 @@ class Pool(data.Dataset):     # (nn.Module)
         with labels
         """
         images = []
-        for cluster in self.clusters:
+        for cluster in self.clusters.values():
             imgs = []
             for cls in cluster:
                 imgs.append(cls['images'])      # cls['images'] shape [10, 3, 84, 84]

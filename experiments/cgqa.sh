@@ -24,7 +24,7 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 LEARNERNAME=CODAPromptR
-LOGNAME=coda-p-r
+LOGNAME=coda-p-r-3
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 \
@@ -32,16 +32,16 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 
-for mode in sys pro sub non noc
-do
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-      --learner_type prompt --learner_name ${LEARNERNAME} \
-      --prompt_param 100 8 0.0 \
-      --memory 2000 \
-      --log_dir ${OUTDIR}/${LOGNAME} \
-      --mode ${mode}
-  date
-done
+#for mode in sys pro sub non noc
+#do
+#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#      --learner_type prompt --learner_name ${LEARNERNAME} \
+#      --prompt_param 100 8 0.0 \
+#      --memory 2000 \
+#      --log_dir ${OUTDIR}/${LOGNAME} \
+#      --mode ${mode}
+#  date
+#done
 
 # CODA-P
 #

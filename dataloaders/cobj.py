@@ -91,7 +91,7 @@ def continual_training_benchmark(
         dataset_root: Union[str, Path] = None,
         memory_size: int = 0,
         num_samples_each_label: Optional[int] = None,
-        load_set: str = 'train',
+        load_set: str = None,
 ):
     """
     Creates a CL benchmark using the pre-processed GQA dataset.
@@ -130,6 +130,7 @@ def continual_training_benchmark(
     :param load_set: train -> only pre-load train set;
         val -> only pre-load val set;
         test -> only pre-load test set.
+        default None.
 
     :returns: A properly initialized instance: `GenericCLScenario`
         with train_stream, val_stream, test_stream.
@@ -184,7 +185,7 @@ def continual_training_benchmark(
     '''get sample indices for each experiment'''
     rng = np.random.RandomState(seed)   # reset rng for memory selection
 
-    def obtain_subset(dataset, exp_idx, memory_size, transform=None):
+    def obtain_subset(dataset, exp_idx, memory_size, transform=None, load=False):
         t = dataset.targets
         exp_classes = original_classes_in_exp[exp_idx]
         indices = [np.where(np.isin(t, exp_classes))[0]]    # current exp
@@ -214,20 +215,27 @@ def continual_training_benchmark(
             class_mapping=class_mappings[exp_idx],
             task_labels=task_labels,
             transform=transform,
+            load=load,
         )
 
     train_subsets = [
-        obtain_subset(train_set, expidx, memory_size, train_transform)
+        obtain_subset(train_set, expidx, memory_size, train_transform,
+                      # load=load_set == 'train'
+                      )
         for expidx in range(n_experiences)
     ]
 
     val_subsets = [
-        obtain_subset(val_set, expidx, 0, eval_transform)
+        obtain_subset(val_set, expidx, 0, eval_transform,
+                      # load=load_set == 'val'
+                      )
         for expidx in range(n_experiences)
     ]
 
     test_subsets = [
-        obtain_subset(test_set, expidx, 0, eval_transform)
+        obtain_subset(test_set, expidx, 0, eval_transform,
+                      # load=load_set == 'test'
+                      )
         for expidx in range(n_experiences)
     ]
 
@@ -263,6 +271,7 @@ def fewshot_testing_benchmark(
         train_transform: Optional[Any] = None,
         eval_transform: Optional[Any] = None,
         dataset_root: Union[str, Path] = None,
+        load_set: str = None,
 ):
     """
     Creates a CL benchmark using the pre-processed GQA dataset.
@@ -301,6 +310,10 @@ def fewshot_testing_benchmark(
     :param dataset_root: The root path of the dataset.
         Defaults to None, which means that the default location for
         'tinyimagenet' will be used.
+    :param load_set: train -> only pre-load train set;
+        val -> only pre-load val set;
+        test -> only pre-load test set.
+        default None.
 
     :returns: A properly initialized instance: `GenericCLScenario`.
     """
@@ -313,7 +326,8 @@ def fewshot_testing_benchmark(
         eval_transform = _build_default_transform(image_size, False)
 
     '''load datasets'''
-    datasets, label_info = _get_obj365_datasets(dataset_root, mode=mode, image_size=image_size)
+    datasets, label_info = _get_obj365_datasets(dataset_root, mode=mode, image_size=image_size,
+                                                load_set=load_set)
     dataset = datasets['dataset']
     label_set, map_tuple_label_to_int, map_int_label_to_tuple = label_info
 
@@ -367,6 +381,7 @@ def fewshot_testing_benchmark(
                 class_mapping=class_mappings[exp_idx],
                 task_labels=task_labels[exp_idx],
                 transform=train_transform,
+                # load=load_set == 'train'
             )
         )
         val_subsets.append(
@@ -376,6 +391,7 @@ def fewshot_testing_benchmark(
                 class_mapping=class_mappings[exp_idx],
                 task_labels=task_labels[exp_idx],
                 transform=eval_transform,
+                # load=load_set == 'val'
             )
         )
         test_subsets.append(
@@ -385,6 +401,7 @@ def fewshot_testing_benchmark(
                 class_mapping=class_mappings[exp_idx],
                 task_labels=task_labels[exp_idx],
                 transform=eval_transform,
+                # load=load_set == 'test'
             )
         )
 
@@ -412,7 +429,7 @@ def _get_obj365_datasets(
         mode='continual',
         num_samples_each_label=None,
         label_offset=0,
-        load_set='train',
+        load_set=None,
 ):
     """
     Create GQA dataset, with given json files,
@@ -437,6 +454,7 @@ def _get_obj365_datasets(
     :param load_set: train -> only pre-load train set;
         val -> only pre-load val set;
         test -> only pre-load test set.
+        default None.
 
     :return data_sets defined by json file and label information.
     """
@@ -628,7 +646,7 @@ class PathsDataset(torch.utils.data.Dataset):
         """
         load all data and replace imgs.
         """
-        print('Load OBJ data:')
+        print('Load data in PathsDataset:')
         for index in tqdm(range(len(self.imgs))):
             impath = self.imgs[index][0]
             if self.root is not None:
@@ -687,23 +705,45 @@ class Subset(torch.utils.data.dataset.Dataset):
     """
     subset with class mapping
     """
-    def __init__(self, dataset, indices, class_mapping, task_labels, transform=None):
+    def __init__(self, dataset, indices, class_mapping, task_labels, transform=None, load=False):
         self._dataset = dataset
         self._indices = indices
         self._subset = torch.utils.data.Subset(dataset, indices)
         self._class_mapping = class_mapping
         self._task_labels = task_labels
         self._transform = transform
+        self.load = load
+
+        self.images = []
+        self.targets = []
+        if self.load:
+            # print('Load data in Subset:')
+            # for index in tqdm(range(len(self._indices))):
+            for index in range(len(self._indices)):
+                x, y = self.get_from_source(index)
+                self.images.append(x)
+                self.targets.append(y)
+            if type(self.images[0]) == torch.Tensor:
+                self.images = torch.stack(self.images)
+            else:
+                self.images = torch.from_numpy(np.stack(self.images))
+            self.targets = np.array(self.targets)
 
     def __getitem__(self, index):
+        if self.load:
+            return self.images[index], self.targets[index]
+        else:
+            return self.get_from_source(index)
+
+    def __len__(self):
+        return len(self._indices)
+
+    def get_from_source(self, index):
         x, y = self._subset[index]
         if self._transform is not None:
             x = self._transform(x)
         mapped_y = self._class_mapping[y]
         return x, mapped_y
-
-    def __len__(self):
-        return len(self._indices)
 
     def get_task_label(self, index):
         if type(self._task_labels) is int:
@@ -718,7 +758,7 @@ class Benchmark:
     def __init__(self, train_datasets, test_datasets, val_datasets):
         self.train_datasets = train_datasets
         self.test_datasets = test_datasets
-        self.val_datasts = val_datasets
+        self.val_datasets = val_datasets
 
 
 __all__ = ["continual_training_benchmark", "fewshot_testing_benchmark"]
