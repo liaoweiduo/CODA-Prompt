@@ -75,7 +75,8 @@ class CFSTDataset(data.Dataset):
             if only:
                 self.dataset = self.pool
             else:
-                coreset = self.pool.return_random_dataset(size=len(self.dataset))
+                coreset = self.pool.return_random_dataset(size=int(len(self.dataset)))
+                # coreset = self.pool
                 self.dataset = torch.utils.data.ConcatDataset([self.dataset, coreset])
 
     def update_coreset(self, coreset_size, seen):

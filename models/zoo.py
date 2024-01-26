@@ -208,75 +208,113 @@ class CodaPromptR(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(CodaPromptR, self).__init__(emb_d, n_tasks, prompt_param, key_dim=768)
 
-        self.batch_task_ids = None      # np array [bs]
+        self.verbose = False
+        # self.batch_task_ids = None      # gpu tensor [bs]
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
-        """difference: (currently nothing change)
-        batch_task_ids w.r.t. x_querry (no use currently), task_id w.r.t. current task
+        """difference:
+        Replay-based needs task_id for each sample to support selecting correct prompt
+        task_id w.r.t. x_querry, self.task_count w.r.t. current task
+        treat different task differently during training.
         """
         # debug
-        # print(f'in CodaPromptR forward: task_id={task_id}.')
+        if self.verbose:
+            print(f'in CodaPromptR forward: task_id={task_id}; '
+                  f'self.task_count={self.task_count}.')
+        self.verbose = False
 
+        if not train:
+            # for evaluation, use super()
+            return super().forward(x_querry, l, x_block, train=train, task_id=task_id)
+
+        x_querry_ = x_querry
         B, C = x_querry.shape  # [bs, 768]
+        assert (len(task_id) == B
+                ), f'B: {B}, len(task_id): {len(task_id)}'
 
         # e prompts
         e_valid = False
+        loss = 0
+        num_samples = 0
         if l in self.e_layers:
             e_valid = True
 
-            K = getattr(self, f'e_k_{l}')  # [100, 768]
-            A = getattr(self, f'e_a_{l}')  # [100, 768]
-            p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+            E_breaker = int(self.e_p_length / 2)  # 8 / 2
+            K_ = getattr(self, f'e_k_{l}')  # [100, 768]
+            A_ = getattr(self, f'e_a_{l}')  # [100, 768]
+            p_ = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+
             pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
-            s = int(self.task_count * pt)  # 10 prompts for one task
-            f = int((self.task_count + 1) * pt)
 
-            if train:
-                if self.task_count > 0:
-                    K = torch.cat((K[:s].detach().clone(),K[s:f]), dim=0)
-                    A = torch.cat((A[:s].detach().clone(),A[s:f]), dim=0)
-                    p = torch.cat((p[:s].detach().clone(),p[s:f]), dim=0)
-                else:
-                    K = K[s:f]
-                    A = A[s:f]
-                    p = p[s:f]
-            else:
-                # select all involved prompts
-                K = K[0:f]
-                A = A[0:f]
-                p = p[0:f]
+            P_ = torch.ones([B, *p_.shape[1:]]).to(p_.device)     # [bs, 8, 768]
 
-            # b = bs, d = 768, k = 100, l=8
-            # with attention and cosine sim
-            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
-            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
-            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-            n_K = nn.functional.normalize(K, dim=1)
-            q = nn.functional.normalize(a_querry, dim=2)
-            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
-            # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
-            P_ = torch.einsum('bk,kld->bld', aq_k, p)
+            # apart x_querry according to batch_task_ids
+            batch_task_ids = task_id
+            unique_task_ids = torch.unique(batch_task_ids)
+            for task in unique_task_ids:
+                mask = batch_task_ids == task
+                # # debug
+                # print(f'mask: {mask}')
+
+                x_querry = x_querry_[mask]      # mask input
+                num_samples_ = len(x_querry)
+                num_samples += num_samples_
+
+                # use all involved prompts (self.task_count) # task -> corresponding task id
+                s = int(self.task_count * pt)
+                f = int((self.task_count + 1) * pt)
+                if task < self.task_count:  # old task just use prompts but not train
+                    K = K_[0:f].detach().clone()
+                    A = A_[0:f].detach().clone()
+                    p = p_[0:f].detach().clone()
+                else:           # new task: task == self.task_count
+                    if self.task_count > 0:     # current task is not the first task
+                        K = torch.cat((K_[:s].detach().clone(),K_[s:f]), dim=0)
+                        A = torch.cat((A_[:s].detach().clone(),A_[s:f]), dim=0)
+                        p = torch.cat((p_[:s].detach().clone(),p_[s:f]), dim=0)
+                    else:           # first task
+                        K = K_[s:f]
+                        A = A_[s:f]
+                        p = p_[s:f]
+
+                # b = bs, d = 768, k = 100, l=8
+                # with attention and cosine sim
+                # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+                a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+                # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+                n_K = nn.functional.normalize(K, dim=1)
+                q = nn.functional.normalize(a_querry, dim=2)
+                aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+
+                # # debug
+                # print(f'aq_k: {aq_k}')
+
+                # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
+                P__ = torch.einsum('bk,kld->bld', aq_k, p)
+
+                # # debug
+                # print(f'P__ shape: {P__.shape}')      # [bs, 8, 768]
+
+                # move P__ to P_
+                P_[mask] = P__
+
+                # ortho penalty
+                if train and self.ortho_mu > 0:
+                    loss += ortho_penalty(K) * self.ortho_mu * num_samples_
+                    loss += ortho_penalty(A) * self.ortho_mu * num_samples_
+                    loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu * num_samples_
+
+            if train and self.ortho_mu > 0:
+                loss = loss / num_samples           # to average
 
             # select prompts
-            i = int(self.e_p_length / 2)  # 8 / 2
-            Ek = P_[:, :i, :]
-            Ev = P_[:, i:, :]
-
-            # ortho penalty
-            if train and self.ortho_mu > 0:
-                loss = ortho_penalty(K) * self.ortho_mu
-                loss += ortho_penalty(A) * self.ortho_mu
-                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
-            else:
-                loss = 0
-        else:
-            loss = 0
+            Ek = P_[:, :E_breaker, :]           # [bs, 4, 768]
+            Ev = P_[:, E_breaker:, :]           # [bs, 4, 768]
 
         # combine prompts for prefix tuning
+        p_return = None
         if e_valid:
             p_return = [Ek, Ev]
-        else:
-            p_return = None
 
         # return
         return p_return, loss, x_block
@@ -475,7 +513,6 @@ class ViTZoo(nn.Module):
             self.prompt = CodaPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'coda_r':
             self.prompt = CodaPromptR(768, prompt_param[0], prompt_param[1])
-            # do not freeze learned prompts for old tasks.
         else:
             self.prompt = None
         
@@ -483,13 +520,15 @@ class ViTZoo(nn.Module):
         self.feat = zoo_model
         
     # pen: get penultimate features    
-    def forward(self, x, pen=False, train=False):
+    def forward(self, x, task_id=None, pen=False, train=False):
+        if task_id is None:
+            task_id = self.task_id
 
         if self.prompt is not None:
             with torch.no_grad():
                 q, _ = self.feat(x)
                 q = q[:,0,:]
-            out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=self.task_id)
+            out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id)
             out = out[:,0,:]
         else:
             out, _ = self.feat(x)

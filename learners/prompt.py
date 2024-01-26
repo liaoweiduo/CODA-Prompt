@@ -145,7 +145,9 @@ class CODAPromptR(Prompt):
         return model
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
-        """Difference: forward tasks_id for a batch of samples to update_model()"""
+        """Difference:
+        forward tasks_id for a batch of samples to update_model()
+        """
 
         # try to load model
         need_train = True
@@ -161,7 +163,6 @@ class CODAPromptR(Prompt):
             self.log('Optimizer is reset!')
             self.init_optimizer()
         if need_train:
-
             # data weighting
             self.data_weighting(train_dataset)
             losses = AverageMeter()
@@ -184,6 +185,7 @@ class CODAPromptR(Prompt):
                     if self.gpu:
                         x = x.cuda()
                         y = y.cuda()
+                        task = task.cuda()
 
                     # # debug
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
@@ -228,41 +230,49 @@ class CODAPromptR(Prompt):
             return None
 
     def update_model(self, inputs, targets, tasks):
-        """Difference:
+        """Difference: # for skipping changes
         Intro tasks_id for batch of samples to support ce with heuristic
-        Change self.model.prompt.batch_task_ids to this batch of samples
-            to support awareness of task id for prompt's forward
-        Logits mask according to sample's taskid but not current taskid.
-            dim region is based on self.task_dim_list to np array.
+        # Change self.model.prompt.batch_task_ids to this batch of samples
+        #     to support awareness of task id for prompt's forward
+        Forward batch_task_idxs to model and thus DataParallel
+            will correctly locate sample with its task id.
+        # Logits mask according to sample's taskid but not current taskid.
+        #     dim region is based on self.task_dim_list to np array.
         """
         # record task ids
         # for prompt to select correct KAP
-        try:
-            self.model.module.prompt.batch_task_ids = tasks
-        except:
-            self.model.prompt.batch_task_ids = tasks
+        # abandon: if use parallel model, inputs will be distributed to different devices
+        #   but batch_task_ids will not
+        # try:
+        #     self.model.module.prompt.batch_task_ids = tasks
+        # except:
+        #     self.model.prompt.batch_task_ids = tasks
 
         if self.debug_mode:
             print(f'train batch: \ntargets:{targets} \ntasks:{tasks}')
 
         # logits
-        logits, prompt_loss = self.model(inputs, train=True)
+        logits, prompt_loss = self.model(inputs, task_id=tasks, train=True)     # replay-based need task_ids
         logits = logits[:,:self.valid_out_dim]
 
         if self.debug_mode:
+            print(f'logits: {logits}')
+
             print(f'prompt_loss: {prompt_loss}')
 
         # ce with heuristic
+        '''old version'''
         # logits[:,:self.last_valid_out_dim] = -float('inf')
-        task_dim_list = self.task_dim_list     # [[0,1,2,...,9],[10,11,...,19],...]
-        mask = torch.ones_like(logits, dtype=torch.bool)
-        filter_indices = torch.tensor(
-            [[idx, value] for idx, task in enumerate(tasks) for value in task_dim_list[task]],
-            device=logits.device
-        )
-        mask[filter_indices[:, 0], filter_indices[:, 1]] = False    # valid region to 0, thus masked_fill all 1 to -inf
-        # mask = torch.BoolTensor(mask).to(logits.device)
-        logits = logits.masked_fill(mask, value=-float('inf'))
+        '''according to sample_task_id'''
+        # task_dim_list = self.task_dim_list     # [[0,1,2,...,9],[10,11,...,19],...]
+        # mask = torch.ones_like(logits, dtype=torch.bool)
+        # filter_indices = torch.tensor(
+        #     [[idx, value] for idx, task in enumerate(tasks) for value in task_dim_list[task]],
+        #     device=logits.device
+        # )
+        # mask[filter_indices[:, 0], filter_indices[:, 1]] = False    # valid region to 0, thus masked_fill all 1 to -inf
+        # # mask = torch.BoolTensor(mask).to(logits.device)
+        # logits = logits.masked_fill(mask, value=-float('inf'))
 
         if self.debug_mode:
             print(f'masked logits: {logits}')

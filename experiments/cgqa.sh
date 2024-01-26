@@ -24,7 +24,7 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 LEARNERNAME=CODAPromptR
-LOGNAME=coda-p-r-3
+LOGNAME=coda-p-r-7
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 \
