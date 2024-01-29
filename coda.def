@@ -8,3 +8,14 @@ From: ubuntu:18.04
     apt -y install python3.8
     apt -y install python3-pip
     pip3 install torch torchvision torchaudio
+    pip3 install timm
+    pip3 install numpy
+    pip3 install argparse
+    pip3 install pyaml
+    pip3 install pillow
+    pip3 install opencv-python
+    pip3 install pymoo
+    pip3 install pandas
+    pip3 install matplotlib
+    pip3 install seaborn
+    pip3 install tqdm
