@@ -14,6 +14,9 @@ import copy
 # Our method!
 class CodaPrompt(nn.Module):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+        """Difference:
+        ortho init for prompts
+        """
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d
@@ -31,9 +34,9 @@ class CodaPrompt(nn.Module):
             # in the original paper, we used ortho init at the start - this modification is more 
             # fair in the spirit of continual learning and has little affect on performance
             e_l = self.e_p_length
-            p = tensor_prompt(self.e_pool_size, e_l, emb_d)         # [100, 8, 768]
-            k = tensor_prompt(self.e_pool_size, self.key_d)         # [100, 768]
-            a = tensor_prompt(self.e_pool_size, self.key_d)
+            p = tensor_prompt(self.e_pool_size, e_l, emb_d, ortho=True)         # [100, 8, 768]
+            k = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)         # [100, 768]
+            a = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)
             p = self.gram_schmidt(p)
             k = self.gram_schmidt(k)
             a = self.gram_schmidt(a)
@@ -208,8 +211,11 @@ class CodaPromptR(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(CodaPromptR, self).__init__(emb_d, n_tasks, prompt_param, key_dim=768)
 
-        self.verbose = False
         # self.batch_task_ids = None      # gpu tensor [bs]
+
+    def gram_schmidt(self, vv):  # 施密特正交化
+
+        return vv
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
         """difference:
@@ -217,11 +223,9 @@ class CodaPromptR(CodaPrompt):
         task_id w.r.t. x_querry, self.task_count w.r.t. current task
         treat different task differently during training.
         """
-        # debug
-        if self.verbose:
-            print(f'in CodaPromptR forward: task_id={task_id}; '
-                  f'self.task_count={self.task_count}.')
-        self.verbose = False
+        # # debug
+        # print(f'in CodaPromptR forward: task_id={task_id}; '
+        #       f'self.task_count={self.task_count}.')
 
         if not train:
             # for evaluation, use super()
@@ -268,6 +272,11 @@ class CodaPromptR(CodaPrompt):
                     A = A_[0:f].detach().clone()
                     p = p_[0:f].detach().clone()
                 else:           # new task: task == self.task_count
+                    # do not freeze old prompts
+                    # K = K_[0:f]
+                    # A = A_[0:f]
+                    # p = p_[0:f]
+                    # # or freeze old prompts
                     if self.task_count > 0:     # current task is not the first task
                         K = torch.cat((K_[:s].detach().clone(),K_[s:f]), dim=0)
                         A = torch.cat((A_[:s].detach().clone(),A_[s:f]), dim=0)

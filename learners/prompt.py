@@ -264,15 +264,15 @@ class CODAPromptR(Prompt):
         '''old version'''
         # logits[:,:self.last_valid_out_dim] = -float('inf')
         '''according to sample_task_id'''
-        # task_dim_list = self.task_dim_list     # [[0,1,2,...,9],[10,11,...,19],...]
-        # mask = torch.ones_like(logits, dtype=torch.bool)
-        # filter_indices = torch.tensor(
-        #     [[idx, value] for idx, task in enumerate(tasks) for value in task_dim_list[task]],
-        #     device=logits.device
-        # )
-        # mask[filter_indices[:, 0], filter_indices[:, 1]] = False    # valid region to 0, thus masked_fill all 1 to -inf
-        # # mask = torch.BoolTensor(mask).to(logits.device)
-        # logits = logits.masked_fill(mask, value=-float('inf'))
+        task_dim_list = self.task_dim_list     # [[0,1,2,...,9],[10,11,...,19],...]
+        mask = torch.ones_like(logits, dtype=torch.bool)
+        filter_indices = torch.tensor(
+            [[idx, value] for idx, task in enumerate(tasks) for value in task_dim_list[task]],
+            device=logits.device
+        )
+        mask[filter_indices[:, 0], filter_indices[:, 1]] = False    # valid region to 0, thus masked_fill all 1 to -inf
+        # mask = torch.BoolTensor(mask).to(logits.device)
+        logits = logits.masked_fill(mask, value=-float('inf'))
 
         if self.debug_mode:
             print(f'masked logits: {logits}')
