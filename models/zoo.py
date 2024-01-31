@@ -34,9 +34,9 @@ class CodaPrompt(nn.Module):
             # in the original paper, we used ortho init at the start - this modification is more 
             # fair in the spirit of continual learning and has little affect on performance
             e_l = self.e_p_length
-            p = tensor_prompt(self.e_pool_size, e_l, emb_d, ortho=True)         # [100, 8, 768]
-            k = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)         # [100, 768]
-            a = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)
+            p = tensor_prompt(self.e_pool_size, e_l, emb_d)         # [100, 8, 768]
+            k = tensor_prompt(self.e_pool_size, self.key_d)         # [100, 768]
+            a = tensor_prompt(self.e_pool_size, self.key_d)
             p = self.gram_schmidt(p)
             k = self.gram_schmidt(k)
             a = self.gram_schmidt(a)

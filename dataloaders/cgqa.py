@@ -24,6 +24,8 @@ from torch import Tensor
 """ README
 The original labels of classes are the sorted combination of all existing
 objects defined in json. E.g., "apple,banana".
+Download link: 
+wget 'https://portland-my.sharepoint.com/:u:/g/personal/weiduliao2-c_my_cityu_edu_hk/Ebgyfuf1X6xNldTjr0T7w2gBylzZ1RzHTyPKqjVqJl20Qw?e=oxeeHe&download=1' -O CGQA.zip
 """
 
 
