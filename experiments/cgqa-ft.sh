@@ -20,7 +20,7 @@ mkdir -p $OUTDIR
 # CODA-P-Replay
 LEARNERNAME=CODAPromptR
 LOGNAME=coda-p-r-0
-for mode in sys #pro sub non noc
+for mode in sys pro sub non noc
 do
   python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
       --learner_type prompt --learner_name ${LEARNERNAME} \
@@ -31,31 +31,31 @@ do
   date
 done
 
-#LEARNERNAME=CODAPromptR
-#LOGNAME=coda-p-r-0-nofix-1
-#for mode in sys pro sub non noc
-#do
-#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#      --learner_type prompt --learner_name ${LEARNERNAME} \
-#      --prompt_param 100 8 0.0 \
-#      --memory 0 \
-#      --log_dir ${OUTDIR}/${LOGNAME} \
-#      --mode ${mode}
-#  date
-#done
-#
-#LEARNERNAME=CODAPromptR
-#LOGNAME=coda-p-r-0-uniform
-#for mode in sys pro sub non noc
-#do
-#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#      --learner_type prompt --learner_name ${LEARNERNAME} \
-#      --prompt_param 100 8 0.0 \
-#      --memory 0 \
-#      --log_dir ${OUTDIR}/${LOGNAME} \
-#      --mode ${mode}
-#  date
-#done
+LEARNERNAME=CODAPromptR
+LOGNAME=coda-p-r-0-nofix-1
+for mode in sys pro sub non noc
+do
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+      --learner_type prompt --learner_name ${LEARNERNAME} \
+      --prompt_param 100 8 0.0 \
+      --memory 0 \
+      --log_dir ${OUTDIR}/${LOGNAME} \
+      --mode ${mode}
+  date
+done
+
+LEARNERNAME=CODAPromptR
+LOGNAME=coda-p-r-0-uniform
+for mode in sys pro sub non noc
+do
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+      --learner_type prompt --learner_name ${LEARNERNAME} \
+      --prompt_param 100 8 0.0 \
+      --memory 0 \
+      --log_dir ${OUTDIR}/${LOGNAME} \
+      --mode ${mode}
+  date
+done
 
 # CODA-P
 #
