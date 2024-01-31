@@ -18,7 +18,7 @@ OVERWRITE=0
 mkdir -p $OUTDIR
 
 # CODA-P-Replay
-LEARNERNAME=CODAPromptR
+LEARNERNAME=CODAPrompt    # use CODAPrompt but not CODAPromptR to avoid wrong taskid specification
 LOGNAME=coda-p-r-0
 for mode in sys pro sub non noc
 do
@@ -31,7 +31,7 @@ do
   date
 done
 
-LEARNERNAME=CODAPromptR
+LEARNERNAME=CODAPrompt    # use CODAPrompt but not CODAPromptR to avoid wrong taskid specification
 LOGNAME=coda-p-r-0-nofix-1
 for mode in sys pro sub non noc
 do
@@ -44,7 +44,7 @@ do
   date
 done
 
-LEARNERNAME=CODAPromptR
+LEARNERNAME=CODAPrompt    # use CODAPrompt but not CODAPromptR to avoid wrong taskid specification
 LOGNAME=coda-p-r-0-uniform
 for mode in sys pro sub non noc
 do
