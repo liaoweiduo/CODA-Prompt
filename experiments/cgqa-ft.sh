@@ -17,6 +17,28 @@ OVERWRITE=0
 # process inputs
 mkdir -p $OUTDIR
 
+
+# PMO-Prompt
+#
+# prompt parameter args:
+#    arg 1 = prompt component pool size
+#    arg 2 = prompt length
+#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
+#    arg 4 = memory size for pool (0 to not enable pool hv loss on fewshot testing)
+LEARNERNAME=PMOPrompt
+LOGNAME=pmo
+for mode in sys pro sub non noc
+do
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+      --learner_type prompt --learner_name ${LEARNERNAME} \
+      --prompt_param 100 8 0.0 0 \
+      --memory 0 \
+      --log_dir ${OUTDIR}/${LOGNAME} \
+      --mode ${mode}
+  date
+done
+
+
 # CODA-P-Replay
 LEARNERNAME=CODAPrompt    # use CODAPrompt but not CODAPromptR to avoid wrong taskid specification
 LOGNAME=coda-p-r-0

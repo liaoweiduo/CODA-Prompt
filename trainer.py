@@ -100,6 +100,8 @@ class Trainer:
         self.train_dataset = Dataset(args.dataroot, train=True, lab = True, tasks=self.tasks,
                             download_flag=True if (args.debug_mode == 0) else False, transform=train_transform,
                             seed=self.seed, rand_split=args.rand_split, validation=args.validation)
+        if args.debug_mode == 1:
+            self.train_dataset.debug_mode()     # use val datasets to avoid large train set loading
         self.test_dataset  = Dataset(args.dataroot, train=False, tasks=self.tasks,
                                 download_flag=False, transform=test_transform, 
                                 seed=self.seed, rand_split=args.rand_split, validation=args.validation)
@@ -109,29 +111,34 @@ class Trainer:
         self.add_dim = 0
 
         # Prepare the self.learner (model)
-        self.learner_config = {'num_classes': num_classes,
-                        'lr': args.lr,
-                        'debug_mode': args.debug_mode == 1,
-                        'momentum': args.momentum,
-                        'weight_decay': args.weight_decay,
-                        'schedule': args.schedule,
-                        'schedule_type': args.schedule_type,
-                        'model_type': args.model_type,
-                        'model_name': args.model_name,
-                        'optimizer': args.optimizer,
-                        'gpuid': args.gpuid,
-                        'memory': args.memory,
-                        'temp': args.temp,
-                        'out_dim': num_classes,
-                        'overwrite': args.overwrite == 1,
-                        'DW': args.DW,
-                        'batch_size': args.batch_size,
-                        'upper_bound_flag': args.upper_bound_flag,
-                        'tasks': self.tasks_logits,
-                        'top_k': self.top_k,
-                        'prompt_param':[self.num_tasks,args.prompt_param],
-                        'mode': args.mode,
-                        }
+        self.learner_config = {
+            'num_classes': num_classes,
+            'lr': args.lr,
+            'debug_mode': args.debug_mode == 1,
+            'momentum': args.momentum,
+            'weight_decay': args.weight_decay,
+            'schedule': args.schedule,
+            'schedule_type': args.schedule_type,
+            'model_type': args.model_type,
+            'model_name': args.model_name,
+            'optimizer': args.optimizer,
+            'gpuid': args.gpuid,
+            'memory': args.memory,
+            'temp': args.temp,
+            'out_dim': num_classes,
+            'overwrite': args.overwrite == 1,
+            'DW': args.DW,
+            'batch_size': args.batch_size,
+            'upper_bound_flag': args.upper_bound_flag,
+            'tasks': self.tasks_logits,
+            'top_k': self.top_k,
+            'prompt_param':[self.num_tasks,args.prompt_param],
+            'mode': args.mode,
+            'seed': self.seed,
+            # pmo settings
+            'mo_task_type': 'standard',
+            'n_obj': 2,
+        }
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
@@ -186,7 +193,8 @@ class Trainer:
             self.learner.add_valid_output_dim(self.add_dim)
 
             # load dataset with memory
-            self.train_dataset.append_coreset(only=False)
+            if self.learner_config['memory'] > 0:
+                self.train_dataset.append_coreset(only=False)
 
             # # debug
             # self.train_dataset.update_coreset(self.learner.memory_size, np.arange(self.learner.last_valid_out_dim))

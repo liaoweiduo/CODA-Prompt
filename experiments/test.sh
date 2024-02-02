@@ -21,16 +21,37 @@ mv datasets data
 # process inputs
 mkdir -p $OUTDIR
 
-# CODA-P-Replay
-#
-# prompt parameter args:
-#    arg 1 = prompt component pool size
-#    arg 2 = prompt length
-#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name CODAPromptR \
-    --prompt_param 100 8 0.0 \
-    --memory 1000 \
-    --log_dir ${OUTDIR}/debug
+    --learner_type prompt --learner_name PMOPrompt \
+    --prompt_param 100 8 0.0 2000 \
+    --log_dir ${OUTDIR}/debug \
+    --debug_mode 1
 
 rm data
+
+# for PyCharm run.py
+#--config
+#configs/cgqa_prompt.yaml
+#--gpuid
+#0
+#--repeat
+#1
+#--overwrite
+#0
+#--learner_type
+#prompt
+#--learner_name
+#PMOPrompt
+#--prompt_param
+#100
+#8
+#0.0
+#2000
+#--memory
+#0
+#--log_dir
+#../CODA-Prompt-experiments/CGQA/10-task/debug
+#--debug_mode
+#1
+#--dataroot
+#"../../../OneDrive - City University of Hong Kong - Student/datasets"

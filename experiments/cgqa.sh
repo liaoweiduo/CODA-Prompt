@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0 1'   # '0 1 2 3'
+GPUID='0'   # '0 1 2 3'
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -17,22 +17,38 @@ OVERWRITE=0
 # process inputs
 mkdir -p $OUTDIR
 
+# PMO-Prompt
+#
+# prompt parameter args:
+#    arg 1 = prompt component pool size
+#    arg 2 = prompt length
+#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
+#    arg 4 = memory size for pool
+LEARNERNAME=PMOPrompt
+LOGNAME=pmo
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name ${LEARNERNAME} \
+    --prompt_param 100 8 0.0 2000 \
+    --log_dir ${OUTDIR}/${LOGNAME}
+date
+
+
 # CODA-P-Replay
 #
 # prompt parameter args:
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-LEARNERNAME=CODAPromptR
-LOGNAME=coda-p-r-0-ortho
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 0.0 \
-    --memory 0 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
-
 #LEARNERNAME=CODAPromptR
+#LOGNAME=coda-p-r-0-ortho
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name ${LEARNERNAME} \
+#    --prompt_param 100 8 0.0 \
+#    --memory 0 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
+
+#LEARNERNAME=CODAPrompt
 #LOGNAME=coda-p-r-0-ortho
 #for mode in sys pro sub non noc
 #do

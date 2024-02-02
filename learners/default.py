@@ -30,6 +30,7 @@ class NormalNN(nn.Module):
         self.batch_size = learner_config['batch_size']
         self.tasks = learner_config['tasks']
         self.top_k = learner_config['top_k']
+        self.seed = learner_config['seed']
 
         # replay memory parameters
         self.memory_size = self.config['memory']

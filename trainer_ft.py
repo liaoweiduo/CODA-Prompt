@@ -115,6 +115,7 @@ class Trainer:
                         'top_k': self.top_k,
                         'prompt_param':[self.num_tasks,args.prompt_param],
                         'mode': args.mode,
+                        'seed': self.seed,
                         }
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)

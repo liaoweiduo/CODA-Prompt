@@ -206,6 +206,18 @@ def ortho_penalty(t):
     return ((t @t.T - torch.eye(t.shape[0]).cuda())**2).mean()
 
 
+class PmoPrompt(CodaPrompt):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+        super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
+
+        # dataset with pool
+        self.pool_size = prompt_param[3]
+        self.pool = None        # init using self.bind_pool()   to pass pool from learner: PMOPrompt
+
+    def bind_pool(self, pool):
+        self.pool = pool
+
+
 # CODA-Prompt with memory replay
 class CodaPromptR(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
@@ -522,6 +534,8 @@ class ViTZoo(nn.Module):
             self.prompt = CodaPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'coda_r':
             self.prompt = CodaPromptR(768, prompt_param[0], prompt_param[1])
+        elif self.prompt_flag == 'pmo':
+            self.prompt = PmoPrompt(768, prompt_param[0], prompt_param[1])
         else:
             self.prompt = None
         

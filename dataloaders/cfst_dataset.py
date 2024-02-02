@@ -30,18 +30,21 @@ class CFSTDataset(data.Dataset):
         self.load()
         self.num_classes = self.benchmark.n_classes
         if self.train:
-            self.target_datasets = self.benchmark.train_datasets
+            self.target_datasets = self.benchmark.train_datasets    # train_datasets; debug to use val_datasets
         elif self.validation:
             self.target_datasets = self.benchmark.val_datasets
         else:
             self.target_datasets = self.benchmark.test_datasets
 
         # Pool
-        self.pool = Pool(0, self.seed)   # memory size will change in update_coreset()
+        self.memory = Pool(0, self.seed)   # memory size will change in update_coreset()
 
         # define task
         self.dataset = None
-        self.t = -1     # task id
+        self.t = 0     # task id
+
+    def debug_mode(self):
+        self.target_datasets = self.benchmark.val_datasets
 
     def __getitem__(self, index, simple = False):
         data = self.dataset[index]
@@ -70,13 +73,41 @@ class CFSTDataset(data.Dataset):
             self.dataset = torch.utils.data.ConcatDataset([self.target_datasets[s] for s in range(t+1)])
         self.t = t
 
+    def update_pool(self, pool_size, task_id=None, pool=None):
+        if task_id is None:
+            task_id = self.t
+        if pool is None:
+            pool = self.memory
+        print(f'Update pool for task {task_id}.')
+
+        # update pool.memory_size
+        pool.memory_size = pool_size
+
+        # put images to pool
+        if len(self.target_datasets[task_id].images) > 0:    # already loaded
+            images = self.target_datasets[task_id].images
+            targets = self.target_datasets[task_id].targets
+            tasks = np.array([task_id for _ in range(len(images))])
+        else:       # load one by one
+            images, targets, tasks = [], [], []
+            for item, (img, target) in enumerate(self.target_datasets[task_id]):
+                # img: tensor, target: numpy, task: numpy or int
+                images.append(img)
+                targets.append(target)
+                tasks.append(task_id)
+            images = torch.stack(images)
+            targets = np.array(targets)
+            tasks = np.array(tasks)
+
+        pool.put(images, {'labels': targets, 'tasks': tasks})
+
     def append_coreset(self, only=False, interp=False):
-        if self.train and (len(self.pool) > 0):
+        if self.train and (len(self.memory) > 0):
             if only:
-                self.dataset = self.pool
+                self.dataset = self.memory
             else:
-                coreset = self.pool.return_random_dataset(size=int(len(self.dataset)))
-                # coreset = self.pool
+                coreset = self.memory.return_random_dataset(size=int(len(self.dataset)))
+                # coreset = self.memory
                 self.dataset = torch.utils.data.ConcatDataset([self.dataset, coreset])
 
     def update_coreset(self, coreset_size, seen):
@@ -85,26 +116,7 @@ class CFSTDataset(data.Dataset):
             print(f'Not continual mode (current {self.mode}), pass')
             return
 
-        # update pool.memory_size
-        self.pool.memory_size = coreset_size
-
-        # put images to pool
-        if len(self.target_datasets[self.t].images) > 0:    # already loaded
-            images = self.target_datasets[self.t].images
-            targets = self.target_datasets[self.t].targets
-            tasks = np.array([self.t for _ in range(len(images))])
-        else:       # load one by one
-            images, targets, tasks = [], [], []
-            for item, (img, target) in enumerate(self.target_datasets[self.t]):
-                # img: tensor, target: numpy, task: numpy or int
-                images.append(img)
-                targets.append(target)
-                tasks.append(self.t)
-            images = torch.stack(images)
-            targets = np.array(targets)
-            tasks = np.array(tasks)
-
-        self.pool.put(images, {'labels': targets, 'tasks': tasks})
+        self.update_pool(coreset_size, self.t, self.memory)
 
     def load(self):
         """need to implement,
@@ -131,7 +143,7 @@ class CGQA(CFSTDataset):
             )
         else:
             self.benchmark = cgqa.fewshot_testing_benchmark(
-                300, image_size=(224, 224), mode=self.mode, task_offset=10,
+                50, image_size=(224, 224), mode=self.mode, task_offset=10,
                 seed=self.seed,
                 train_transform=cgqa.build_transform_for_vit(is_train=True),
                 eval_transform=cgqa.build_transform_for_vit(is_train=False),
@@ -159,7 +171,7 @@ class COBJ(CFSTDataset):
             )
         else:
             self.benchmark = cobj.fewshot_testing_benchmark(
-                300, image_size=(224, 224), mode=self.mode, task_offset=3,
+                50, image_size=(224, 224), mode=self.mode, task_offset=3,
                 seed=self.seed,
                 train_transform=cobj.build_transform_for_vit(is_train=True),
                 eval_transform=cobj.build_transform_for_vit(is_train=False),

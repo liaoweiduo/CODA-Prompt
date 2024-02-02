@@ -55,6 +55,7 @@ def get_args(argv):
     args = parser.parse_args(argv)
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     config.update(vars(args))
+    # config['batch_size'] = 100    # trainer_ft -> batch_size is set to 100
     return argparse.Namespace(**config)
 
 # want to save everything printed to outfile

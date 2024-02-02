@@ -173,6 +173,16 @@ class Pool(data.Dataset):     # (nn.Module)
 
         return -1
 
+    def current_clusters(self):
+        """
+        Return clusters: (cluster_name, cluster)
+        """
+        clusters = []
+        for cluster_name, cluster in self.clusters.items():
+            clusters.append((cluster_name, cluster))
+
+        return clusters
+
     def current_classes(self):
         """
         Return current classes stored in the pool (name, num_images)
@@ -698,7 +708,8 @@ def map_re_label(re_labels):
     return correct_labels
 
 
-def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, use_max_shot=False):
+def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, use_max_shot=False,
+                      must_include_clusters=None):
     """Check whether pool has enough samples for specific task_type and return a valid setting.
     :param num_imgs_clusters: list of Numpy array with shape [num_clusters * [num_classes]]
                               indicating number of images for specific class in specific clusters.
@@ -707,6 +718,9 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
                       `5shot`: vary-way-five-shot-ten-query
     :param min_available_clusters: minimum number of available clusters to apply that setting.
     :param use_max_shot: if True, return max_shot rather than random shot
+    :param must_include_clusters: nparray of cluster idxs to be included.
+        If specified, only explore the chosen clusters.
+        Default to None
     :return a valid setting.
     """
     n_way, n_shot, n_query = -1, -1, -1
@@ -715,8 +729,15 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
 
         min_shot = 5 if task_type == '5shot' else 1
         min_way = 5
-        max_way = sorted([len(num_images[num_images >= min_shot + n_query]) for num_images in num_imgs_clusters]
-                         )[::-1][min_available_clusters - 1]
+        # must include
+        if must_include_clusters is not None:
+            max_way = min([len(num_imgs_clusters[cluster_id][num_imgs_clusters[cluster_id] >= min_shot + n_query])
+                           for cluster_id in must_include_clusters])
+        else:
+            # if not specified must_include_clusters, consider all clusters
+            max_way = sorted(
+                [len(num_images[num_images >= min_shot + n_query]) for num_images in num_imgs_clusters]
+            )[::-1][min_available_clusters - 1]
 
         if max_way < min_way:
             return -1, -1, -1   # do not satisfy the minimum requirement.
@@ -724,6 +745,7 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
         n_way = 5 if task_type == '1shot' else np.random.randint(min_way, max_way + 1)
 
         # shot depends on chosen n_way
+        # todo: include clusters in must_include_clusters
         available_shots = []
         for num_images in num_imgs_clusters:
             shots = sorted(num_images[num_images >= min_shot + n_query])[::-1][:n_way]
