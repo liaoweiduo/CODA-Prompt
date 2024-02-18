@@ -1,5 +1,4 @@
 from typing import List, Dict, Any, Optional
-from collections import OrderedDict
 import os
 import shutil
 import json
@@ -10,6 +9,8 @@ import torch
 import torch.nn.functional as F
 import torch.utils.data as data
 from pymoo.util.ref_dirs import get_reference_directions
+from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
+from pymoo.indicators.hv import HV
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -27,13 +28,13 @@ class Pool(data.Dataset):     # (nn.Module)
         """
         self.memory_size = memory_size
         self.seed = seed
-        self.clusters = OrderedDict()
+        self.clusters = []
 
     def __len__(self):      # all images
         if len(self.clusters) == 0:
             return 0
 
-        length = np.sum([len(cls['images']) for task in self.clusters.values() for cls in task])
+        length = np.sum([len(cls['images']) for task in self.clusters for cls in task])
         return length
 
     def length(self, taskid=None, classid=None):
@@ -41,11 +42,14 @@ class Pool(data.Dataset):     # (nn.Module)
         return a or a list of num_imgs according to taskid and classid
         """
         if taskid is None and classid is None:
-            return [[len(cls['images']) for cls in task] for task in self.clusters.values()]
+            return [[len(cls['images']) for cls in task] for task in self.clusters]
         if classid is None:
             return [len(cls['images']) for cls in self.clusters[taskid]]
         else:
             return len(self.clusters[taskid][classid])
+
+    def num_clusters(self):
+        return len(self.clusters)
 
     def __getitem__(self, item):
 
@@ -77,7 +81,7 @@ class Pool(data.Dataset):     # (nn.Module)
                 self.pool = _pool
                 self.pool_size = len(_pool)
                 self.size = _size
-                self.rng = np.random.RandomState(_pool.seed)
+                self.rng = np.random.RandomState(_pool.seed + 1)
                 self.items = self.rng.choice(self.pool_size, self.size)
                 # mapping of item to exact item in pool
                 # size can > pool_size
@@ -104,7 +108,7 @@ class Pool(data.Dataset):     # (nn.Module)
 
     def clear(self):
         clusters = self.clusters
-        self.clusters = OrderedDict()
+        self.clusters = []
         return clusters
 
     def put(self, images, info_dict):
@@ -117,6 +121,10 @@ class Pool(data.Dataset):     # (nn.Module)
         labels, tasks = info_dict['labels'], info_dict['tasks']
         # similarities, features = info_dict['similarities'], info_dict['features']
         for task in np.sort(np.unique(tasks, axis=0)):
+            # make up self.clusters
+            while task >= self.num_clusters():
+                self.clusters.append([])
+
             task_mask = tasks == task
             for label in np.unique(labels[task_mask], axis=0):     # unique along first axis
                 mask = (labels == label) & (tasks == task)     # same task and same label
@@ -126,29 +134,29 @@ class Pool(data.Dataset):     # (nn.Module)
 
                 '''put cls to cluster[task]'''
                 cls = {'images': class_images, 'label': label,}
-                if task in self.clusters.keys():
+                if len(self.clusters[task]) > 0:    # has classes
                     ls = np.array([c['label'] for c in self.clusters[task]])
                     c_idxs = np.where(ls == label)[0]
-                    if len(c_idxs) == 0:
+                    if len(c_idxs) == 0:    # no stored label
                         self.clusters[task].append(cls)
-                    elif len(c_idxs) == 1:
+                    elif len(c_idxs) == 1:  # already stored label
                         stored = self.clusters[task][c_idxs[0]]['images']
                         self.clusters[task][c_idxs[0]]['images'] = np.concatenate([stored, class_images])
-                    else:
-                        raise Exception(f'multiple same classes in task{task}: label{label}.')
+                    else:       # > 1
+                        raise Exception(f'Multiple same classes in task{task}: label{label}.')
 
                 else:
-                    self.clusters[task] = [cls]
+                    self.clusters[task].append(cls)
 
         '''cal num_samples_each_class for the updated clusters'''
-        num_classes = np.sum([len(task) for task in self.clusters.values()])
+        num_classes = np.sum([len(task) for task in self.clusters])
         num_samples_each_class = self.memory_size // num_classes
 
         '''balance num of samples in each class'''
         # coreset selection without affecting RNG state
         state = np.random.get_state()
         np.random.seed(self.seed)
-        for task in self.clusters.values():
+        for task in self.clusters:
             for cls in task:
                 img_len = len(cls['images'])
                 remain_len = min(num_samples_each_class, img_len)
@@ -166,7 +174,7 @@ class Pool(data.Dataset):     # (nn.Module)
                 if (cls['label'] == label).all():       # (0, str) == (0, str) ? int
                     return cluster_idx, cls_idx
         else:
-            for cluster_idx, cluster in enumerate(self.clusters.values()):
+            for cluster_idx, cluster in enumerate(self.clusters):
                 for cls_idx, cls in enumerate(cluster):
                     if (cls['label'] == label).all():       # (0, str) == (0, str) ? int
                         return cluster_idx, cls_idx
@@ -178,7 +186,7 @@ class Pool(data.Dataset):     # (nn.Module)
         Return clusters: (cluster_name, cluster)
         """
         clusters = []
-        for cluster_name, cluster in self.clusters.items():
+        for cluster_name, cluster in enumerate(self.clusters):
             clusters.append((cluster_name, cluster))
 
         return clusters
@@ -188,7 +196,7 @@ class Pool(data.Dataset):     # (nn.Module)
         Return current classes stored in the pool (name, num_images)
         """
         clses = []
-        for cluster in self.clusters.values():
+        for cluster in self.clusters:
             clses_in_cluster = []
             for cls in cluster:
                 clses_in_cluster.append((cls['label'], cls['images'].shape[0]))
@@ -207,7 +215,7 @@ class Pool(data.Dataset):     # (nn.Module)
         with labels
         """
         images = []
-        for cluster in self.clusters.values():
+        for cluster in self.clusters:
             imgs = []
             for cls in cluster:
                 imgs.append(cls['images'])      # cls['images'] shape [10, 3, 84, 84]
@@ -564,7 +572,6 @@ def cal_hv(objs, ref=2, target='loss'):
     Returns:
         hv value
     """
-    from pymoo.indicators.hv import HV
 
     num_obj, num_sol = objs.shape[0], objs.shape[1]
     if type(ref) is not list:
@@ -602,7 +609,6 @@ def cal_min_crowding_distance(objs):
     Returns:
 
     """
-    from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
     # obtain np objs: F
     if type(objs) is torch.Tensor:
         F = objs.detach().cpu().numpy().T
@@ -733,11 +739,13 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
         if must_include_clusters is not None:
             max_way = min([len(num_imgs_clusters[cluster_id][num_imgs_clusters[cluster_id] >= min_shot + n_query])
                            for cluster_id in must_include_clusters])
+            min_available_clusters = len(must_include_clusters)
         else:
             # if not specified must_include_clusters, consider all clusters
             max_way = sorted(
                 [len(num_images[num_images >= min_shot + n_query]) for num_images in num_imgs_clusters]
             )[::-1][min_available_clusters - 1]
+            must_include_clusters = np.arange(len(num_imgs_clusters))
 
         if max_way < min_way:
             return -1, -1, -1   # do not satisfy the minimum requirement.
@@ -745,9 +753,9 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
         n_way = 5 if task_type == '1shot' else np.random.randint(min_way, max_way + 1)
 
         # shot depends on chosen n_way
-        # todo: include clusters in must_include_clusters
         available_shots = []
-        for num_images in num_imgs_clusters:
+        for cluster_id in must_include_clusters:
+            num_images = num_imgs_clusters[cluster_id]
             shots = sorted(num_images[num_images >= min_shot + n_query])[::-1][:n_way]
             available_shots.append(0 if len(shots) < n_way else (shots[-1] - n_query))
         max_shot = np.min(sorted(available_shots)[::-1][:min_available_clusters])

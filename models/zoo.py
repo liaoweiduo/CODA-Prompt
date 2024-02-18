@@ -543,13 +543,16 @@ class ViTZoo(nn.Module):
         self.feat = zoo_model
         
     # pen: get penultimate features    
-    def forward(self, x, task_id=None, pen=False, train=False):
+    def forward(self, x, task_id=None, pen=False, train=False, cond_x=None):
         if task_id is None:
             task_id = self.task_id
 
         if self.prompt is not None:
             with torch.no_grad():
-                q, _ = self.feat(x)
+                if cond_x is not None:      # condition model
+                    q, _ = self.feat(cond_x)
+                else:
+                    q, _ = self.feat(x)
                 q = q[:,0,:]
             out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id)
             out = out[:,0,:]

@@ -10,13 +10,15 @@ import numpy as np
 from torch.optim import Optimizer
 import contextlib
 import os
-from .default import NormalNN, weight_reset, accumulate_acc
 import copy
 import torchvision
-from utils.schedulers import CosineSchedule
 from torch.autograd import Variable, Function
+import pandas as pd
 
-from .pmo_utils import Pool, available_setting
+from .default import NormalNN, weight_reset, accumulate_acc
+from utils.schedulers import CosineSchedule
+from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_loss
+from models.losses import prototype_loss
 
 
 class Prompt(NormalNN):
@@ -125,7 +127,20 @@ class PMOPrompt(Prompt):
         self.pool_size = self.prompt_param[1][3]        # =0 if do not enable pool hv loss
         self.pool = Pool(self.pool_size, self.seed)
 
+        self.mixer = Mixer(mode=self.config['mix_mode'],
+                      num_sources=self.config['n_mix_source'], num_mixes=self.config['n_mix'])
+
         self.train_dataset = None
+
+        self.epoch_log = dict()
+        self.init_train_log()
+
+    def init_train_log(self):
+        self.epoch_log = dict()
+        # Tag: acc/loss
+        self.epoch_log['mo_df'] = pd.DataFrame(columns=['Tag', 'Pop_id', 'Obj_id', 'Inner_id', 'Value'])
+        # 'loss/hv_loss', 'Exp', 'Logit_scale',
+        self.epoch_log['scaler_df'] = pd.DataFrame(columns=['Tag', 'Idx', 'Value'])
 
     def create_model(self):
         cfg = self.config
@@ -134,9 +149,13 @@ class PMOPrompt(Prompt):
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         """Difference:
+        Init training log for mo.
         Update_pool from dataset task.
         Cal model.(module).prompt.bind_pool
+        Save log for mo and hv et loss
         """
+        self.init_train_log()
+
         self.train_dataset = train_dataset
 
         # try to load model
@@ -235,7 +254,7 @@ class PMOPrompt(Prompt):
 
     def update_model(self, inputs, targets):
         """Difference:
-        If len(pool) > 0 (use hv loss):
+        If len(pool) > 0 (use hv loss / entanglement loss):
             sample 1 task from current task, 1 task from a selected old task, 2 mixed tasks,
             cal mo loss matrix and hv loss.
         """
@@ -255,28 +274,56 @@ class PMOPrompt(Prompt):
         dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
         total_loss = self.criterion(logits, targets.long(), dw_cls)
 
+        self.epoch_log['scaler_df'] = pd.concat([
+            self.epoch_log['scaler_df'], pd.DataFrame.from_records([{
+                'Tag': 'loss/ce_loss', 'Idx': self.epoch, 'Value': total_loss.item()}])])
+
         if self.debug_mode:
             print(f'classification loss: {total_loss} and {total_loss.grad_fn}')
 
         # ce loss
         total_loss = total_loss + prompt_loss.sum()
 
-        # hv loss
+        # hv/ent loss calculation without affecting RNG state
+        state = np.random.get_state()
+        np.random.seed(self.seed + 10086)
+
+        '''hv loss'''
         hv_loss = 0
         if self.train_dataset.t > 0:        # start from the second task
-            # hv loss calculation without affecting RNG state
-            state = np.random.get_state()
-            np.random.seed(self.seed)
-            mo_matrix = self.obtain_mo_matrix([self.train_dataset.t])
+            mo_matrix = self.obtain_mo_matrix([self.train_dataset.t])   # [2, 4]
+            if mo_matrix is not None:
+                # norm mo matrix?
+                ref = 1
+                hv_loss = cal_hv_loss(mo_matrix, ref)       # not normalized mo matrix
+                total_loss = total_loss + hv_loss
+                hv_loss = hv_loss.item()
+            else:
+                raise Exception(f'ERROR: mo_matrix is None')
 
-
-
-            np.random.set_state(state)
-
-        total_loss = total_loss + hv_loss
+        self.epoch_log['scaler_df'] = pd.concat([
+            self.epoch_log['scaler_df'], pd.DataFrame.from_records([{
+                'Tag': 'loss/hv_loss', 'Idx': self.epoch, 'Value': hv_loss}])])
 
         if self.debug_mode:
             print(f'hv loss: {hv_loss}')
+
+        '''entanglement within current task'''
+        et_loss = self.obtain_entangle_loss()
+        if et_loss is not None:
+            total_loss = total_loss + et_loss
+            et_loss = et_loss.item()
+        else:
+            raise Exception(f'ERROR: ent_loss is None')
+
+        self.epoch_log['scaler_df'] = pd.concat([
+            self.epoch_log['scaler_df'], pd.DataFrame.from_records([{
+                'Tag': 'loss/et_loss', 'Idx': self.epoch, 'Value': et_loss}])])
+
+        if self.debug_mode:
+            print(f'et loss: {et_loss}')
+
+        np.random.set_state(state)
 
         # step
         self.optimizer.zero_grad()
@@ -286,18 +333,19 @@ class PMOPrompt(Prompt):
         return total_loss.detach(), logits
 
     def obtain_mo_matrix(self, must_include_clusters=None):
-        """"""
+        """Return mo_matrix: Torch tensor [obj, pop]"""
         '''multiple mo sampling'''
         num_imgs_clusters = [np.array([cls[1] for cls in classes]) for classes in self.pool.current_classes()]
         ncc_losses_mo = dict()  # f'p{task_idx}_o{obj_idx}'
 
         if len(num_imgs_clusters) == 0:
-            return
+            return None
 
         '''choose n_obj tasks as targets'''
         if must_include_clusters is None:
-            must_include_clusters = []
-        must_include_clusters = np.sort(must_include_clusters)
+            must_include_clusters = np.array([])
+        else:
+            must_include_clusters = np.sort(must_include_clusters)
         if len(must_include_clusters) < self.config['n_obj']:
             # sample extra tasks
             num_choices = self.config['n_obj'] - len(must_include_clusters)
@@ -314,176 +362,160 @@ class PMOPrompt(Prompt):
                                                    min_available_clusters=self.config['n_obj'],
                                                    must_include_clusters=must_include_clusters)
         if n_way == -1:  # not enough samples
-            print(f"==>> pool has not enough samples. skip MO")
-            break
+            print(f"==>> ERROR: pool has not enough samples. skip MO")
+            return None
 
-        available_cluster_idxs = check_available(num_imgs_clusters, n_way, n_shot, n_query)
-
-        selected_cluster_idxs = sorted(np.random.choice(
-            available_cluster_idxs, args['train.n_obj'], replace=False))
+        # available_cluster_idxs = check_available(num_imgs_clusters, n_way, n_shot, n_query)
+        #
+        # selected_cluster_idxs = sorted(np.random.choice(
+        #     available_cluster_idxs, self.config['n_obj'], replace=False))
+        selected_cluster_idxs = must_include_clusters
 
         torch_tasks = []
         '''sample pure tasks from clusters in selected_cluster_idxs'''
         for cluster_idx in selected_cluster_idxs:
-            pure_task = pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
+            pure_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d='cuda')
             torch_tasks.append(pure_task)
 
-            numpy_sample = task_to_device(pure_task, 'numpy')
-            numpy_samples.append(numpy_sample)
-            sample_domain_names.append(f'cluster_{cluster_idx}')
+            # numpy_sample = task_to_device(pure_task, 'numpy')
+            # numpy_samples.append(numpy_sample)
 
         '''sample mix tasks by mixer'''
-        for mix_id in range(args['train.n_mix']):
-            numpy_mix_task, _ = mixer.mix(
-                task_list=[pool.episodic_sample(idx, n_way, n_shot, n_query)
+        for mix_id in range(self.config['n_mix']):
+            numpy_mix_task, _ = self.mixer.mix(
+                task_list=[self.pool.episodic_sample(idx, n_way, n_shot, n_query)
                            for idx in selected_cluster_idxs],
                 mix_id=mix_id
             )
-            torch_tasks.append(task_to_device(numpy_mix_task, device))
+            torch_tasks.append(task_to_device(numpy_mix_task, 'cuda'))
 
-            numpy_samples.append(numpy_mix_task)
-            sample_domain_names.append(f'mix_{selected_cluster_idxs}')
+            # numpy_samples.append(numpy_mix_task)
 
         '''obtain ncc loss multi-obj matrix'''
         for task_idx, task in enumerate(torch_tasks):
+            context_images = task['context_images']
+            target_images = task['target_images']
+            context_len = len(context_images)
+            target_len = len(target_images)
 
-            '''use url with pa'''
-            model = url
-            with torch.no_grad():
-                task_features = pmo.embed(
-                    torch.cat([task['context_images'], task['target_images']]))
-                context_features = model.embed(task['context_images'])
-                context_labels = task['context_labels']
+            if self.debug_mode:
+                print(f'task{task_idx} shape: context:{context_len}, target:{target_len}')
 
-            selection, selection_info = pmo.selector(
-                task_features, gumbel=False, hard=False)
-            vartheta = [torch.mm(selection, pmo.pas.detach().flatten(1)).view(512, 512, 1, 1)]
-            # detach from pas to only train clustering and not train pas
-            selected_features = apply_selection(context_features, vartheta)
-            inner_loss, _, _ = prototype_loss(
-                selected_features, context_labels, selected_features, context_labels,
-                distance=args['test.distance'])
-            inner_lr = 1
-            grad = torch.autograd.grad(inner_loss, vartheta, create_graph=True)
-            selection_params = list(map(lambda p: p[1] - inner_lr * p[0], zip(grad, vartheta)))
-            # selection_params = pa_iterator(context_features, context_labels, max_iter=max_iter, lr=inner_lr,
-            #                       distance=args['test.distance'],
-            #                       vartheta_init=[vartheta, torch.optim.Adadelta(vartheta, lr=inner_lr)],
-            #                       create_graph=True)
+            # '''do inner loop to update model.prompt '''
+            # # pen: penultimate features; train: same forward as batch training.
+            # logits, _ = self.model(torch.cat([context_images, target_images]), pen=True, train=True)
+            # context_features = logits[:context_len]
+            # target_features = logits[context_len:]
+            #
+            # inner_loss, _, _ = prototype_loss(
+            #     context_features, context_labels, context_features, context_labels,
+            #     distance=self.config['distance'])
+            #
+            # inner_lr = 1
+            # grad = torch.autograd.grad(inner_loss, vartheta, create_graph=True)
+            # selection_params = list(map(lambda p: p[1] - inner_lr * p[0], zip(grad, vartheta)))
+            # # selection_params = pa_iterator(context_features, context_labels, max_iter=max_iter, lr=inner_lr,
+            # #                       distance=self.config['distance'],
+            # #                       vartheta_init=[vartheta, torch.optim.Adadelta(vartheta, lr=inner_lr)],
+            # #                       create_graph=True)
+
             '''forward to get mo matrix'''
             for obj_idx in range(len(selected_cluster_idxs)):  # 2
                 obj_context_images = torch_tasks[obj_idx]['context_images']
                 obj_target_images = torch_tasks[obj_idx]['target_images']
                 obj_context_labels = torch_tasks[obj_idx]['context_labels']
                 obj_target_labels = torch_tasks[obj_idx]['target_labels']
+                obj_context_len = len(obj_context_images)
+                obj_target_len = len(obj_target_images)
 
-                obj_context_features = apply_selection(model.embed(obj_context_images),
-                                                       selection_params)
-                obj_target_features = apply_selection(model.embed(obj_target_images),
-                                                      selection_params)
+                # pen: penultimate features; train: same forward as batch training.
+                # cond_x: prompting for this task.
+                logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
+                                       pen=True, train=True,
+                                       cond_x=torch.cat([context_images, target_images]))
+                obj_context_features = logits[:obj_context_len]
+                obj_target_features = logits[obj_context_len:]
 
                 obj_loss, stats_dict, _ = prototype_loss(
                     obj_context_features, obj_context_labels, obj_target_features, obj_target_labels,
-                    distance=args['test.distance'])
+                    distance=self.config['distance'])
                 if f'p{task_idx}_o{obj_idx}' in ncc_losses_mo.keys():  # collect n_mo data
                     ncc_losses_mo[f'p{task_idx}_o{obj_idx}'].append(obj_loss)
                 else:
                     ncc_losses_mo[f'p{task_idx}_o{obj_idx}'] = [obj_loss]
 
-                epoch_log['mo_df'] = pd.concat([
-                    epoch_log['mo_df'], pd.DataFrame.from_records([
+                self.epoch_log['mo_df'] = pd.concat([
+                    self.epoch_log['mo_df'], pd.DataFrame.from_records([
                         {'Tag': 'loss', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': 0,
                          'Value': stats_dict['loss']},
                         {'Tag': 'acc', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': 0,
                          'Value': stats_dict['acc']}])])
 
-    def obtain_hv_loss(self, mo_matrix): # todo: put to pmo_utils.py
-        """"""
-        '''calculate HV loss for n_mo matrix'''
-        hv_loss = 0
-        if len(ncc_losses_mo) > 0:
-            ref = args['train.ref']
-            ncc_losses_multi_obj = torch.stack([torch.stack([
-                torch.mean(torch.stack(ncc_losses_mo[f'p{task_idx}_o{obj_idx}']))
-                for task_idx in range(args['train.n_obj'] + args['train.n_mix'])
-            ]) for obj_idx in range(args['train.n_obj'])])  # [2, 4]
-            hv_loss = cal_hv_loss(ncc_losses_multi_obj, ref)
-            epoch_log['scaler_df'] = pd.concat([
-                epoch_log['scaler_df'], pd.DataFrame.from_records([{
-                    'Tag': 'loss/hv_loss', 'Idx': 0, 'Value': hv_loss.item()}])])
+        ncc_losses = torch.stack([torch.stack([
+            torch.mean(torch.stack(ncc_losses_mo[f'p{task_idx}_o{obj_idx}']))
+            for task_idx in range(self.config['n_obj'] + self.config['n_mix'])
+        ]) for obj_idx in range(self.config['n_obj'])])      # [2, 4]
+
+        return ncc_losses
 
     def obtain_entangle_loss(self):
         """"""
         '''entanglement within one cluster'''
+        num_imgs_clusters = [np.array([cls[1] for cls in classes]) for classes in self.pool.current_classes()]
         ncc_losses_et = []
-        for cluster_idx, cluster in enumerate(pool.clusters):
-            if len(cluster) > 0:
-                for et_train_idx in range(args['train.n_et_cond']):
-                    '''check pool has enough samples and generate 1 setting'''
-                    n_way, n_shot, n_query = available_setting(
-                        [num_imgs_clusters[cluster_idx]], args['train.mo_task_type'])
-                    if n_way == -1:  # not enough samples
-                        print(f"==>> pool has not enough samples. skip MO")
-                        break
+        et_loss = None
 
-                    '''sample a task to condition model'''
-                    et_task = pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
+        cluster_idx = self.train_dataset.t
+        cluster = self.pool.clusters[cluster_idx]
+        if len(cluster) > 0:
+            '''check pool has enough samples and generate 1 setting'''
+            n_way, n_shot, n_query = available_setting(
+                [num_imgs_clusters[cluster_idx]], self.config['mo_task_type'])
 
-                    '''use url with pa'''
-                    model = url
-                    with torch.no_grad():
-                        task_features = pmo.embed(
-                            torch.cat([et_task['context_images'], et_task['target_images']]))
-                        context_features = model.embed(et_task['context_images'])
-                        context_labels = et_task['context_labels']
+            if n_way == -1:  # not enough samples
+                print(f"==>> ERROR: pool has not enough samples. skip MO")
+                return None
 
-                    selection, selection_info = pmo.selector(
-                        task_features, gumbel=False, hard=False)
-                    vartheta = [torch.mm(selection, pmo.pas.detach().flatten(1)).view(512, 512, 1, 1)]
-                    # detach from pas to only train clustering and not train pas
-                    selected_features = apply_selection(context_features, vartheta)
-                    inner_loss, _, _ = prototype_loss(
-                        selected_features, context_labels, selected_features, context_labels,
-                        distance=args['test.distance'])
-                    inner_lr = 1
-                    grad = torch.autograd.grad(inner_loss, vartheta, create_graph=True)
-                    selection_params = list(map(lambda p: p[1] - inner_lr * p[0], zip(grad, vartheta)))
+            '''sample a task to condition model'''
+            et_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d='cuda')
+            context_images = et_task['context_images']
+            target_images = et_task['target_images']
 
-                    '''sample train.n_et_update tasks for ncc losses'''
-                    for et_update_idx in range(args['train.n_et_update']):
-                        n_way, n_shot, n_query = available_setting(
-                            [num_imgs_clusters[cluster_idx]], args['train.mo_task_type'])
-                        up_task = pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
+            '''forward another task in the same cluster'''
+            n_way, n_shot, n_query = available_setting(
+                [num_imgs_clusters[cluster_idx]], self.config['mo_task_type'])
+            up_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d='cuda')
 
-                        obj_context_images = up_task['context_images']
-                        obj_target_images = up_task['target_images']
-                        obj_context_labels = up_task['context_labels']
-                        obj_target_labels = up_task['target_labels']
+            obj_context_images = up_task['context_images']
+            obj_target_images = up_task['target_images']
+            obj_context_labels = up_task['context_labels']
+            obj_target_labels = up_task['target_labels']
+            obj_context_len = len(obj_context_images)
+            obj_target_len = len(obj_target_images)
 
-                        obj_context_features = apply_selection(model.embed(obj_context_images),
-                                                               selection_params)
-                        obj_target_features = apply_selection(model.embed(obj_target_images),
-                                                              selection_params)
+            # pen: penultimate features; train: same forward as batch training.
+            # cond_x: prompting for this task.
+            logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
+                                   pen=True, train=True,
+                                   cond_x=torch.cat([context_images, target_images]))
+            obj_context_features = logits[:obj_context_len]
+            obj_target_features = logits[obj_context_len:]
 
-                        obj_loss, stats_dict, _ = prototype_loss(
-                            obj_context_features, obj_context_labels, obj_target_features, obj_target_labels,
-                            distance=args['test.distance'])
-                        ncc_losses_et.append(obj_loss)
-                        epoch_log['scaler_df'] = pd.concat([
-                            epoch_log['scaler_df'], pd.DataFrame.from_records([
-                                {'Tag': 'et/loss', 'Idx': 0, 'Value': stats_dict['loss']},
-                                {'Tag': 'et/acc', 'Idx': 0, 'Value': stats_dict['acc']}])])
+            obj_loss, stats_dict, _ = prototype_loss(
+                obj_context_features, obj_context_labels, obj_target_features, obj_target_labels,
+                distance=self.config['distance'])
+
+            ncc_losses_et.append(obj_loss)
+            self.epoch_log['scaler_df'] = pd.concat([
+                self.epoch_log['scaler_df'], pd.DataFrame.from_records([
+                    {'Tag': 'et/loss', 'Idx': self.epoch, 'Value': stats_dict['loss']},
+                    {'Tag': 'et/acc', 'Idx': self.epoch, 'Value': stats_dict['acc']}])])
 
         '''average ncc_losses_et'''
         if len(ncc_losses_et) > 0:
             et_loss = torch.mean(torch.stack(ncc_losses_et))
-            scaler = et_loss.item()
-        else:
-            et_loss = 0
-            scaler = 0
-        epoch_log['scaler_df'] = pd.concat([
-            epoch_log['scaler_df'], pd.DataFrame.from_records([{
-                'Tag': 'loss/et_loss', 'Idx': 0, 'Value': scaler}])])
+
+        return et_loss
 
 
 # CODA-Prompt with memory replay

@@ -9,7 +9,9 @@ from collections import OrderedDict
 import dataloaders
 from dataloaders.utils import *
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 import learners
+from debug import Debugger
 
 class Trainer:
 
@@ -138,6 +140,10 @@ class Trainer:
             # pmo settings
             'mo_task_type': 'standard',
             'n_obj': 2,
+            'n_mix': 2,
+            'mix_mode': 'cutmix',
+            'n_mix_source': 2,
+            'distance': 'cos',
         }
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
@@ -162,6 +168,8 @@ class Trainer:
         for mkey in self.metric_keys: temp_table[mkey] = []
         temp_dir = self.log_dir + '/temp/'
         if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+        writer = SummaryWriter(temp_dir)
+        debugger = Debugger(level='DEBUG')
 
         # for each task
         for i in range(self.max_task):      # for few-shot testing, if should start from an offset
@@ -236,6 +244,44 @@ class Trainer:
                 np.savetxt(save_file, np.asarray(temp_table[mkey]), delimiter=",", fmt='%.2f')  
 
             if avg_train_time is not None: avg_metrics['time']['global'][i] = avg_train_time
+
+
+            '''save epoch log'''
+            if hasattr(self.learner, 'epoch_log'):
+                epoch_log = self.learner.epoch_log
+
+                pop_labels = [
+                    f"p{idx}" if idx < self.learner_config['n_obj'] else f"m{idx - self.learner_config['n_obj']}"
+                    for idx in range(self.learner_config['n_mix'] + self.learner_config['n_obj'])
+                ]  # ['p0', 'p1', 'm0', 'm1']
+
+                # write after check if has log
+                # '''write sampled mo images'''
+                # for task_idx, task in enumerate(torch_tasks):  # only visual the last task
+                #     debugger.write_task(pmo, task, pop_labels[task_idx], i=i, writer=writer, prefix='mo-image')
+
+                # '''write pool'''
+                # debugger.write_pool(pool, i=i, writer=writer, prefix=f'pool')
+
+                '''write mo'''
+                debugger.write_mo(epoch_log['mo_df'], pop_labels, i=i, writer=writer, target='acc')
+                debugger.write_mo(epoch_log['mo_df'], pop_labels, i=i, writer=writer, target='loss')
+
+                '''write hv acc/loss'''
+                debugger.write_hv(epoch_log['mo_df'], i, ref=0, writer=writer, target='acc', norm=True)
+                debugger.write_hv(epoch_log['mo_df'], i, ref=1, writer=writer, target='loss', norm=True)
+                '''write avg_span acc/loss: E_i(max(f_i) - min(f_i))'''
+                debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
+                debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
+                '''write min crowding distance'''
+                debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
+                debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
+
+                debugger.write_scaler(epoch_log['scaler_df'], key='loss/ce_loss', i=i, writer=writer, inner=True)
+                debugger.write_scaler(epoch_log['scaler_df'], key='loss/hv_loss', i=i, writer=writer, inner=True)
+                debugger.write_scaler(epoch_log['scaler_df'], key='loss/et_loss', i=i, writer=writer, inner=True)
+                debugger.write_scaler(epoch_log['scaler_df'], key='et/loss', i=i, writer=writer, inner=True)
+                debugger.write_scaler(epoch_log['scaler_df'], key='et/acc', i=i, writer=writer, inner=True)
 
         return avg_metrics 
     
