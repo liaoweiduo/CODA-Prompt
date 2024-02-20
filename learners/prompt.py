@@ -484,8 +484,9 @@ class PMOPrompt(Prompt):
             target_images = et_task['target_images']
 
             '''forward another task in the same cluster'''
-            n_way, n_shot, n_query = available_setting(
-                [num_imgs_clusters[cluster_idx]], self.config['mo_task_type'])
+            # # new setting
+            # n_way, n_shot, n_query = available_setting(
+            #     [num_imgs_clusters[cluster_idx]], self.config['mo_task_type'])
             up_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
 
             obj_context_images = up_task['context_images']
