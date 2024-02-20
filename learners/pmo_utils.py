@@ -150,7 +150,7 @@ class Pool(data.Dataset):     # (nn.Module)
 
         '''cal num_samples_each_class for the updated clusters'''
         num_classes = np.sum([len(task) for task in self.clusters])
-        num_samples_each_class = self.memory_size // num_classes
+        num_samples_each_class = int(self.memory_size // num_classes)
 
         '''balance num of samples in each class'''
         # coreset selection without affecting RNG state
@@ -159,7 +159,7 @@ class Pool(data.Dataset):     # (nn.Module)
         for task in self.clusters:
             for cls in task:
                 img_len = len(cls['images'])
-                remain_len = min(num_samples_each_class, img_len)
+                remain_len = int(min(num_samples_each_class, img_len))
                 cls['images'] = cls['images'][np.random.choice(img_len, remain_len, replace=False)]
         np.random.set_state(state)
 
