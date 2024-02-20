@@ -815,11 +815,18 @@ def task_to_device(task, d='numpy'):
 
 if __name__ == '__main__':
 
-    pool = Pool(300, 0)
-    images = np.arange(10000).reshape(1000, 10)
-    labels = np.repeat(np.arange(100), 10)
-    tasks = np.repeat(np.arange(10), 100)
+    pool = Pool(30000, 0)
+    images = np.arange(100000).reshape(10000, 10)
+    labels = np.repeat(np.arange(100), 100)
+    tasks = np.repeat(np.arange(10), 1000)
     pool.put(images, {'labels': labels, 'tasks': tasks})
+
+    num_imgs_clusters = [np.array([cls[1] for cls in classes]) for classes in pool.current_classes()]
+    cluster_idx = 1
+    n_way, n_shot, n_query = available_setting(
+        [num_imgs_clusters[cluster_idx]], 'standard')
+    print(n_way, n_shot, n_query)
+    fs_task = pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d='cuda')
 
     # cal_hv_loss(np.array([[1,0], [0,1]]), 2)
     #

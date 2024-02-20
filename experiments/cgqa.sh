@@ -25,11 +25,12 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    arg 4 = memory size for pool
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo
+LOGNAME=pmo-debug
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 2000 \
-    --log_dir ${OUTDIR}/${LOGNAME}
+    --log_dir ${OUTDIR}/${LOGNAME} \
+    --debug_mode 1
 date
 
 

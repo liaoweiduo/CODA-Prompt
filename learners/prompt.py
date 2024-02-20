@@ -334,6 +334,7 @@ class PMOPrompt(Prompt):
 
     def obtain_mo_matrix(self, must_include_clusters=None):
         """Return mo_matrix: Torch tensor [obj, pop]"""
+        device = 'cuda' if self.gpu else 'cpu'
         '''multiple mo sampling'''
         num_imgs_clusters = [np.array([cls[1] for cls in classes]) for classes in self.pool.current_classes()]
         ncc_losses_mo = dict()  # f'p{task_idx}_o{obj_idx}'
@@ -374,7 +375,7 @@ class PMOPrompt(Prompt):
         torch_tasks = []
         '''sample pure tasks from clusters in selected_cluster_idxs'''
         for cluster_idx in selected_cluster_idxs:
-            pure_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d='cuda')
+            pure_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
             torch_tasks.append(pure_task)
 
             # numpy_sample = task_to_device(pure_task, 'numpy')
@@ -387,7 +388,7 @@ class PMOPrompt(Prompt):
                            for idx in selected_cluster_idxs],
                 mix_id=mix_id
             )
-            torch_tasks.append(task_to_device(numpy_mix_task, 'cuda'))
+            torch_tasks.append(task_to_device(numpy_mix_task, device))
 
             # numpy_samples.append(numpy_mix_task)
 
@@ -460,6 +461,7 @@ class PMOPrompt(Prompt):
 
     def obtain_entangle_loss(self):
         """"""
+        device = 'cuda' if self.gpu else 'cpu'
         '''entanglement within one cluster'''
         num_imgs_clusters = [np.array([cls[1] for cls in classes]) for classes in self.pool.current_classes()]
         ncc_losses_et = []
@@ -477,14 +479,14 @@ class PMOPrompt(Prompt):
                 return None
 
             '''sample a task to condition model'''
-            et_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d='cuda')
+            et_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
             context_images = et_task['context_images']
             target_images = et_task['target_images']
 
             '''forward another task in the same cluster'''
             n_way, n_shot, n_query = available_setting(
                 [num_imgs_clusters[cluster_idx]], self.config['mo_task_type'])
-            up_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d='cuda')
+            up_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
 
             obj_context_images = up_task['context_images']
             obj_target_images = up_task['target_images']
