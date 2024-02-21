@@ -155,7 +155,7 @@ class Pool(data.Dataset):     # (nn.Module)
         '''balance num of samples in each class'''
         # coreset selection without affecting RNG state
         state = np.random.get_state()
-        np.random.seed(self.seed)
+        # np.random.seed(self.seed)     # no need to refresh seed state
         for task in self.clusters:
             for cls in task:
                 img_len = len(cls['images'])
@@ -381,7 +381,7 @@ class Mixer:
         """
         # identify image size
         _, c, h, w = task_list[0]['context_images'].shape
-        _, fs = task_list[0]['context_features'].shape
+        # _, fs = task_list[0]['context_features'].shape
         context_size_list = [task_list[idx]['context_images'].shape[0] for idx in range(len(task_list))]
         target_size_list = [task_list[idx]['target_images'].shape[0] for idx in range(len(task_list))]
         assert np.min(context_size_list) == np.max(context_size_list)   # assert all contexts have same size
@@ -393,7 +393,7 @@ class Mixer:
         # generate num_sources masks for imgs with size [c, h, w]
         cutmix_prop = 0.3   # for (84*84), cut region is int(84*0.3)= (25*25)
         cuth, cutw = int(h * cutmix_prop), int(w * cutmix_prop)  # 84*0.3 [25, 25]
-        cutfs = int(fs * cutmix_prop)  # 84*0.3 [25, 25]
+        # cutfs = int(fs * cutmix_prop)  # 84*0.3 [25, 25]
 
         # generate lam, which is the index of img to be background. other imgs are foreground.
         # based on weight as probability.
@@ -402,24 +402,24 @@ class Mixer:
         # lam with shape [context_size+target_size,] is the decision to use which source as background.
 
         mix_imgs = []   # mix images batch
-        mix_feas = []   # mix features batch
+        # mix_feas = []   # mix features batch
         mix_labs = []   # mix relative labels batch, same [0,0,1,1,2,2,...]
         # mix_gtls = []   # mix gt labels batch, str((weighted local label, domain=-1))
         for idx in range(context_size+target_size):
             if idx < context_size:
                 set_name = 'context_images'
-                set_nafs = 'context_features'
+                # set_nafs = 'context_features'
                 lab_name = 'context_labels'
             else:
                 set_name = 'target_images'
-                set_nafs = 'target_features'
+                # set_nafs = 'target_features'
                 lab_name = 'target_labels'
             # gtl_name = 'context_gt' if img_idx < context_size else 'target_gt'
 
             img_idx = idx if idx < context_size else idx - context_size     # local img idx in context and target set.
             # mix img is first cloned with background.
             mix_img = task_list[lam[idx]][set_name][img_idx].copy()
-            mix_fea = task_list[lam[idx]][set_nafs][img_idx].copy()
+            # mix_fea = task_list[lam[idx]][set_nafs][img_idx].copy()
 
             # for other foreground, cut the specific [posihs: posihs+cuth, posiws: posiws+cutw] region to
             # mix_img's [posiht: posiht+cuth, posiwt: posiwt+cutw] region
@@ -429,15 +429,15 @@ class Mixer:
                 posiws = np.random.randint(w - cutw)
                 posiht = np.random.randint(h - cuth)
                 posiwt = np.random.randint(w - cutw)
-                posifss = np.random.randint(fs - cutfs)
-                posifst = np.random.randint(fs - cutfs)
+                # posifss = np.random.randint(fs - cutfs)
+                # posifst = np.random.randint(fs - cutfs)
 
                 fore = task_list[fore_img_idx][set_name][img_idx][:, posihs: posihs + cuth, posiws: posiws + cutw]
                 mix_img[:, posiht: posiht + cuth, posiwt: posiwt + cutw] = fore
                 mix_imgs.append(mix_img)
-                fofs = task_list[fore_img_idx][set_nafs][img_idx][posifss: posifss + cutfs]
-                mix_fea[posifst: posifst + cutfs] = fofs
-                mix_feas.append(mix_fea)
+                # fofs = task_list[fore_img_idx][set_nafs][img_idx][posifss: posifss + cutfs]
+                # mix_fea[posifst: posifst + cutfs] = fofs
+                # mix_feas.append(mix_fea)
 
             # determine mix_lab  same as the chosen img
             mix_labs.append(task_list[lam[idx]][lab_name][img_idx])
@@ -451,10 +451,10 @@ class Mixer:
         # formulate to task
         task_dict = {
             'context_images': np.stack(mix_imgs[:context_size]),   # shape [n_shot*n_way, 3, 84, 84]
-            'context_features': np.stack(mix_feas[:context_size]),       # shape [n_shot*n_way, 512]
+            # 'context_features': np.stack(mix_feas[:context_size]),       # shape [n_shot*n_way, 512]
             'context_labels': np.array(mix_labs[:context_size]),   # shape [n_shot*n_way,]
             'target_images': np.stack(mix_imgs[context_size:]),     # shape [n_query*n_way, 3, 84, 84]
-            'target_features': np.stack(mix_feas[context_size:]),         # shape [n_query*n_way, 512]
+            # 'target_features': np.stack(mix_feas[context_size:]),         # shape [n_query*n_way, 512]
             'target_labels': np.array(mix_labs[context_size:]),     # shape [n_query*n_way,]
         }
 
@@ -719,7 +719,7 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
     """Check whether pool has enough samples for specific task_type and return a valid setting.
     :param num_imgs_clusters: list of Numpy array with shape [num_clusters * [num_classes]]
                               indicating number of images for specific class in specific clusters.
-    :param task_type: `standard`: vary-way-vary-shot-ten-query
+    :param task_type: `standard`: vary-way-vary-shot-ten-query (maximum all 10)
                       `1shot`: five-way-one-shot-ten-query
                       `5shot`: vary-way-five-shot-ten-query
     :param min_available_clusters: minimum number of available clusters to apply that setting.
@@ -747,6 +747,8 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
             )[::-1][min_available_clusters - 1]
             must_include_clusters = np.arange(len(num_imgs_clusters))
 
+        max_way = int(min(10, max_way))      # too many ways cause CUDA out of memory
+
         if max_way < min_way:
             return -1, -1, -1   # do not satisfy the minimum requirement.
 
@@ -759,6 +761,8 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
             shots = sorted(num_images[num_images >= min_shot + n_query])[::-1][:n_way]
             available_shots.append(0 if len(shots) < n_way else (shots[-1] - n_query))
         max_shot = np.min(sorted(available_shots)[::-1][:min_available_clusters])
+
+        max_shot = int(min(10, max_shot))       # too many shots cause CUDA out of memory
 
         if max_shot < min_shot:
             return -1, -1, -1   # do not satisfy the minimum requirement.

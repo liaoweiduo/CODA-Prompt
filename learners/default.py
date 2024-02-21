@@ -185,8 +185,8 @@ class NormalNN(nn.Module):
             if task_in is None:
                 output = model.forward(input)[:, :self.valid_out_dim]
 
-                if self.debug_mode:
-                    print(f'batch{i}: \noutput:{output}')
+                # if self.debug_mode:
+                #     print(f'batch{i}: \noutput:{output}')
 
                 acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
             else:

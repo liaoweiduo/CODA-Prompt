@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0'   # '0 1 2 3'
+GPUID='0 1'   # '0 1 2 3'
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -25,7 +25,7 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    arg 4 = memory size for pool
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-try
+LOGNAME=pmo-try-2
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 2000 \

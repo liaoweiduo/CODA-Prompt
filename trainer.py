@@ -138,7 +138,7 @@ class Trainer:
             'mode': args.mode,
             'seed': self.seed,
             # pmo settings
-            'mo_task_type': 'standard',
+            'mo_task_type': '1shot',
             'n_obj': 2,
             'n_mix': 2,
             'mix_mode': 'cutmix',
@@ -264,24 +264,26 @@ class Trainer:
                 # debugger.write_pool(pool, i=i, writer=writer, prefix=f'pool')
 
                 '''write mo'''
-                debugger.write_mo(epoch_log['mo_df'], pop_labels, i=i, writer=writer, target='acc')
-                debugger.write_mo(epoch_log['mo_df'], pop_labels, i=i, writer=writer, target='loss')
+                if len(epoch_log['mo_df']) > 0:
+                    debugger.write_mo(epoch_log['mo_df'], pop_labels, i=i, writer=writer, target='acc')
+                    debugger.write_mo(epoch_log['mo_df'], pop_labels, i=i, writer=writer, target='loss')
 
-                '''write hv acc/loss'''
-                debugger.write_hv(epoch_log['mo_df'], i, ref=0, writer=writer, target='acc', norm=True)
-                debugger.write_hv(epoch_log['mo_df'], i, ref=1, writer=writer, target='loss', norm=True)
-                '''write avg_span acc/loss: E_i(max(f_i) - min(f_i))'''
-                debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
-                debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
-                '''write min crowding distance'''
-                debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
-                debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
+                    '''write hv acc/loss'''
+                    debugger.write_hv(epoch_log['mo_df'], i, ref=0, writer=writer, target='acc', norm=True)
+                    debugger.write_hv(epoch_log['mo_df'], i, ref=1, writer=writer, target='loss', norm=True)
+                    '''write avg_span acc/loss: E_i(max(f_i) - min(f_i))'''
+                    debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
+                    debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
+                    '''write min crowding distance'''
+                    debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
+                    debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
 
-                debugger.write_scaler(epoch_log['scaler_df'], key='loss/ce_loss', i=i, writer=writer, inner=True)
-                debugger.write_scaler(epoch_log['scaler_df'], key='loss/hv_loss', i=i, writer=writer, inner=True)
-                debugger.write_scaler(epoch_log['scaler_df'], key='loss/et_loss', i=i, writer=writer, inner=True)
-                debugger.write_scaler(epoch_log['scaler_df'], key='et/loss', i=i, writer=writer, inner=True)
-                debugger.write_scaler(epoch_log['scaler_df'], key='et/acc', i=i, writer=writer, inner=True)
+                if len(epoch_log['scaler_df']) > 0:     # perform training
+                    debugger.write_scaler(epoch_log['scaler_df'], key='loss/ce_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler_df'], key='loss/hv_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler_df'], key='loss/et_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler_df'], key='et/loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler_df'], key='et/acc', i=i, writer=writer, inner=True)
 
         return avg_metrics 
     

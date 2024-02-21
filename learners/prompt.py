@@ -171,16 +171,17 @@ class PMOPrompt(Prompt):
         if self.reset_optimizer:  # Reset optimizer before learning each task
             self.log('Optimizer is reset!')
             self.init_optimizer()
-        if need_train:
-            # update pool
-            if self.pool_size > 0:
-                train_dataset.update_pool(self.pool_size, train_dataset.t, self.pool)
-                # flash pool to prompt, if prompt needs it.
-                try:
-                    self.model.module.prompt.bind_pool(self.pool)
-                except:
-                    self.model.prompt.bind_pool(self.pool)
 
+        # update pool
+        if self.pool_size > 0:      # to support continual training.
+            train_dataset.update_pool(self.pool_size, train_dataset.t, self.pool)
+            # flash pool to prompt, if prompt needs it.
+            try:
+                self.model.module.prompt.bind_pool(self.pool)
+            except:
+                self.model.prompt.bind_pool(self.pool)
+
+        if need_train:
             if self.debug_mode:
                 print(f'Pool shape: {len(self.pool.length())}.')
 
@@ -264,8 +265,7 @@ class PMOPrompt(Prompt):
         logits = logits[:,:self.valid_out_dim]
 
         if self.debug_mode:
-            print(f'logits: {logits}')
-
+            # print(f'logits: {logits}')
             print(f'prompt_loss: {prompt_loss}')
 
         # ce with heuristic
@@ -286,12 +286,16 @@ class PMOPrompt(Prompt):
 
         # hv/ent loss calculation without affecting RNG state
         state = np.random.get_state()
-        np.random.seed(self.seed + 10086)
+        # np.random.seed(self.seed + 10086)     # no need to refresh seed state
 
         '''hv loss'''
         hv_loss = 0
         if self.train_dataset.t > 0:        # start from the second task
             mo_matrix = self.obtain_mo_matrix([self.train_dataset.t])   # [2, 4]
+
+            if self.debug_mode:
+                print(f'mo_matrix: {mo_matrix}')
+
             if mo_matrix is not None:
                 # norm mo matrix?
                 ref = 1
@@ -663,7 +667,6 @@ class CODAPromptR(Prompt):
 
         if self.debug_mode:
             print(f'logits: {logits}')
-
             print(f'prompt_loss: {prompt_loss}')
 
         # ce with heuristic

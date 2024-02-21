@@ -37,12 +37,12 @@ def compute_domination_properties(mo_obj_val):
     '''
     n_mo_sol = mo_obj_val.shape[1]
     # mo_sol i stricly dominates j (all entries in i  < j ) if strong_domination_matrix[i,j] = True
-    strong_domination_matrix = np.zeros((n_mo_sol,n_mo_sol), dtype = np.bool)
+    strong_domination_matrix = np.zeros((n_mo_sol,n_mo_sol), dtype = bool)
     for i in range(0,n_mo_sol):
         cur_col = mo_obj_val[:,i][:,None]
         strong_domination_matrix[i,:] = np.all(cur_col < mo_obj_val,axis = 0)
     # mo_sol i weakly dominates j (all entries in i  <= j and at least one entry i < j ) if weak_domination_matrix[i,j] = True
-    weak_domination_matrix = np.zeros((n_mo_sol,n_mo_sol), dtype = np.bool)
+    weak_domination_matrix = np.zeros((n_mo_sol,n_mo_sol), dtype = bool)
     for i in range(0,n_mo_sol):
         cur_col = mo_obj_val[:,i][:,None]
         weak_domination_matrix[i,:] = np.logical_and( np.all(cur_col <= mo_obj_val,axis = 0) , np.any(cur_col < mo_obj_val,axis = 0) )
@@ -57,7 +57,7 @@ def compute_domination_properties(mo_obj_val):
     is_not_weakly_dominated = np.logical_not(is_weakly_dominated)
 
     # mo_sol i shares coordinate with j if at least 1 entry i = j
-    coordinate_sharing_matrix = np.zeros((n_mo_sol,n_mo_sol), dtype = np.bool)
+    coordinate_sharing_matrix = np.zeros((n_mo_sol,n_mo_sol), dtype = bool)
     for i in range(0,n_mo_sol):
         cur_col = mo_obj_val[:,i][:,None]
         coordinate_sharing_matrix[i,:] = np.any(cur_col == mo_obj_val,axis = 0)
