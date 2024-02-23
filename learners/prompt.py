@@ -181,10 +181,10 @@ class PMOPrompt(Prompt):
             except:
                 self.model.prompt.bind_pool(self.pool)
 
-        if need_train:
             if self.debug_mode:
-                print(f'Pool shape: {len(self.pool.length())}.')
+                print(f'Pool shape: {self.pool.length()}.')
 
+        if need_train:
             # data weighting
             self.data_weighting(train_dataset)
             losses = AverageMeter()
@@ -199,6 +199,7 @@ class PMOPrompt(Prompt):
                     self.log('LR:', param_group['lr'])
                 batch_timer.tic()
                 for i, (x, y, task) in enumerate(train_loader):
+                    self.batch_idx = i
 
                     # verify in train mode
                     self.model.train()
@@ -286,7 +287,7 @@ class PMOPrompt(Prompt):
 
         # hv/ent loss calculation without affecting RNG state
         state = np.random.get_state()
-        # np.random.seed(self.seed + 10086)     # no need to refresh seed state
+        np.random.seed(self.seed + self.epoch + self.batch_idx)
 
         '''hv loss'''
         hv_loss = 0
@@ -400,29 +401,16 @@ class PMOPrompt(Prompt):
         for task_idx, task in enumerate(torch_tasks):
             context_images = task['context_images']
             target_images = task['target_images']
+            context_labels = task['context_labels']
+            target_labels = task['target_labels']
             context_len = len(context_images)
             target_len = len(target_images)
 
             if self.debug_mode:
                 print(f'task{task_idx} shape: context:{context_len}, target:{target_len}')
 
-            # '''do inner loop to update model.prompt '''
-            # # pen: penultimate features; train: same forward as batch training.
-            # logits, _ = self.model(torch.cat([context_images, target_images]), pen=True, train=True)
-            # context_features = logits[:context_len]
-            # target_features = logits[context_len:]
-            #
-            # inner_loss, _, _ = prototype_loss(
-            #     context_features, context_labels, context_features, context_labels,
-            #     distance=self.config['distance'])
-            #
-            # inner_lr = 1
-            # grad = torch.autograd.grad(inner_loss, vartheta, create_graph=True)
-            # selection_params = list(map(lambda p: p[1] - inner_lr * p[0], zip(grad, vartheta)))
-            # # selection_params = pa_iterator(context_features, context_labels, max_iter=max_iter, lr=inner_lr,
-            # #                       distance=self.config['distance'],
-            # #                       vartheta_init=[vartheta, torch.optim.Adadelta(vartheta, lr=inner_lr)],
-            # #                       create_graph=True)
+            prompt_weights = self.inner_update(torch.cat([context_images, target_images]),
+                                               torch.cat([context_labels, target_labels]))
 
             '''forward to get mo matrix'''
             for obj_idx in range(len(selected_cluster_idxs)):  # 2
@@ -431,13 +419,15 @@ class PMOPrompt(Prompt):
                 obj_context_labels = torch_tasks[obj_idx]['context_labels']
                 obj_target_labels = torch_tasks[obj_idx]['target_labels']
                 obj_context_len = len(obj_context_images)
-                obj_target_len = len(obj_target_images)
 
                 # pen: penultimate features; train: same forward as batch training.
                 # cond_x: prompting for this task.
+
                 logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
                                        pen=True, train=True,
-                                       cond_x=torch.cat([context_images, target_images]))
+                                       # cond_x=torch.cat([context_images, target_images]),
+                                       fast_weights=True,
+                                       )
                 obj_context_features = logits[:obj_context_len]
                 obj_target_features = logits[obj_context_len:]
 
@@ -451,9 +441,9 @@ class PMOPrompt(Prompt):
 
                 self.epoch_log['mo_df'] = pd.concat([
                     self.epoch_log['mo_df'], pd.DataFrame.from_records([
-                        {'Tag': 'loss', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': 0,
+                        {'Tag': 'loss', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': self.epoch,
                          'Value': stats_dict['loss']},
-                        {'Tag': 'acc', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': 0,
+                        {'Tag': 'acc', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': self.epoch,
                          'Value': stats_dict['acc']}])])
 
         ncc_losses = torch.stack([torch.stack([
@@ -486,6 +476,14 @@ class PMOPrompt(Prompt):
             et_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
             context_images = et_task['context_images']
             target_images = et_task['target_images']
+            context_labels = et_task['context_labels']
+            target_labels = et_task['target_labels']
+
+            if self.debug_mode:
+                print(f'et_task: context_images: {context_images.shape}')
+
+            prompt_weights = self.inner_update(torch.cat([context_images, target_images]),
+                                               torch.cat([context_labels, target_labels]))
 
             '''forward another task in the same cluster'''
             # # new setting
@@ -498,13 +496,14 @@ class PMOPrompt(Prompt):
             obj_context_labels = up_task['context_labels']
             obj_target_labels = up_task['target_labels']
             obj_context_len = len(obj_context_images)
-            obj_target_len = len(obj_target_images)
 
             # pen: penultimate features; train: same forward as batch training.
             # cond_x: prompting for this task.
             logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
                                    pen=True, train=True,
-                                   cond_x=torch.cat([context_images, target_images]))
+                                   # cond_x=torch.cat([context_images, target_images]),
+                                   fast_weights=True,
+                                   )
             obj_context_features = logits[:obj_context_len]
             obj_target_features = logits[obj_context_len:]
 
@@ -523,6 +522,46 @@ class PMOPrompt(Prompt):
             et_loss = torch.mean(torch.stack(ncc_losses_et))
 
         return et_loss
+
+    def inner_update(self, context_images, context_labels, inner_step=1, inner_lr=1):
+        """do inner loop to update a clone of model.prompt and put weights to prompt.updated_weights"""
+        # pen: penultimate features; train: same forward as batch training.
+        try:
+            prompt = self.model.module.prompt
+        except:
+            prompt = self.model.prompt
+
+        updated_weights = dict(prompt.named_parameters())
+        # clone params
+        for key, param in updated_weights.items():
+            updated_weights[key] = param.clone()     # inner update to not affect model.prompt value
+
+        # put updated_weights on prompt to support forwarding
+        prompt.updated_weights = updated_weights
+
+        for inner_idx in range(inner_step):
+            context_features, _ = self.model(context_images, pen=True, train=True,
+                                             fast_weights=True)
+
+            inner_loss, _, _ = prototype_loss(
+                context_features, context_labels, context_features, context_labels,
+                distance=self.config['distance'])
+
+            # align weights' key and param
+            prompt_weights_keys = []
+            prompt_weights_params = []
+            for key, param in updated_weights.items():
+                prompt_weights_keys.append(key)
+                prompt_weights_params.append(param)
+
+            grad = torch.autograd.grad(inner_loss, prompt_weights_params, create_graph=True)
+            updated_weights = dict(map(lambda p: (p[2], p[1] - inner_lr * p[0]),
+                                       zip(grad, prompt_weights_params, prompt_weights_keys)))
+
+            # put updated_weights on prompt to support forwarding
+            prompt.updated_weights = updated_weights
+
+        return updated_weights
 
 
 # CODA-Prompt with memory replay

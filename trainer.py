@@ -245,7 +245,6 @@ class Trainer:
 
             if avg_train_time is not None: avg_metrics['time']['global'][i] = avg_train_time
 
-
             '''save epoch log'''
             if hasattr(self.learner, 'epoch_log'):
                 epoch_log = self.learner.epoch_log
@@ -269,14 +268,14 @@ class Trainer:
                     debugger.write_mo(epoch_log['mo_df'], pop_labels, i=i, writer=writer, target='loss')
 
                     '''write hv acc/loss'''
-                    debugger.write_hv(epoch_log['mo_df'], i, ref=0, writer=writer, target='acc', norm=True)
-                    debugger.write_hv(epoch_log['mo_df'], i, ref=1, writer=writer, target='loss', norm=True)
+                    debugger.write_hv(epoch_log['mo_df'], i, ref=0, writer=writer, target='acc', norm=False)
+                    debugger.write_hv(epoch_log['mo_df'], i, ref=1, writer=writer, target='loss', norm=False)
                     '''write avg_span acc/loss: E_i(max(f_i) - min(f_i))'''
-                    debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
-                    debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
+                    debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='acc', norm=False)
+                    debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='loss', norm=False)
                     '''write min crowding distance'''
-                    debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='acc', norm=True)
-                    debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='loss', norm=True)
+                    debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='acc', norm=False)
+                    debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='loss', norm=False)
 
                 if len(epoch_log['scaler_df']) > 0:     # perform training
                     debugger.write_scaler(epoch_log['scaler_df'], key='loss/ce_loss', i=i, writer=writer, inner=True)
@@ -284,6 +283,9 @@ class Trainer:
                     debugger.write_scaler(epoch_log['scaler_df'], key='loss/et_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler_df'], key='et/loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler_df'], key='et/acc', i=i, writer=writer, inner=True)
+
+        '''Close the writers'''
+        writer.close()
 
         return avg_metrics 
     

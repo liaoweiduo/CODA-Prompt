@@ -214,8 +214,92 @@ class PmoPrompt(CodaPrompt):
         self.pool_size = prompt_param[3]
         self.pool = None        # init using self.bind_pool()   to pass pool from learner: PMOPrompt
 
+        self.updated_weights = None     # temp for inner update
+
     def bind_pool(self, pool):
         self.pool = pool
+
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, fast_weights=False):
+        """Differences:
+            Add fast_weights to support inner update.
+            Do not freeze old prompts
+        """
+        # e prompts
+        e_valid = False
+        if l in self.e_layers:
+            e_valid = True
+            B, C = x_querry.shape  # [bs, 768]
+
+            if self.updated_weights is not None and fast_weights:
+                # put to the same device to support computation
+                # print(f"{self.updated_weights[f'e_k_{l}'].shape}, {self.updated_weights[f'e_k_{l}'].device}")
+                device = getattr(self, f'e_k_{l}').device
+                K = self.updated_weights[f'e_k_{l}'].to(device)
+                A = self.updated_weights[f'e_a_{l}'].to(device)
+                p = self.updated_weights[f'e_p_{l}'].to(device)
+            else:
+                K = getattr(self, f'e_k_{l}')  # [100, 768]
+                A = getattr(self, f'e_a_{l}')  # [100, 768]
+                p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+
+            pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+            s = int(self.task_count * pt)  # 10 prompts for one task
+            f = int((self.task_count + 1) * pt)
+
+            # # freeze/control past tasks
+            # if train:
+            #     if self.task_count > 0:
+            #         K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
+            #         A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
+            #         p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
+            #     else:
+            #         K = K[s:f]
+            #         A = A[s:f]
+            #         p = p[s:f]
+            # else:
+            #     K = K[0:f]
+            #     A = A[0:f]
+            #     p = p[0:f]
+
+            # do not freeze old prompts
+            K = K[0:f]
+            A = A[0:f]
+            p = p[0:f]
+
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+            # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
+            P_ = torch.einsum('bk,kld->bld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :i, :]
+            Ev = P_[:, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        # return
+        return p_return, loss, x_block
 
 
 # CODA-Prompt with memory replay
@@ -225,9 +309,9 @@ class CodaPromptR(CodaPrompt):
 
         # self.batch_task_ids = None      # gpu tensor [bs]
 
-    def gram_schmidt(self, vv):  # 施密特正交化
-
-        return vv
+    # def gram_schmidt(self, vv):  # 施密特正交化
+    #
+    #     return vv
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
         """difference:
@@ -547,7 +631,7 @@ class ViTZoo(nn.Module):
             param.requires_grad = False
         
     # pen: get penultimate features    
-    def forward(self, x, task_id=None, pen=False, train=False, cond_x=None):
+    def forward(self, x, task_id=None, pen=False, train=False, cond_x=None, fast_weights=False):
         if task_id is None:
             task_id = self.task_id
 
@@ -558,7 +642,8 @@ class ViTZoo(nn.Module):
                 else:
                     q, _ = self.feat(x)
                 q = q[:,0,:]
-            out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id)
+            out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id,
+                                         fast_weights=fast_weights)
             out = out[:,0,:]
         else:
             out, _ = self.feat(x)

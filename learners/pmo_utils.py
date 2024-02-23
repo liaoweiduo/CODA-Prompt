@@ -155,7 +155,7 @@ class Pool(data.Dataset):     # (nn.Module)
         '''balance num of samples in each class'''
         # coreset selection without affecting RNG state
         state = np.random.get_state()
-        # np.random.seed(self.seed)     # no need to refresh seed state
+        np.random.seed(self.seed)     #
         for task in self.clusters:
             for cls in task:
                 img_len = len(cls['images'])

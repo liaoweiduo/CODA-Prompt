@@ -3,6 +3,7 @@
 #SBATCH --output output/job.%j.out
 #SBATCH -p v100
 #SBATCH --qos=v100
+#SBATCH -w a100gpu003
 #SBATCH -J lwd
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
