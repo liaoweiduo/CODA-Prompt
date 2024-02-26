@@ -138,7 +138,7 @@ class Trainer:
             'mode': args.mode,
             'seed': self.seed,
             # pmo settings
-            'mo_task_type': '1shot',
+            'mo_task_type': '2shot',
             'n_obj': 2,
             'n_mix': 2,
             'mix_mode': 'cutmix',

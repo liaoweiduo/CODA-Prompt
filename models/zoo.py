@@ -389,7 +389,8 @@ class CodaPromptR(CodaPrompt):
                 # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
                 n_K = nn.functional.normalize(K, dim=1)
                 q = nn.functional.normalize(a_querry, dim=2)
-                aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+                aq_k = torch.einsum('bkd,kd->bk', q, n_K)
+                # aq_k is alpha (cosine similarity) [bs, 100]
 
                 # # debug
                 # print(f'aq_k: {aq_k}')
@@ -427,7 +428,8 @@ class CodaPromptR(CodaPrompt):
 
 # @article{wang2022dualprompt,
 #   title={DualPrompt: Complementary Prompting for Rehearsal-free Continual Learning},
-#   author={Wang, Zifeng and Zhang, Zizhao and Ebrahimi, Sayna and Sun, Ruoxi and Zhang, Han and Lee, Chen-Yu and Ren, Xiaoqi and Su, Guolong and Perot, Vincent and Dy, Jennifer and others},
+#   author={Wang, Zifeng and Zhang, Zizhao and Ebrahimi, Sayna and Sun, Ruoxi and Zhang, Han and Lee,
+#       Chen-Yu and Ren, Xiaoqi and Su, Guolong and Perot, Vincent and Dy, Jennifer and others},
 #   journal={European Conference on Computer Vision},
 #   year={2022}
 # }
@@ -501,7 +503,8 @@ class DualPrompt(nn.Module):
                 P_ = p[k_idx]
                 
             # select prompts
-            if train and self.task_id_bootstrap and task_id < self.n_tasks:        # for continual training tasks
+            if train and self.task_id_bootstrap and task_id < self.n_tasks:
+                # for continual training tasks
                 i = int(self.e_p_length/2)
                 Ek = P_[:,:i,:].reshape((B,-1,self.emb_d))
                 Ev = P_[:,i:,:].reshape((B,-1,self.emb_d))
@@ -542,7 +545,8 @@ class DualPrompt(nn.Module):
 
 # @inproceedings{wang2022learning,
 #   title={Learning to prompt for continual learning},
-#   author={Wang, Zifeng and Zhang, Zizhao and Lee, Chen-Yu and Zhang, Han and Sun, Ruoxi and Ren, Xiaoqi and Su, Guolong and Perot, Vincent and Dy, Jennifer and Pfister, Tomas},
+#   author={Wang, Zifeng and Zhang, Zizhao and Lee, Chen-Yu and Zhang, Han and Sun, Ruoxi
+#       and Ren, Xiaoqi and Su, Guolong and Perot, Vincent and Dy, Jennifer and Pfister, Tomas},
 #   booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
 #   pages={139--149},
 #   year={2022}

@@ -721,6 +721,7 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
                               indicating number of images for specific class in specific clusters.
     :param task_type: `standard`: vary-way-vary-shot-ten-query (maximum all 10)
                       `1shot`: five-way-one-shot-ten-query
+                      `2shot`: five-way-two-shot-two-query
                       `5shot`: vary-way-five-shot-ten-query
     :param min_available_clusters: minimum number of available clusters to apply that setting.
     :param use_max_shot: if True, return max_shot rather than random shot
@@ -731,7 +732,7 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
     """
     n_way, n_shot, n_query = -1, -1, -1
     for _ in range(10):     # try 10 times, if still not available setting, return -1
-        n_query = 10
+        n_query = 2 if task_type == '2shot' else 10
 
         min_shot = 5 if task_type == '5shot' else 1
         min_way = 5
@@ -752,7 +753,7 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
         if max_way < min_way:
             return -1, -1, -1   # do not satisfy the minimum requirement.
 
-        n_way = 5 if task_type == '1shot' else np.random.randint(min_way, max_way + 1)
+        n_way = 5 if task_type in ['1shot', '2shot'] else np.random.randint(min_way, max_way + 1)
 
         # shot depends on chosen n_way
         available_shots = []
@@ -767,8 +768,11 @@ def available_setting(num_imgs_clusters, task_type, min_available_clusters=1, us
         if max_shot < min_shot:
             return -1, -1, -1   # do not satisfy the minimum requirement.
 
-        n_shot = 1 if task_type == '1shot' else 5 if task_type == '5shot' else max_shot if (
-            use_max_shot) else np.random.randint(min_shot, max_shot + 1)
+        n_shot = 1 if (task_type == '1shot'
+                       ) else 2 if (task_type == '2shot'
+                                    ) else 5 if (task_type == '5shot'
+                                                 ) else max_shot if (use_max_shot
+                                                                     ) else np.random.randint(min_shot, max_shot + 1)
 
         available_cluster_idxs = check_available(num_imgs_clusters, n_way, n_shot, n_query)
 

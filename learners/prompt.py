@@ -335,6 +335,9 @@ class PMOPrompt(Prompt):
         total_loss.backward()
         self.optimizer.step()
 
+        # release fast weights after update
+        self.release_temp_weights()
+
         return total_loss.detach(), logits
 
     def obtain_mo_matrix(self, must_include_clusters=None):
@@ -562,6 +565,14 @@ class PMOPrompt(Prompt):
             prompt.updated_weights = updated_weights
 
         return updated_weights
+
+    def release_temp_weights(self):
+        try:
+            prompt = self.model.module.prompt
+        except:
+            prompt = self.model.prompt
+
+        prompt.updated_weights = None
 
 
 # CODA-Prompt with memory replay
