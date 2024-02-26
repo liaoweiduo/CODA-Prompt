@@ -367,17 +367,14 @@ class PMOPrompt(Prompt):
             print(f'must_include_clusters: {must_include_clusters}')
 
         '''choose fewshot setting for selected tasks'''
-        n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
-                                                   min_available_clusters=self.config['n_obj'],
-                                                   must_include_clusters=must_include_clusters)
-        if n_way == -1:  # not enough samples
-            print(f"==>> ERROR: pool has not enough samples. skip MO")
-            return None
+        n_way, n_shot, n_query = 5, 3, 5
+        # n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
+        #                                            min_available_clusters=self.config['n_obj'],
+        #                                            must_include_clusters=must_include_clusters)
+        # if n_way == -1:  # not enough samples
+        #     print(f"==>> ERROR: pool has not enough samples. skip MO")
+        #     return None
 
-        # available_cluster_idxs = check_available(num_imgs_clusters, n_way, n_shot, n_query)
-        #
-        # selected_cluster_idxs = sorted(np.random.choice(
-        #     available_cluster_idxs, self.config['n_obj'], replace=False))
         selected_cluster_idxs = must_include_clusters
 
         torch_tasks = []
@@ -400,6 +397,18 @@ class PMOPrompt(Prompt):
 
             # numpy_samples.append(numpy_mix_task)
 
+        '''sample obj tasks from clusters in selected_cluster_idxs'''
+        n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
+                                                   min_available_clusters=self.config['n_obj'],
+                                                   must_include_clusters=must_include_clusters)
+        if n_way == -1:  # not enough samples
+            print(f"==>> ERROR: pool has not enough samples. skip MO")
+            return None
+        obj_torch_tasks = []
+        for cluster_idx in selected_cluster_idxs:
+            pure_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)
+            obj_torch_tasks.append(pure_task)
+
         '''obtain ncc loss multi-obj matrix'''
         for task_idx, task in enumerate(torch_tasks):
             context_images = task['context_images']
@@ -417,10 +426,14 @@ class PMOPrompt(Prompt):
 
             '''forward to get mo matrix'''
             for obj_idx in range(len(selected_cluster_idxs)):  # 2
-                obj_context_images = torch_tasks[obj_idx]['context_images']
-                obj_target_images = torch_tasks[obj_idx]['target_images']
-                obj_context_labels = torch_tasks[obj_idx]['context_labels']
-                obj_target_labels = torch_tasks[obj_idx]['target_labels']
+                obj_context_images = obj_torch_tasks[obj_idx]['context_images']
+                obj_target_images = obj_torch_tasks[obj_idx]['target_images']
+                obj_context_labels = obj_torch_tasks[obj_idx]['context_labels']
+                obj_target_labels = obj_torch_tasks[obj_idx]['target_labels']
+                # obj_context_images = torch_tasks[obj_idx]['context_images']
+                # obj_target_images = torch_tasks[obj_idx]['target_images']
+                # obj_context_labels = torch_tasks[obj_idx]['context_labels']
+                # obj_target_labels = torch_tasks[obj_idx]['target_labels']
                 obj_context_len = len(obj_context_images)
 
                 # pen: penultimate features; train: same forward as batch training.

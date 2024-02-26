@@ -380,7 +380,13 @@ class Debugger:
             figure = draw_objs(objs, pop_labels)
             # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
             #                   figure, i + 1)
-            writer.add_figure(f"{prefix}/objs_{target}", figure, i + 1)
+            writer.add_figure(f"{prefix}/{target}_objs", figure, i + 1)
+
+            '''log last objs figure'''
+            figure = draw_objs(objs[-1], pop_labels)
+            # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
+            #                   figure, i + 1)
+            writer.add_figure(f"{prefix}/{target}_objs_last", figure, i + 1)
 
     def write_task(self, pmo, task: dict, task_title, i, writer: Optional[SummaryWriter] = None, prefix='task'):
         """
