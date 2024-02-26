@@ -519,7 +519,7 @@ def prototype_similarity(embeddings, labels, centers, distance='cos'):
     return logits, class_centroids
 
 
-def cal_hv_loss(objs, ref=2):
+def cal_hv_loss(objs, ref=None):
     """
     HV loss calculation: weighted loss
     code function from HV maximization:
@@ -535,10 +535,11 @@ def cal_hv_loss(objs, ref=2):
     from mo_optimizers import hv_maximization
 
     num_obj, num_sol = objs.shape[0], objs.shape[1]
-    ref_np = np.array([ref for _ in range(num_obj)])
+    if ref is not None:
+        ref = np.array([ref for _ in range(num_obj)])
 
     # obtain weights for the points in this front
-    mo_opt = hv_maximization.HvMaximization(num_sol, num_obj, ref_np)
+    mo_opt = hv_maximization.HvMaximization(num_sol, num_obj, ref)
 
     # obtain np objs
     if type(objs) is torch.Tensor:

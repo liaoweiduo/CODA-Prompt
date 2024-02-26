@@ -13,6 +13,7 @@ import json
 from PIL import Image
 from timm.data import create_transform
 from tqdm import tqdm
+from datetime import datetime
 
 import numpy as np
 from torchvision import transforms
@@ -652,7 +653,7 @@ class PathsDataset(torch.utils.data.Dataset):
         """
         load all data and replace imgs.
         """
-        print('Load data in PathsDataset:')
+        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] Load data in PathsDataset.')
         for index in tqdm(range(len(self.imgs))):
             impath = self.imgs[index][0]
             if self.root is not None:
@@ -660,6 +661,8 @@ class PathsDataset(torch.utils.data.Dataset):
             img = self.loader(impath)
 
             self.imgs[index] = (img, *self.imgs[index][1:])
+
+        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] DONE.')
 
     def __getitem__(self, index):
         """

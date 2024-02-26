@@ -304,7 +304,7 @@ class PMOPrompt(Prompt):
 
             if mo_matrix is not None:
                 # norm mo matrix?
-                ref = 1
+                ref = None  # dynamic 1.5*max
                 hv_loss = cal_hv_loss(mo_matrix, ref)       # not normalized mo matrix
                 total_loss = total_loss + hv_loss
                 hv_loss = hv_loss.item()
@@ -372,7 +372,7 @@ class PMOPrompt(Prompt):
             print(f'must_include_clusters: {must_include_clusters}')
 
         '''choose fewshot setting for selected tasks'''
-        n_way, n_shot, n_query = 5, 2, 2
+        n_way, n_shot, n_query = 5, 3, 5
         # n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
         #                                            min_available_clusters=self.config['n_obj'],
         #                                            must_include_clusters=must_include_clusters)
@@ -402,13 +402,13 @@ class PMOPrompt(Prompt):
 
             # numpy_samples.append(numpy_mix_task)
 
-        '''sample obj tasks from clusters in selected_cluster_idxs'''
-        n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
-                                                   min_available_clusters=self.config['n_obj'],
-                                                   must_include_clusters=must_include_clusters)
-        if n_way == -1:  # not enough samples
-            print(f"==>> ERROR: pool has not enough samples. skip MO")
-            return None
+        # '''sample obj tasks from clusters in selected_cluster_idxs'''
+        # n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
+        #                                            min_available_clusters=self.config['n_obj'],
+        #                                            must_include_clusters=must_include_clusters)
+        # if n_way == -1:  # not enough samples
+        #     print(f"==>> ERROR: pool has not enough samples. skip MO")
+        #     return None
         obj_torch_tasks = []
         for cluster_idx in selected_cluster_idxs:
             pure_task = self.pool.episodic_sample(cluster_idx, n_way, n_shot, n_query, d=device)

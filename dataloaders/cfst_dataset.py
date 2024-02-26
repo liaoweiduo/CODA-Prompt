@@ -102,6 +102,8 @@ class CFSTDataset(data.Dataset):
 
         pool.put(images, {'labels': targets, 'tasks': tasks})
 
+        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] DONE.')
+
     def append_coreset(self, only=False, interp=False):
         if self.train and (len(self.memory) > 0):
             if only:
