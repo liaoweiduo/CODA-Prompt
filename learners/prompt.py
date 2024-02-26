@@ -14,6 +14,7 @@ import copy
 import torchvision
 from torch.autograd import Variable, Function
 import pandas as pd
+from datetime import datetime
 
 from .default import NormalNN, weight_reset, accumulate_acc
 from utils.schedulers import CosineSchedule
@@ -367,7 +368,7 @@ class PMOPrompt(Prompt):
             print(f'must_include_clusters: {must_include_clusters}')
 
         '''choose fewshot setting for selected tasks'''
-        n_way, n_shot, n_query = 5, 3, 5
+        n_way, n_shot, n_query = 5, 2, 2
         # n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
         #                                            min_available_clusters=self.config['n_obj'],
         #                                            must_include_clusters=must_include_clusters)

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 import torch.utils.data as data
+from datetime import datetime
 
 from learners.pmo_utils import Pool
 
@@ -78,7 +79,7 @@ class CFSTDataset(data.Dataset):
             task_id = self.t
         if pool is None:
             pool = self.memory
-        print(f'Update pool for task {task_id}.')
+        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] Update pool for task {task_id}.')
 
         # update pool.memory_size
         pool.memory_size = pool_size
@@ -111,7 +112,7 @@ class CFSTDataset(data.Dataset):
                 self.dataset = torch.utils.data.ConcatDataset([self.dataset, coreset])
 
     def update_coreset(self, coreset_size, seen):
-        print(f'Update coreset for task {self.t}.')
+        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] Update coreset for task {self.t}.')
         if self.mode != 'continual':    # for few-shot testing, do not use replay
             print(f'Not continual mode (current {self.mode}), pass')
             return
