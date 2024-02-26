@@ -236,6 +236,10 @@ class PMOPrompt(Prompt):
                     'Time {time.avg:.3f}*{i}'.format(
                         loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
 
+                if self.epoch == 0:
+                    '''nvidia-smi'''
+                    print(os.system('nvidia-smi'))
+
                 # reset
                 losses = AverageMeter()
                 acc = AverageMeter()
@@ -571,7 +575,7 @@ class PMOPrompt(Prompt):
                 prompt_weights_keys.append(key)
                 prompt_weights_params.append(param)
 
-            grad = torch.autograd.grad(inner_loss, prompt_weights_params, create_graph=True)
+            grad = torch.autograd.grad(inner_loss, prompt_weights_params, create_graph=False)
             updated_weights = dict(map(lambda p: (p[2], p[1] - inner_lr * p[0]),
                                        zip(grad, prompt_weights_params, prompt_weights_keys)))
 
