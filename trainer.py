@@ -284,8 +284,8 @@ class Trainer:
                     debugger.write_scaler(epoch_log['scaler_df'], key='et/loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler_df'], key='et/acc', i=i, writer=writer, inner=True)
 
-            '''nvidia-smi'''
-            print(os.system('nvidia-smi'))
+            # '''nvidia-smi'''
+            # print(os.system('nvidia-smi'))
 
         '''Close the writers'''
         writer.close()

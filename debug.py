@@ -326,12 +326,12 @@ class Debugger:
         return cd
 
     def write_mo(self, mo_dict, pop_labels, i, writer: Optional[SummaryWriter] = None, target='acc',
-                 prefix='train_image'):
+                 prefix='mo'):
         """
         draw mo graph for different inner step.
         Args:
             mo_dict: {pop_idx: {inner_idx: [n_obj]}} or
-                dataframe ['Tag', 'Pop_id', 'Obj_id', 'Inner_id', 'Value']
+                dataframe ['Tag', 'Pop_id', 'Obj_id', 'Epoch_id', 'Inner_id', 'Value']
             pop_labels:
             i:
             writer:
@@ -367,26 +367,27 @@ class Debugger:
             #                            (mo_dict.Logit_scale == logit_scale)]
             t_df = mo_dict[mo_dict.Tag == target]
             n_pop = len(set(t_df.Pop_id))
+            n_epoch = len(set(t_df.Epoch_id))
             n_inner = len(set(t_df.Inner_id))
             n_obj = len(set(t_df.Obj_id))
-            objs = np.array([[[
+            objs = np.array([[[[
                 t_df[(t_df.Pop_id == pop_idx) & (t_df.Obj_id == obj_idx) & (
-                            t_df.Inner_id == inner_idx)].Value.mean()
-                for pop_idx in range(n_pop)] for obj_idx in range(n_obj)] for inner_idx in range(n_inner)
-            ])  # [n_inner, n_obj, n_pop]
+                            t_df.Inner_id == inner_idx) & (t_df.Epoch_id == epoch_idx)].Value.mean()
+                for pop_idx in range(n_pop)] for obj_idx in range(n_obj)]
+                for inner_idx in range(n_inner)] for epoch_idx in range(n_epoch)])
+            # [n_epoch, n_inner, n_obj, n_pop]
             objs = np.nan_to_num(objs)
 
-            '''log objs figure'''
-            figure = draw_objs(objs, pop_labels)
+            '''log objs figure along epoch for last inner step'''
+            figure = draw_objs(objs[:, -1, :, :], pop_labels)
             # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
             #                   figure, i + 1)
-            writer.add_figure(f"{prefix}/{target}_objs", figure, i + 1)
+            writer.add_figure(f"{prefix}/{target}_epoch", figure, i + 1)
 
-            '''log last objs figure'''
-            figure = draw_objs(objs[-1], pop_labels)
-            # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
-            #                   figure, i + 1)
-            writer.add_figure(f"{prefix}/{target}_objs_last", figure, i + 1)
+            '''log objs figure along inner step for all epoch'''
+            for e in range(n_epoch):
+                figure = draw_objs(objs[e], pop_labels)
+                writer.add_figure(f"{prefix}_inner/{target}_t{i+1}", figure, e)
 
     def write_task(self, pmo, task: dict, task_title, i, writer: Optional[SummaryWriter] = None, prefix='task'):
         """

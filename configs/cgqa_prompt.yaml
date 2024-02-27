@@ -2,9 +2,9 @@ dataset: CGQA
 first_split_size: 10
 other_split_size: 10
 schedule:
-- 20
+- 3   #20
 schedule_type: cosine
-batch_size: 64
+batch_size: 128
 optimizer: Adam
 lr: 0.001
 momentum: 0.9

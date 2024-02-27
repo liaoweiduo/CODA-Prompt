@@ -139,7 +139,7 @@ class PMOPrompt(Prompt):
     def init_train_log(self):
         self.epoch_log = dict()
         # Tag: acc/loss
-        self.epoch_log['mo_df'] = pd.DataFrame(columns=['Tag', 'Pop_id', 'Obj_id', 'Inner_id', 'Value'])
+        self.epoch_log['mo_df'] = pd.DataFrame(columns=['Tag', 'Pop_id', 'Obj_id', 'Epoch_id', 'Inner_id', 'Value'])
         # 'loss/hv_loss', 'Exp', 'Logit_scale',
         self.epoch_log['scaler_df'] = pd.DataFrame(columns=['Tag', 'Idx', 'Value'])
 
@@ -426,46 +426,80 @@ class PMOPrompt(Prompt):
             if self.debug_mode:
                 print(f'task{task_idx} shape: context:{context_len}, target:{target_len}')
 
-            prompt_weights = self.inner_update(torch.cat([context_images, target_images]),
-                                               torch.cat([context_labels, target_labels]))
+            num_inner_step = 5
+            inner_lr = 1
+            yield_step = True
 
-            '''forward to get mo matrix'''
-            for obj_idx in range(len(selected_cluster_idxs)):  # 2
-                obj_context_images = obj_torch_tasks[obj_idx]['context_images']
-                obj_target_images = obj_torch_tasks[obj_idx]['target_images']
-                obj_context_labels = obj_torch_tasks[obj_idx]['context_labels']
-                obj_target_labels = obj_torch_tasks[obj_idx]['target_labels']
-                # obj_context_images = torch_tasks[obj_idx]['context_images']
-                # obj_target_images = torch_tasks[obj_idx]['target_images']
-                # obj_context_labels = torch_tasks[obj_idx]['context_labels']
-                # obj_target_labels = torch_tasks[obj_idx]['target_labels']
-                obj_context_len = len(obj_context_images)
+            orig_mode = self.model.training
+            '''eval mode'''
+            if yield_step:
+                self.model.eval()
 
-                # pen: penultimate features; train: same forward as batch training.
-                # cond_x: prompting for this task.
+            for inner_step, _ in enumerate(
+                    self.inner_update(
+                        torch.cat([context_images, target_images]),
+                        torch.cat([context_labels, target_labels]),
+                        inner_step=num_inner_step, inner_lr=inner_lr, yield_step=yield_step)):
+                if self.debug_mode:
+                    print(f'mo inner_step: {inner_step}')  # should be 0,1,2,3,4,5
 
-                logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
-                                       pen=True, train=True,
-                                       # cond_x=torch.cat([context_images, target_images]),
-                                       fast_weights=True,
-                                       )
-                obj_context_features = logits[:obj_context_len]
-                obj_target_features = logits[obj_context_len:]
+                # prompt_weights = self.inner_update(torch.cat([context_images, target_images]),
+                #                                    torch.cat([context_labels, target_labels]))
 
-                obj_loss, stats_dict, _ = prototype_loss(
-                    obj_context_features, obj_context_labels, obj_target_features, obj_target_labels,
-                    distance=self.config['distance'])
-                if f'p{task_idx}_o{obj_idx}' in ncc_losses_mo.keys():  # collect n_mo data
-                    ncc_losses_mo[f'p{task_idx}_o{obj_idx}'].append(obj_loss)
-                else:
-                    ncc_losses_mo[f'p{task_idx}_o{obj_idx}'] = [obj_loss]
+                '''back to train mode'''
+                if yield_step and inner_step == num_inner_step:    # last inner step
+                    self.model.train(orig_mode)
 
-                self.epoch_log['mo_df'] = pd.concat([
-                    self.epoch_log['mo_df'], pd.DataFrame.from_records([
-                        {'Tag': 'loss', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': self.epoch,
-                         'Value': stats_dict['loss']},
-                        {'Tag': 'acc', 'Pop_id': task_idx, 'Obj_id': obj_idx, 'Inner_id': self.epoch,
-                         'Value': stats_dict['acc']}])])
+                '''forward to get mo matrix'''
+                for obj_idx in range(len(selected_cluster_idxs)):  # 2
+                    obj_context_images = obj_torch_tasks[obj_idx]['context_images']
+                    obj_target_images = obj_torch_tasks[obj_idx]['target_images']
+                    obj_context_labels = obj_torch_tasks[obj_idx]['context_labels']
+                    obj_target_labels = obj_torch_tasks[obj_idx]['target_labels']
+                    # obj_context_images = torch_tasks[obj_idx]['context_images']
+                    # obj_target_images = torch_tasks[obj_idx]['target_images']
+                    # obj_context_labels = torch_tasks[obj_idx]['context_labels']
+                    # obj_target_labels = torch_tasks[obj_idx]['target_labels']
+                    obj_context_len = len(obj_context_images)
+
+                    # pen: penultimate features; train: same forward as batch training.
+                    # cond_x: prompting for this task.
+                    if yield_step and inner_step < num_inner_step:   # no grad
+                        with torch.no_grad():
+                            logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
+                                                   pen=True, train=True, fast_weights=True)
+                    else:     # last inner step
+                        logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
+                                               pen=True, train=True,
+                                               # cond_x=torch.cat([context_images, target_images]),
+                                               fast_weights=True,
+                                               )
+
+                    obj_context_features = logits[:obj_context_len]
+                    obj_target_features = logits[obj_context_len:]
+
+                    obj_loss, stats_dict, _ = prototype_loss(
+                        obj_context_features, obj_context_labels, obj_target_features, obj_target_labels,
+                        distance=self.config['distance'])
+
+                    if not yield_step or inner_step == num_inner_step:  # last inner step
+                        if self.debug_mode:
+                            print(f'Append mo loss')
+
+                        if f'p{task_idx}_o{obj_idx}' in ncc_losses_mo.keys():  # collect n_mo data
+                            ncc_losses_mo[f'p{task_idx}_o{obj_idx}'].append(obj_loss)
+                        else:
+                            ncc_losses_mo[f'p{task_idx}_o{obj_idx}'] = [obj_loss]
+
+                    self.epoch_log['mo_df'] = pd.concat([
+                        self.epoch_log['mo_df'], pd.DataFrame.from_records([
+                            {'Tag': 'loss', 'Pop_id': task_idx, 'Obj_id': obj_idx,
+                             'Epoch_id': self.epoch,  'Inner_id': inner_step,
+                             'Value': stats_dict['loss']},
+                            {'Tag': 'acc', 'Pop_id': task_idx, 'Obj_id': obj_idx,
+                             'Epoch_id': self.epoch,  'Inner_id': inner_step,
+                             'Value': stats_dict['acc']}])])
+
 
         ncc_losses = torch.stack([torch.stack([
             torch.mean(torch.stack(ncc_losses_mo[f'p{task_idx}_o{obj_idx}']))
@@ -503,9 +537,6 @@ class PMOPrompt(Prompt):
             if self.debug_mode:
                 print(f'et_task: context_images: {context_images.shape}')
 
-            prompt_weights = self.inner_update(torch.cat([context_images, target_images]),
-                                               torch.cat([context_labels, target_labels]))
-
             '''forward another task in the same cluster'''
             # # new setting
             # n_way, n_shot, n_query = available_setting(
@@ -518,25 +549,64 @@ class PMOPrompt(Prompt):
             obj_target_labels = up_task['target_labels']
             obj_context_len = len(obj_context_images)
 
-            # pen: penultimate features; train: same forward as batch training.
-            # cond_x: prompting for this task.
-            logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
-                                   pen=True, train=True,
-                                   # cond_x=torch.cat([context_images, target_images]),
-                                   fast_weights=True,
-                                   )
-            obj_context_features = logits[:obj_context_len]
-            obj_target_features = logits[obj_context_len:]
+            num_inner_step = 5
+            inner_lr = 1
+            yield_step = True
 
-            obj_loss, stats_dict, _ = prototype_loss(
-                obj_context_features, obj_context_labels, obj_target_features, obj_target_labels,
-                distance=self.config['distance'])
+            orig_mode = self.model.training
+            '''eval mode'''
+            if yield_step:
+                self.model.eval()
 
-            ncc_losses_et.append(obj_loss)
-            self.epoch_log['scaler_df'] = pd.concat([
-                self.epoch_log['scaler_df'], pd.DataFrame.from_records([
-                    {'Tag': 'et/loss', 'Idx': self.epoch, 'Value': stats_dict['loss']},
-                    {'Tag': 'et/acc', 'Idx': self.epoch, 'Value': stats_dict['acc']}])])
+            for inner_step, _ in enumerate(
+                    self.inner_update(
+                        torch.cat([context_images, target_images]),
+                        torch.cat([context_labels, target_labels]),
+                        inner_step=num_inner_step, inner_lr=inner_lr, yield_step=yield_step)):
+                if self.debug_mode:
+                    print(f'et inner_step: {inner_step}')  # should be 0,1,2,3,4,5
+
+                # prompt_weights = self.inner_update(torch.cat([context_images, target_images]),
+                #                                    torch.cat([context_labels, target_labels]))
+
+                '''back to train mode'''
+                if yield_step and inner_step == num_inner_step:    # last inner step
+                    self.model.train(orig_mode)
+
+                # pen: penultimate features; train: same forward as batch training.
+                # cond_x: prompting for this task.
+                if yield_step and inner_step < num_inner_step:   # no grad
+                    with torch.no_grad():
+                        logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
+                                               pen=True, train=True, fast_weights=True)
+                else:     # last inner step
+                    logits, _ = self.model(torch.cat([obj_context_images, obj_target_images]),
+                                           pen=True, train=True,
+                                           # cond_x=torch.cat([context_images, target_images]),
+                                           fast_weights=True,
+                                           )
+                obj_context_features = logits[:obj_context_len]
+                obj_target_features = logits[obj_context_len:]
+
+                obj_loss, stats_dict, _ = prototype_loss(
+                    obj_context_features, obj_context_labels, obj_target_features, obj_target_labels,
+                    distance=self.config['distance'])
+
+                if not yield_step or inner_step == num_inner_step:    # last inner step
+                    if self.debug_mode:
+                        print(f'Append et loss')
+                    ncc_losses_et.append(obj_loss)
+
+                    self.epoch_log['scaler_df'] = pd.concat([
+                        self.epoch_log['scaler_df'], pd.DataFrame.from_records([
+                            {'Tag': 'et/loss', 'Idx': self.epoch, 'Value': stats_dict['loss']},
+                            {'Tag': 'et/acc', 'Idx': self.epoch, 'Value': stats_dict['acc']}])])
+
+                if yield_step:
+                    self.epoch_log['scaler_df'] = pd.concat([
+                        self.epoch_log['scaler_df'], pd.DataFrame.from_records([
+                            {'Tag': f'et_details/loss/{self.epoch}', 'Idx': inner_step, 'Value': stats_dict['loss']},
+                            {'Tag': f'et_details/acc/{self.epoch}', 'Idx': inner_step, 'Value': stats_dict['acc']}])])
 
         '''average ncc_losses_et'''
         if len(ncc_losses_et) > 0:
@@ -544,7 +614,7 @@ class PMOPrompt(Prompt):
 
         return et_loss
 
-    def inner_update(self, context_images, context_labels, inner_step=1, inner_lr=1):
+    def inner_update(self, context_images, context_labels, inner_step=1, inner_lr=1, yield_step=False):
         """do inner loop to update a clone of model.prompt and put weights to prompt.updated_weights"""
         # pen: penultimate features; train: same forward as batch training.
         try:
@@ -561,6 +631,9 @@ class PMOPrompt(Prompt):
         prompt.updated_weights = updated_weights
 
         for inner_idx in range(inner_step):
+            if yield_step:
+                yield updated_weights
+
             context_features, _ = self.model(context_images, pen=True, train=True,
                                              fast_weights=True)
 
@@ -582,7 +655,7 @@ class PMOPrompt(Prompt):
             # put updated_weights on prompt to support forwarding
             prompt.updated_weights = updated_weights
 
-        return updated_weights
+        yield updated_weights
 
     def release_temp_weights(self):
         try:
