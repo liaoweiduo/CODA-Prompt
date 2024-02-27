@@ -1,4 +1,5 @@
 from __future__ import print_function
+import sys
 import math
 import torch
 import torch.nn as nn
@@ -402,7 +403,7 @@ class PMOPrompt(Prompt):
 
             # numpy_samples.append(numpy_mix_task)
 
-        # '''sample obj tasks from clusters in selected_cluster_idxs'''
+        '''sample obj tasks from clusters in selected_cluster_idxs'''
         # n_way, n_shot, n_query = available_setting(num_imgs_clusters, self.config['mo_task_type'],
         #                                            min_available_clusters=self.config['n_obj'],
         #                                            must_include_clusters=must_include_clusters)
@@ -427,7 +428,7 @@ class PMOPrompt(Prompt):
                 print(f'task{task_idx} shape: context:{context_len}, target:{target_len}')
 
             num_inner_step = 5
-            inner_lr = 0.01
+            inner_lr = 0.001
             yield_step = True
 
             orig_mode = self.model.training
@@ -550,7 +551,7 @@ class PMOPrompt(Prompt):
             obj_context_len = len(obj_context_images)
 
             num_inner_step = 5
-            inner_lr = 0.01
+            inner_lr = 0.001
             yield_step = True
 
             orig_mode = self.model.training
@@ -614,7 +615,7 @@ class PMOPrompt(Prompt):
 
         return et_loss
 
-    def inner_update(self, context_images, context_labels, inner_step=1, inner_lr=1, yield_step=False):
+    def inner_update(self, context_images, context_labels, inner_step=1, inner_lr=1., yield_step=False):
         """do inner loop to update a clone of model.prompt and put weights to prompt.updated_weights"""
         # pen: penultimate features; train: same forward as batch training.
         try:
