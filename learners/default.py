@@ -177,7 +177,7 @@ class NormalNN(nn.Module):
         for i, (input, target, task) in enumerate(dataloader):
 
             if self.debug_mode:
-                print(f'batch{i}: \ntarget:{target} \ntask:{task}')
+                print(f'batch{i}: \nlen: {len(target)} target:{(target.min(), target.max())} task:{(task.min(), task.max())}')
             if self.gpu:
                 with torch.no_grad():
                     input = input.cuda()

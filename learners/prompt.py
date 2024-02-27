@@ -427,7 +427,7 @@ class PMOPrompt(Prompt):
                 print(f'task{task_idx} shape: context:{context_len}, target:{target_len}')
 
             num_inner_step = 5
-            inner_lr = 1
+            inner_lr = 0.01
             yield_step = True
 
             orig_mode = self.model.training
@@ -550,7 +550,7 @@ class PMOPrompt(Prompt):
             obj_context_len = len(obj_context_images)
 
             num_inner_step = 5
-            inner_lr = 1
+            inner_lr = 0.01
             yield_step = True
 
             orig_mode = self.model.training
