@@ -59,9 +59,13 @@ class PMOPrompt(Prompt):
     def init_train_log(self):
         self.epoch_log = dict()
         # Tag: acc/loss
-        self.epoch_log['mo_df'] = pd.DataFrame(columns=['Tag', 'Pop_id', 'Obj_id', 'Epoch_id', 'Inner_id', 'Value'])
-        # 'loss/hv_loss', 'Exp', 'Logit_scale',
-        self.epoch_log['scaler_df'] = pd.DataFrame(columns=['Tag', 'Idx', 'Value'])
+        self.epoch_log['mo'] = {'Tag': [], 'Pop_id': [], 'Obj_id': [], 'Epoch_id': [], 'Inner_id': [], 'Value': []}
+        # 'loss/hv_loss'
+        self.epoch_log['scaler'] = {'Tag': [], 'Idx': [], 'Value': []}
+
+    def train_log_to_df(self):
+        self.epoch_log['mo'] = pd.DataFrame(self.epoch_log['mo'])
+        self.epoch_log['scaler'] = pd.DataFrame(self.epoch_log['scaler'])
 
     def create_model(self):
         cfg = self.config
@@ -188,9 +192,9 @@ class PMOPrompt(Prompt):
         dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
         total_loss = self.criterion(logits, targets.long(), dw_cls)
 
-        self.epoch_log['scaler_df'] = pd.concat([
-            self.epoch_log['scaler_df'], pd.DataFrame.from_records([{
-                'Tag': 'loss/ce_loss', 'Idx': self.epoch, 'Value': total_loss.item()}])])
+        self.epoch_log['scaler']['Tag'].append('loss/ce_loss')
+        self.epoch_log['scaler']['Idx'].append(self.epoch)
+        self.epoch_log['scaler']['Value'].append(total_loss.item())
 
         if self.debug_mode:
             print(f'classification loss: {total_loss} and {total_loss.grad_fn}')
@@ -221,9 +225,9 @@ class PMOPrompt(Prompt):
                 hv_loss.backward()
                 hv_loss = hv_loss.item()
 
-                self.epoch_log['scaler_df'] = pd.concat([
-                    self.epoch_log['scaler_df'], pd.DataFrame.from_records([{
-                        'Tag': 'loss/hv_loss', 'Idx': self.epoch, 'Value': hv_loss}])])
+                self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(hv_loss)
 
                 if self.debug_mode:
                     print(f'hv loss in layer{l}: {hv_loss}')
@@ -252,7 +256,7 @@ class PMOPrompt(Prompt):
         if hard_l in self.e_layers:
             # random select self.n_obj obj_idx from self.n_obj_max
             selected_obj_idxs = np.sort(np.random.choice(self.n_obj_max, self.n_obj, replace=False))
-            for obj_idx in selected_obj_idxs:
+            for re_idx, obj_idx in enumerate(selected_obj_idxs):
                 # pen: penultimate features; train: same forward as batch training.
                 '''obj = mean(features)'''
                 # !!! may cause problem when have negative value
@@ -275,12 +279,12 @@ class PMOPrompt(Prompt):
                 # else:
                 #     ncc_losses_mo[f'l{hard_l}'] = [objs]
 
-                for sample_idx in range(n_samples):
-                    self.epoch_log['mo_df'] = pd.concat([
-                        self.epoch_log['mo_df'], pd.DataFrame.from_records([
-                            {'Tag': 'loss', 'Pop_id': sample_idx, 'Obj_id': obj_idx,
-                             'Epoch_id': self.epoch,  'Inner_id': hard_l,
-                             'Value': objs[sample_idx].item()}])])
+                self.epoch_log['mo']['Tag'].extend(['loss' for _ in range(n_samples)])
+                self.epoch_log['mo']['Pop_id'].extend([s_i for s_i in range(n_samples)])
+                self.epoch_log['mo']['Obj_id'].extend([re_idx for _ in range(n_samples)])
+                self.epoch_log['mo']['Epoch_id'].extend([self.epoch for _ in range(n_samples)])
+                self.epoch_log['mo']['Inner_id'].extend([hard_l for _ in range(n_samples)])
+                self.epoch_log['mo']['Value'].extend(list(objs.detach().cpu().numpy()))
 
             # ncc_losses = torch.mean(
             #     torch.stack([torch.stack(ncc_losses_mo[f'l{hard_l}']) for hard_l in self.e_layers]), dim=0)

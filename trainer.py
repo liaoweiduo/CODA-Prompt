@@ -244,6 +244,7 @@ class Trainer:
 
             '''save epoch log'''
             if hasattr(self.learner, 'epoch_log'):
+                self.learner.train_log_to_df()
                 epoch_log = self.learner.epoch_log
 
                 # pop_labels = [
@@ -260,26 +261,26 @@ class Trainer:
                 # debugger.write_pool(pool, i=i, writer=writer, prefix=f'pool')
 
                 '''write mo'''
-                if len(epoch_log['mo_df']) > 0:
-                    # debugger.write_mo(epoch_log['mo_df'], None, i=i, writer=writer, target='acc')
-                    debugger.write_mo(epoch_log['mo_df'], None, i=i, writer=writer, target='loss')
+                if len(epoch_log['mo']) > 0:
+                    # debugger.write_mo(epoch_log['mo'], None, i=i, writer=writer, target='acc')
+                    debugger.write_mo(epoch_log['mo'], None, i=i, writer=writer, target='loss')
 
                     '''write hv acc/loss'''
-                    # debugger.write_hv(epoch_log['mo_df'], i, ref=0, writer=writer, target='acc', norm=False)
-                    debugger.write_hv(epoch_log['mo_df'], i, ref=1, writer=writer, target='loss', norm=False)
+                    # debugger.write_hv(epoch_log['mo'], i, ref=0, writer=writer, target='acc', norm=False)
+                    debugger.write_hv(epoch_log['mo'], i, ref=1, writer=writer, target='loss', norm=False)
                     '''write avg_span acc/loss: E_i(max(f_i) - min(f_i))'''
-                    # debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='acc', norm=False)
-                    debugger.write_avg_span(epoch_log['mo_df'], i, writer=writer, target='loss', norm=False)
+                    # debugger.write_avg_span(epoch_log['mo'], i, writer=writer, target='acc', norm=False)
+                    debugger.write_avg_span(epoch_log['mo'], i, writer=writer, target='loss', norm=False)
                     '''write min crowding distance'''
-                    # debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='acc', norm=False)
-                    debugger.write_min_crowding_distance(epoch_log['mo_df'], i, writer=writer, target='loss', norm=False)
+                    # debugger.write_min_crowding_distance(epoch_log['mo'], i, writer=writer, target='acc', norm=False)
+                    debugger.write_min_crowding_distance(epoch_log['mo'], i, writer=writer, target='loss', norm=False)
 
-                if len(epoch_log['scaler_df']) > 0:     # perform training
-                    debugger.write_scaler(epoch_log['scaler_df'], key='loss/ce_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler_df'], key='loss/hv_loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler_df'], key='loss/et_loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler_df'], key='et/loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler_df'], key='et/acc', i=i, writer=writer, inner=True)
+                if len(epoch_log['scaler']) > 0:     # perform training
+                    debugger.write_scaler(epoch_log['scaler'], key='loss/ce_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/et_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='et/loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='et/acc', i=i, writer=writer, inner=True)
 
             # '''nvidia-smi'''
             # print(os.system('nvidia-smi'))
