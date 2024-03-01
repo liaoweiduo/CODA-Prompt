@@ -650,7 +650,7 @@ def cal_min_crowding_distance(objs):
     return min(cd)
 
 
-def draw_objs(objs, labels):
+def draw_objs(objs, labels=None):
     """
     return a figure of objs.
     objs: numpy with shape [obj_size, pop_size] or [n_iter, obj_size, pop_size] with gradient color
@@ -666,19 +666,30 @@ def draw_objs(objs, labels):
     assert obj_size == 2
 
     '''generate pandas DataFrame for objs'''
-    data = pd.DataFrame({       # for all points
-        'f1': [objs[i_idx, 0, pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
-        'f2': [objs[i_idx, 1, pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
-        'Iter': [i_idx for i_idx in range(n_iter) for pop_idx in range(pop_size)],
-        'Label': [labels[pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
-    })
+    if labels is not None:
+        data = pd.DataFrame({       # for all points
+            'f1': [objs[i_idx, 0, pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
+            'f2': [objs[i_idx, 1, pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
+            'Iter': [i_idx for i_idx in range(n_iter) for pop_idx in range(pop_size)],
+            'Label': [labels[pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
+        })
+    else:
+        data = pd.DataFrame({       # for all points
+            'f1': [objs[i_idx, 0, pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
+            'f2': [objs[i_idx, 1, pop_idx] for i_idx in range(n_iter) for pop_idx in range(pop_size)],
+            'Iter': [i_idx for i_idx in range(n_iter) for pop_idx in range(pop_size)],
+        })
 
     fig, ax = plt.subplots()
     ax.grid(True)
     # c = plt.get_cmap('rainbow', pop_size)
 
-    sns.scatterplot(data, x='f1', y='f2',
-                    hue='Label', size='Iter', sizes=(100, 200), alpha=1., ax=ax)
+    if labels is not None:
+        sns.scatterplot(data, x='f1', y='f2',
+                        hue='Label', size='Iter', sizes=(100, 200), alpha=1., ax=ax)
+    else:
+        sns.scatterplot(data, x='f1', y='f2',
+                        size='Iter', sizes=(100, 200), alpha=1., ax=ax)
 
     # ax.legend(loc='lower left', bbox_to_anchor=(1.05, 0.1), ncol=1)
     return fig

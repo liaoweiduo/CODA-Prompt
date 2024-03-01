@@ -27,6 +27,7 @@ class CFSTDataset(data.Dataset):
         self.mode = mode        # [continual, sys, pro, sub, non, noc]
 
         # load dataset
+        self.benchmark = None
         self.download_flag = download_flag
         self.load()
         self.num_classes = self.benchmark.n_classes

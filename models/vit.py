@@ -173,7 +173,7 @@ class VisionTransformer(nn.Module):
     def no_weight_decay(self):
         return {'pos_embed', 'cls_token'}
 
-    def forward(self, x, register_blk=-1, prompt=None, q=None, train=False, task_id=None, fast_weights=False):
+    def forward(self, x, register_blk=-1, prompt=None, q=None, train=False, task_id=None, **kwargs):
         B = x.shape[0]
         x = self.patch_embed(x)
 
@@ -189,11 +189,11 @@ class VisionTransformer(nn.Module):
             if prompt is not None:
                 if train:
                     p_list, loss, x = prompt.forward(q, i, x, train=True, task_id=task_id,
-                                                     fast_weights=fast_weights)
+                                                     **kwargs)
                     prompt_loss += loss
                 else:
                     p_list, _, x = prompt.forward(q, i, x, train=False, task_id=task_id,
-                                                  fast_weights=fast_weights)
+                                                  **kwargs)
                 # if p_list is not None and i == 1:
                 #     print(x[0,0,0:10])
                 #     print(p_list[0][0,0,0:10])

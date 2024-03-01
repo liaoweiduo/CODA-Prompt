@@ -22,7 +22,7 @@ mv datasets data
 mkdir -p $OUTDIR
 
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name PMOPrompt \
+    --learner_type pmo --learner_name PMOPrompt \
     --prompt_param 100 8 0.0 2000 \
     --log_dir ${OUTDIR}/debug \
     --debug_mode 1

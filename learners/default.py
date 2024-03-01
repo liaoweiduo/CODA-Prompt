@@ -126,7 +126,11 @@ class NormalNN(nn.Module):
 
                 # eval update
                 self.log('Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch+1,total=self.config['schedule'][-1]))
-                self.log(' * Loss {loss.avg:.3f} | Train Acc {acc.avg:.3f} | Time {time.avg:.3f}'.format(loss=losses,acc=acc, time=batch_time))
+                self.log(
+                    ' * Loss {loss.avg:.3f} | '
+                    'Train Acc {acc.avg:.3f} | '
+                    'Time {time.avg:.3f}*{i}'.format(
+                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
 
                 # reset
                 losses = AverageMeter()
