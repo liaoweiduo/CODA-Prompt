@@ -30,8 +30,7 @@ LOGNAME=pmo-10-2-0
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 2 \
-    --log_dir ${OUTDIR}/${LOGNAME} \
-    --debug_mode 1
+    --log_dir ${OUTDIR}/${LOGNAME}
 date
 
 # CODA-P-Replay
