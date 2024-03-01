@@ -42,8 +42,8 @@ class PMOPrompt(Prompt):
         self.aux = Auxiliary(aux_dataset)
 
         # mo
-        self.n_obj = self.config['n_obj']
-        self.pop_size = self.config['num_aux_sampling']
+        self.n_obj = int(self.config['n_obj'])
+        self.pop_size = int(self.config['num_aux_sampling'])
 
         try:
             prompt = self.model.module.prompt
