@@ -138,7 +138,7 @@ class Trainer:
             'mode': args.mode,
             'seed': self.seed,
             # pmo settings
-            'n_obj': args.prompt_param[3],  # 2 -> 10
+            'n_obj': int(args.prompt_param[3]),  # 2 -> 10
             'aux_root': args.dataroot,
             'num_aux_sampling': 100,
         }
