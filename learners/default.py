@@ -187,7 +187,7 @@ class NormalNN(nn.Module):
                     input = input.cuda()
                     target = target.cuda()
             if task_in is None:
-                output = model.forward(input)[:, :self.valid_out_dim]
+                output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
 
                 # if self.debug_mode:
                 #     print(f'batch{i}: \noutput:{output}')
@@ -204,10 +204,10 @@ class NormalNN(nn.Module):
                 
                 if len(target) > 1:
                     if task_global:
-                        output = model.forward(input)[:, :self.valid_out_dim]
+                        output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
                         acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
                     else:
-                        output = model.forward(input)[:, task_in]
+                        output = model.forward(input, task_id=task[0].item())[:, task_in]
                         acc = accumulate_acc(output, target-task_in[0], task, acc, topk=(self.top_k,))
             
         model.train(orig_mode)

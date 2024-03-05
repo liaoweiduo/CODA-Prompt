@@ -219,7 +219,7 @@ class PmoPrompt(CodaPrompt):
 
         # self.updated_weights = None     # temp for inner update
 
-    def forward(self, x_querry, l, x_block, train=False, task_id=None, hard_obj_idx=None, hard_l=None,
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, hard_obj_idx=None, hard_l=None, mask_all=False,
                 debug_mode=False, **kwargs):
         """Differences:
             Add fast_weights to support inner update.
@@ -243,9 +243,11 @@ class PmoPrompt(CodaPrompt):
             A = getattr(self, f'e_a_{l}')  # [100, 768]
             p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
 
+            if task_id is None:
+                task_id = self.task_count
             pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
-            s = int(self.task_count * pt)  # 10 prompts for one task
-            f = int((self.task_count + 1) * pt)
+            s = int(task_id * pt)  # 10 prompts for one task
+            f = int((task_id + 1) * pt)
 
             # freeze/control past tasks
             if train:
@@ -267,17 +269,16 @@ class PmoPrompt(CodaPrompt):
             # A = A[0:f]
             # p = p[0:f]
 
-            if hard_obj_idx is not None:
-                '''enable hard forward mode'''
-                aq_k = torch.zeros((B, f), device=p.device)
-                '''calculate mask '''
-                if hard_l == l:
-                    ot = int(pt / self.n_obj)   # number of prompts for one obj
-                    if hard_obj_idx < self.n_obj - 1:
-                        aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)] = 1
-                    else:
-                        aq_k[:, (s + hard_obj_idx * ot):] = 1       # last obj may have more prompts
-
+            aq_k = torch.zeros((B, f), device=p.device)
+            '''enable hard forward mode'''
+            if hard_obj_idx is not None and hard_l == l:
+                ot = int(pt / self.n_obj)   # number of prompts for one obj
+                if hard_obj_idx < self.n_obj - 1:
+                    aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)] = 1
+                else:
+                    aq_k[:, (s + hard_obj_idx * ot):] = 1       # last obj may have more prompts
+            elif hard_obj_idx is not None and mask_all:
+                pass        # use 0 for all other layers
             else:   # normal soft forward strategy
                 # b = bs, d = 768, k = 100, l=8
                 # with attention and cosine sim
@@ -288,8 +289,8 @@ class PmoPrompt(CodaPrompt):
                 q = nn.functional.normalize(a_querry, dim=2)
                 aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 10or100]
 
-            # if debug_mode:
-            #     print(f'aq_k in layer{l}: {aq_k[0]}')
+            if debug_mode:
+                print(f'aq_k in layer{l}: {aq_k[0]}')
 
             # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
             P_ = torch.einsum('bk,kld->bld', aq_k, p)

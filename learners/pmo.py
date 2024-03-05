@@ -206,7 +206,8 @@ class PMOPrompt(Prompt):
 
         # hv loss calculation without affecting RNG state
         state = np.random.get_state()
-        np.random.seed(self.seed + self.epoch + self.batch_idx)
+        # seed with taskid epochid batchid
+        np.random.seed(self.seed + self.train_dataset.t + self.epoch + self.batch_idx)
 
         '''hv loss'''
         for l in self.e_layers:
@@ -244,6 +245,9 @@ class PMOPrompt(Prompt):
 
     def obtain_mo_matrix(self, hard_l):
         """Return mo_matrix: Torch tensor [obj, pop]"""
+        if self.n_obj <= 0:
+            return None
+
         ncc_losses_mo = []  # [obj_idx]: obj_idx * tensor[pop_idx]
         # how many prompt for 1 obj according to n_obj
         '''sampling by aux'''
@@ -267,7 +271,7 @@ class PMOPrompt(Prompt):
                 # objs = torch.mean(features, dim=1)  # torch[100]
                 '''obj = var(logits)'''
                 logits, _ = self.model(samples, pen=False, train=True,
-                                       hard_obj_idx=obj_idx, hard_l=hard_l,
+                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask_all=True,
                                        debug_mode=self.debug_mode)
                 # [100, 768]
                 objs = torch.var(logits, dim=1)  # torch[100]
