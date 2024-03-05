@@ -217,6 +217,7 @@ class PMOPrompt(Prompt):
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
 
+            hv_loss = 0
             if mo_matrix is not None:
                 # norm mo matrix?
                 ref = None  # dynamic 1.5*max
@@ -226,15 +227,15 @@ class PMOPrompt(Prompt):
                 hv_loss.backward()
                 hv_loss = hv_loss.item()
 
-                self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
-                self.epoch_log['scaler']['Idx'].append(self.epoch)
-                self.epoch_log['scaler']['Value'].append(hv_loss)
-
                 if self.debug_mode:
                     print(f'hv loss in layer{l}: {hv_loss}')
 
-            else:
-                print(f'ERROR: mo_matrix is None, skip layer{l}')
+            # else:
+            #     print(f'ERROR: mo_matrix is None, skip layer{l}')
+
+            self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(hv_loss)
 
         np.random.set_state(state)
 
