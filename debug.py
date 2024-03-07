@@ -20,6 +20,7 @@ class Debugger:
     def __init__(self, level='DEBUG'):
         self.levels = ['DEBUG', 'INFO']
         self.level = self.levels.index(level)   # 0 or 1
+
         self.storage = {}
 
     def print_prototype_change(self, model: nn.Module, i, writer: Optional[SummaryWriter] = None):
@@ -379,7 +380,7 @@ class Debugger:
             objs = np.nan_to_num(objs)
 
             '''log objs figure along epoch for last inner step'''
-            figure = draw_objs(objs[:, -1, :, :], pop_labels)
+            figure = draw_objs(objs[:, -1, :2, :], pop_labels)      # :2 for the first 2 axes
             # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
             #                   figure, i + 1)
             writer.add_figure(f"{prefix}/{target}_epoch", figure, i + 1)

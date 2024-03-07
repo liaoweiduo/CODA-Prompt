@@ -243,11 +243,14 @@ class PmoPrompt(CodaPrompt):
             A = getattr(self, f'e_a_{l}')  # [100, 768]
             p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
 
-            if task_id is None:
-                task_id = self.task_count
+            task_id = self.task_count
+            # if task_id is None:
+            #     task_id = self.task_count
             pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
             s = int(task_id * pt)  # 10 prompts for one task
             f = int((task_id + 1) * pt)
+            # s = int(self.task_count * pt)  # 10 prompts for one task
+            # f = int((self.task_count + 1) * pt)
 
             # freeze/control past tasks
             if train:

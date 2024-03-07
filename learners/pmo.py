@@ -35,11 +35,12 @@ class PMOPrompt(Prompt):
         self.train_dataset = None
 
         # load aux
-        aux_dataset = dataloaders.CGQA(
-            self.config['aux_root'],
-            train=False, validation=True, download_flag=False, seed=self.config['seed'])
-        aux_dataset.load_dataset(9, train=False)   # consider all samples: 100 classes with 5000 samples.
-        self.aux = Auxiliary(aux_dataset)
+        # aux_dataset = dataloaders.CGQA(
+        #     self.config['aux_root'],
+        #     train=False, validation=True, download_flag=False, seed=self.config['seed'])
+        # aux_dataset.load_dataset(9, train=False)   # consider all samples: 100 classes with 5000 samples.
+        # self.aux = Auxiliary(aux_dataset)
+        self.aux = Auxiliary()
 
         # mo
         self.n_obj = int(self.config['n_obj'])
@@ -75,12 +76,14 @@ class PMOPrompt(Prompt):
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         """Difference:
         Init training log for mo.
+        Change aux dataset.
         Save batch_idx
         See nvidia-smi.
         """
         self.init_train_log()
 
         self.train_dataset = train_dataset
+        self.aux.update_source(train_dataset)       # aux samples from the current task
 
         # try to load model
         need_train = True
@@ -252,9 +255,10 @@ class PMOPrompt(Prompt):
         ncc_losses_mo = []  # [obj_idx]: obj_idx * tensor[pop_idx]
         # how many prompt for 1 obj according to n_obj
         '''sampling by aux'''
-        samples, _ = self.aux.sampling(self.pop_size, sort=True)     # [1000, 3, 224, 224]
+        samples, labels = self.aux.sampling(self.pop_size, sort=True)     # [1000, 3, 224, 224]
         if self.gpu:
             samples = samples.cuda()
+            labels = labels.cuda()
         n_samples = samples.shape[0]
 
         '''forward to get objectives'''
@@ -275,7 +279,20 @@ class PMOPrompt(Prompt):
                                        hard_obj_idx=obj_idx, hard_l=hard_l, mask_all=True,
                                        debug_mode=self.debug_mode)
                 # [100, 768]
-                objs = torch.var(logits, dim=1)  # torch[100]
+                # objs = torch.var(logits, dim=1)  # torch[100]
+                logits = logits[:, :self.valid_out_dim]
+                # ce with heuristic
+                logits[:, :self.last_valid_out_dim] = -float('inf')
+                dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
+                objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [100]
+
+                # add noise on objs
+                objs_max = torch.max(objs).detach()
+                objs_min = torch.min(objs).detach()
+                noise = (objs_max - objs_min) / len(objs)*10    # scope of noise
+                noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
+                # noise = torch.randn_like(objs) * noise
+                objs = objs + noise
 
                 # collect objs
                 ncc_losses_mo.append(objs)
@@ -303,8 +320,11 @@ class PMOPrompt(Prompt):
 
 class Auxiliary:
     """Provide auxiliary samples for supporting evaluating prompts"""
-    def __init__(self, source):
+    def __init__(self, source=None):
         """source can be a val_dataset"""
+        self.source = source
+
+    def update_source(self, source):
         self.source = source
 
     def sampling(self, num_samples=100, sort=True):
@@ -312,6 +332,7 @@ class Auxiliary:
         :param num_samples:
         :param sort: return sorted samples according to targets. Inactivated if no target provided.
         """
+        assert self.source is not None
         indexs = np.arange(len(self.source))
         selected = np.random.choice(indexs, num_samples, replace=True if num_samples > len(indexs) else False)
 
