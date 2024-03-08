@@ -247,7 +247,7 @@ class PMOPrompt(Prompt):
 
         return total_loss.detach(), logits
 
-    def obtain_mo_matrix(self, hard_l):
+    def obtain_mo_matrix(self, hard_l, add_noise=True):
         """Return mo_matrix: Torch tensor [obj, pop]"""
         if self.n_obj <= 0:
             return None
@@ -287,12 +287,13 @@ class PMOPrompt(Prompt):
                 objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [100]
 
                 # add noise on objs
-                objs_max = torch.max(objs).detach()
-                objs_min = torch.min(objs).detach()
-                noise = (objs_max - objs_min) / len(objs)*10    # scope of noise
-                noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
-                # noise = torch.randn_like(objs) * noise
-                objs = objs + noise
+                if add_noise:
+                    objs_max = torch.max(objs).detach()
+                    objs_min = torch.min(objs).detach()
+                    noise = (objs_max - objs_min) / len(objs)*10    # scope of noise
+                    noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
+                    # noise = torch.randn_like(objs) * noise
+                    objs = objs + noise
 
                 # collect objs
                 ncc_losses_mo.append(objs)
