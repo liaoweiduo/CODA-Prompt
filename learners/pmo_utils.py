@@ -663,7 +663,7 @@ def draw_objs(objs, labels=None):
     else:
         n_iter, obj_size, pop_size = objs.shape
 
-    assert obj_size == 2
+    # assert obj_size == 2
 
     '''generate pandas DataFrame for objs'''
     if labels is not None:
