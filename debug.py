@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -80,6 +81,18 @@ class Debugger:
             self.storage[key] = vs
             dif = np.abs(dif)
             print(f'{prefix}mean abs grad diff for {key} is {np.mean(dif)}.')
+
+    def save_log(self, log, log_name):
+        """
+
+        Args:
+            log: dict
+            log_name: path to save log
+        """
+        print('=> Saving log to:', log_name)
+        with open(log_name, 'wb') as f:
+            pickle.dump(log, f)
+        print('=> Save Done')
 
     def write_pool(self, pool: Pool, i, writer: Optional[SummaryWriter] = None, prefix='pool'):
         """
@@ -387,7 +400,7 @@ class Debugger:
 
             '''log objs figure along inner step for all epoch'''
             for e in range(n_epoch):
-                figure = draw_objs(objs[e], pop_labels)
+                figure = draw_objs(objs[e, :, :2, :], pop_labels)     # :2 for the first 2 axes
                 writer.add_figure(f"{prefix}_inner/{target}_t{i+1}", figure, e)
 
     def write_task(self, pmo, task: dict, task_title, i, writer: Optional[SummaryWriter] = None, prefix='task'):

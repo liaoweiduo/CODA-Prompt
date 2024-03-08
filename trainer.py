@@ -247,6 +247,8 @@ class Trainer:
                 self.learner.train_log_to_df()
                 epoch_log = self.learner.epoch_log
 
+                debugger.save_log(epoch_log, temp_dir + f'log_t{i}' + '.pkl')
+
                 # pop_labels = [
                 #     f"p{idx}" if idx < self.learner_config['n_obj'] else f"m{idx - self.learner_config['n_obj']}"
                 #     for idx in range(self.learner_config['n_mix'] + self.learner_config['n_obj'])
@@ -259,6 +261,13 @@ class Trainer:
 
                 # '''write pool'''
                 # debugger.write_pool(pool, i=i, writer=writer, prefix=f'pool')
+
+                if len(epoch_log['scaler']) > 0:     # perform training
+                    debugger.write_scaler(epoch_log['scaler'], key='loss/ce_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/et_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='et/loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='et/acc', i=i, writer=writer, inner=True)
 
                 '''write mo'''
                 if len(epoch_log['mo']) > 0:
@@ -274,13 +283,6 @@ class Trainer:
                     '''write min crowding distance'''
                     # debugger.write_min_crowding_distance(epoch_log['mo'], i, writer=writer, target='acc', norm=False)
                     debugger.write_min_crowding_distance(epoch_log['mo'], i, writer=writer, target='loss', norm=False)
-
-                if len(epoch_log['scaler']) > 0:     # perform training
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/ce_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler'], key='loss/et_loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler'], key='et/loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler'], key='et/acc', i=i, writer=writer, inner=True)
 
             # '''nvidia-smi'''
             # print(os.system('nvidia-smi'))
