@@ -227,7 +227,8 @@ class PMOPrompt(Prompt):
                 hv_loss = cal_hv_loss(mo_matrix, ref)       # not normalized mo matrix
 
                 # total_loss = total_loss + hv_loss
-                hv_loss.backward()
+                coeff_hv_loss = 0.01 * hv_loss
+                coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
                 if self.debug_mode:
@@ -243,6 +244,7 @@ class PMOPrompt(Prompt):
         np.random.set_state(state)
 
         # step
+        # check optimizer has grad in debug.ipynb
         self.optimizer.step()
 
         return total_loss.detach(), logits

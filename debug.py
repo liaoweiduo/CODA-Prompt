@@ -161,7 +161,7 @@ class Debugger:
         print(f'{prefix}{key}: {value:.5f}.')
 
         if inner:
-            self.write_inner(df, key=key, i=i, writer=writer)
+            self.write_inner(df, key=key, i=i, writer=writer, prefix=prefix)
 
         return value
 
