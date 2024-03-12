@@ -219,6 +219,10 @@ class PmoPrompt(CodaPrompt):
 
         # self.updated_weights = None     # temp for inner update
 
+    def gram_schmidt(self, vv):  # disable gram schmidt to use uniform init
+
+        return vv
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None, hard_obj_idx=None, hard_l=None, mask_all=False,
                 debug_mode=False, **kwargs):
         """Differences:
@@ -272,25 +276,43 @@ class PmoPrompt(CodaPrompt):
             # A = A[0:f]
             # p = p[0:f]
 
-            aq_k = torch.zeros((B, f), device=p.device)
-            '''enable hard forward mode'''
+            # mask = torch.zeros((B, f), device=p.device)
+            # '''enable hard forward mode'''
+            # if hard_obj_idx is not None and hard_l == l:
+            #     ot = int(pt / self.n_obj)   # number of prompts for one obj
+            #     if hard_obj_idx < self.n_obj - 1:
+            #         mask[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)] = 1
+            #     else:
+            #         mask[:, (s + hard_obj_idx * ot):] = 1       # last obj may have more prompts
+            # elif hard_obj_idx is not None and not mask_all:  # use 1 for all other layers
+            #     mask = torch.ones((B, f), device=p.device)
+
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 10->100]
+
+            # mask aq_k according to obj idx
             if hard_obj_idx is not None and hard_l == l:
                 ot = int(pt / self.n_obj)   # number of prompts for one obj
                 if hard_obj_idx < self.n_obj - 1:
-                    aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)] = 1
+                    aq_k = torch.cat((
+                        torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),                # detach and mask 0
+                        aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)],     # mask 1
+                        torch.zeros_like(aq_k[:, (s + (hard_obj_idx + 1) * ot):]),          # detach and mask 0
+                    ), dim=1)
                 else:
-                    aq_k[:, (s + hard_obj_idx * ot):] = 1       # last obj may have more prompts
-            elif hard_obj_idx is not None and mask_all:
-                pass        # use 0 for all other layers
-            else:   # normal soft forward strategy
-                # b = bs, d = 768, k = 100, l=8
-                # with attention and cosine sim
-                # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
-                a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
-                # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-                n_K = nn.functional.normalize(K, dim=1)
-                q = nn.functional.normalize(a_querry, dim=2)
-                aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 10or100]
+                    aq_k = torch.cat((
+                        torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),                # detach and mask 0
+                        aq_k[:, (s + hard_obj_idx * ot):],                                  # mask 1
+                    ), dim=1)    # last obj may have more prompts
+            elif hard_obj_idx is not None and mask_all:  # detach all and mask 0 for all other layers
+                aq_k = torch.zeros_like(aq_k)
+                e_valid = False       # make p_return to be None
 
             if debug_mode:
                 print(f'aq_k in layer{l}: {aq_k[0]}')

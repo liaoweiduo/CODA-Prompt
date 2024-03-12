@@ -393,14 +393,14 @@ class Debugger:
             objs = np.nan_to_num(objs)
 
             '''log objs figure along epoch for last inner step'''
-            figure = draw_objs(objs[:, -1, :2, :], pop_labels)      # :2 for the first 2 axes
+            figure = draw_objs(objs[:, -1], pop_labels)      # [:,-1,:2,:] for the first 2 axes
             # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
             #                   figure, i + 1)
             writer.add_figure(f"{prefix}/{target}_epoch", figure, i + 1)
 
             '''log objs figure along inner step for all epoch'''
             for e in range(n_epoch):
-                figure = draw_objs(objs[e, :, :2, :], pop_labels)     # :2 for the first 2 axes
+                figure = draw_objs(objs[e], pop_labels)   # [e, :, :2, :] for the first 2 axes
                 writer.add_figure(f"{prefix}_inner/{target}_t{i+1}", figure, e)
 
     def write_task(self, pmo, task: dict, task_title, i, writer: Optional[SummaryWriter] = None, prefix='task'):

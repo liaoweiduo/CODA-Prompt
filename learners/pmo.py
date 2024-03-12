@@ -244,7 +244,6 @@ class PMOPrompt(Prompt):
         np.random.set_state(state)
 
         # step
-        # check optimizer has grad in debug.ipynb
         self.optimizer.step()
 
         return total_loss.detach(), logits
