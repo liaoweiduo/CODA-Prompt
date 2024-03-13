@@ -223,11 +223,11 @@ class PMOPrompt(Prompt):
             hv_loss = 0
             if mo_matrix is not None:
                 # norm mo matrix?
-                ref = None  # dynamic 1.5*max
-                hv_loss = cal_hv_loss(mo_matrix, ref)       # not normalized mo matrix
+                ref = None  # dynamic 1.5*max or 0
+                hv_loss = cal_hv_loss(mo_matrix, ref, reverse=True)       # not normalized mo matrix
 
                 # total_loss = total_loss + hv_loss
-                coeff_hv_loss = 0.01 * hv_loss
+                coeff_hv_loss = hv_loss / mo_matrix.shape[1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
@@ -277,7 +277,7 @@ class PMOPrompt(Prompt):
                 # objs = torch.mean(features, dim=1)  # torch[100]
                 '''obj = var(logits)'''
                 logits, _ = self.model(samples, pen=False, train=True,
-                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask_all=True,
+                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask=True,
                                        debug_mode=self.debug_mode)
                 # [100, 768]
                 # objs = torch.var(logits, dim=1)  # torch[100]

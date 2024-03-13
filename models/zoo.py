@@ -219,15 +219,16 @@ class PmoPrompt(CodaPrompt):
 
         # self.updated_weights = None     # temp for inner update
 
-    def gram_schmidt(self, vv):  # disable gram schmidt to use uniform init
+    # def gram_schmidt(self, vv):  # disable gram schmidt to use uniform init
+    #
+    #     return vv
 
-        return vv
-
-    def forward(self, x_querry, l, x_block, train=False, task_id=None, hard_obj_idx=None, hard_l=None, mask_all=False,
+    def forward(self, x_querry, l, x_block, train=False, task_id=None,
+                hard_obj_idx=None, hard_l=None, mask=False,
                 debug_mode=False, **kwargs):
         """Differences:
-            Add fast_weights to support inner update.
-            Do not freeze old prompts
+            Use hard_obj_idx and hard_l to locate mask for prompt.
+            Use mask to determine whether to mask out the prompt (True) or only select the prompt (False)
         """
         # e prompts
         e_valid = False
@@ -299,18 +300,24 @@ class PmoPrompt(CodaPrompt):
             # mask aq_k according to obj idx
             if hard_obj_idx is not None and hard_l == l:
                 ot = int(pt / self.n_obj)   # number of prompts for one obj
-                if hard_obj_idx < self.n_obj - 1:
-                    aq_k = torch.cat((
-                        torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),                # detach and mask 0
-                        aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)],     # mask 1
-                        torch.zeros_like(aq_k[:, (s + (hard_obj_idx + 1) * ot):]),          # detach and mask 0
-                    ), dim=1)
+                if not mask:    # only select this prompt
+                    if hard_obj_idx < self.n_obj - 1:
+                        aq_k = torch.cat((
+                            torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),                # detach and mask 0
+                            aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)],     # mask 1
+                            torch.zeros_like(aq_k[:, (s + (hard_obj_idx + 1) * ot):]),          # detach and mask 0
+                        ), dim=1)
+                    else:
+                        aq_k = torch.cat((
+                            torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),                # detach and mask 0
+                            aq_k[:, (s + hard_obj_idx * ot):],                                  # mask 1
+                        ), dim=1)    # last obj may have more prompts
                 else:
-                    aq_k = torch.cat((
-                        torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),                # detach and mask 0
-                        aq_k[:, (s + hard_obj_idx * ot):],                                  # mask 1
-                    ), dim=1)    # last obj may have more prompts
-            elif hard_obj_idx is not None and mask_all:  # detach all and mask 0 for all other layers
+                    if hard_obj_idx < self.n_obj - 1:
+                        aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)] = 0
+                    else:
+                        aq_k[:, (s + hard_obj_idx * ot):] = 0
+            elif hard_obj_idx is not None and not mask:  # detach all and mask 0 for all other layers
                 aq_k = torch.zeros_like(aq_k)
                 e_valid = False       # make p_return to be None
 

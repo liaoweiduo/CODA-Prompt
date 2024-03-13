@@ -522,7 +522,7 @@ def prototype_similarity(embeddings, labels, centers, distance='cos'):
     return logits, class_centroids
 
 
-def cal_hv_loss(objs, ref=None):
+def cal_hv_loss(objs, ref=None, reverse=False):
     """
     HV loss calculation: weighted loss
     code function from HV maximization:
@@ -531,6 +531,7 @@ def cal_hv_loss(objs, ref=None):
     Args:
         objs: Tensor/ndarry with shape(obj_size, pop_size)     e.g., (3, 6)
         ref:
+        reverse: True if use negative objs and return negative weights for loss maximization. False otherwise.
 
     Returns:
         weighted loss, for which the weights are based on HV gradients.
@@ -551,7 +552,12 @@ def cal_hv_loss(objs, ref=None):
         objs_np = objs
 
     # compute weight for each solution
+    if reverse:
+        objs_np = -objs_np
     weights = mo_opt.compute_weights(objs_np)       # check if use objs_np.transpose()
+    if reverse:
+        weights = -weights
+
     if type(objs) is torch.Tensor:
         weights = weights.to(objs.device)
         # weights = weights.permute([1, 0]).to(objs.device)
@@ -698,10 +704,10 @@ def draw_objs(objs, labels=None):
         # ax.legend(loc='lower left', bbox_to_anchor=(1.05, 0.1), ncol=1)
     else:
         '''obj size larger than 2'''
-        pcp = PCP(legend=(True, {'loc': "upper left"}))     # cmap='Reds'
+        pcp = PCP()     # legend=(True, {'loc': "upper left"}), cmap='Reds' x
         pcp.set_axis_style(color="grey", alpha=0.5)
         for i_idx in range(n_iter):
-            pcp.add(np.transpose(objs[i_idx], (1, 0)), label=f'{i_idx}')
+            pcp.add(np.transpose(objs[i_idx], (1, 0)), linewidth=(i_idx+1)/n_iter*5, label=f'{i_idx}')
         fig = pcp.show().fig
         plt.close(fig)
     return fig
