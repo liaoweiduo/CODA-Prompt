@@ -215,7 +215,7 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l)   # [2, 100]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, add_noise=True, mask=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
@@ -227,7 +227,8 @@ class PMOPrompt(Prompt):
                 hv_loss = cal_hv_loss(mo_matrix, ref, reverse=True)       # not normalized mo matrix
 
                 # total_loss = total_loss + hv_loss
-                coeff_hv_loss = hv_loss / mo_matrix.shape[1]
+                coeff_hv_loss = hv_loss / mo_matrix.shape[1]        # align to 1 ce loss
+                coeff_hv_loss = torch.exp(coeff_hv_loss)            # make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
@@ -248,7 +249,7 @@ class PMOPrompt(Prompt):
 
         return total_loss.detach(), logits
 
-    def obtain_mo_matrix(self, hard_l, add_noise=True):
+    def obtain_mo_matrix(self, hard_l, add_noise=True, mask=True):
         """Return mo_matrix: Torch tensor [obj, pop]"""
         if self.n_obj <= 0:
             return None
@@ -277,7 +278,7 @@ class PMOPrompt(Prompt):
                 # objs = torch.mean(features, dim=1)  # torch[100]
                 '''obj = var(logits)'''
                 logits, _ = self.model(samples, pen=False, train=True,
-                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask=True,
+                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask=mask,
                                        debug_mode=self.debug_mode)
                 # [100, 768]
                 # objs = torch.var(logits, dim=1)  # torch[100]
