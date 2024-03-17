@@ -210,7 +210,8 @@ class PmoPrompt(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
-        self.n_obj = int(self.e_pool_size / (self.n_tasks))     # num of prompts for 1 task.
+        self.n_prompt_per_task = int(self.e_pool_size / (self.n_tasks))     # num of prompts for 1 task.
+        self.n_obj = self.n_prompt_per_task
         # or prompt_param[3]
 
         # # dataset with pool

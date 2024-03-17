@@ -44,14 +44,14 @@ class PMOPrompt(Prompt):
 
         # mo
         self.n_obj = int(self.config['n_obj'])
-        self.pop_size = int(self.config['num_aux_sampling'])
+        self.num_aux_sampling = int(self.config['num_aux_sampling'])
 
         try:
             prompt = self.model.module.prompt
         except:
             prompt = self.model.prompt
         self.e_layers = prompt.e_layers
-        self.n_obj_max = prompt.n_obj
+        self.n_prompt_per_task = prompt.n_prompt_per_task
 
         # log
         self.epoch_log = dict()
@@ -215,7 +215,7 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, add_noise=True, mask=True)   # [10, 20]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, add_noise=False, mask=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
@@ -228,7 +228,7 @@ class PMOPrompt(Prompt):
 
                 # total_loss = total_loss + hv_loss
                 coeff_hv_loss = hv_loss / mo_matrix.shape[1]        # align to 1 ce loss
-                coeff_hv_loss = torch.exp(coeff_hv_loss)            # make loss \in [0, 1]
+                coeff_hv_loss = torch.exp(coeff_hv_loss)*100        # make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
@@ -257,7 +257,7 @@ class PMOPrompt(Prompt):
         ncc_losses_mo = []  # [obj_idx]: obj_idx * tensor[pop_idx]
         # how many prompt for 1 obj according to n_obj
         '''sampling by aux'''
-        samples, labels = self.aux.sampling(self.pop_size, sort=True)     # [1000, 3, 224, 224]
+        samples, labels = self.aux.sampling(self.num_aux_sampling, sort=True)     # [1000, 3, 224, 224]
         if self.gpu:
             samples = samples.cuda()
             labels = labels.cuda()
@@ -265,18 +265,10 @@ class PMOPrompt(Prompt):
 
         '''forward to get objectives'''
         if hard_l in self.e_layers:
-            # random select self.n_obj obj_idx from self.n_obj_max
-            selected_obj_idxs = np.sort(np.random.choice(self.n_obj_max, self.n_obj, replace=False))
+            # random select self.n_obj obj_idx from self.n_prompt_per_task
+            selected_obj_idxs = np.sort(np.random.choice(self.n_prompt_per_task, self.n_obj, replace=False))
             for re_idx, obj_idx in enumerate(selected_obj_idxs):
                 # pen: penultimate features; train: same forward as batch training.
-                '''obj = mean(features)'''
-                # !!! may cause problem when have negative value
-                # features, _ = self.model(samples, pen=True, train=True,
-                #                          hard_obj_idx=obj_idx, hard_l=hard_l,
-                #                          debug_mode=self.debug_mode)
-                # # [100, 768]
-                # objs = torch.mean(features, dim=1)  # torch[100]
-                '''obj = var(logits)'''
                 logits, _ = self.model(samples, pen=False, train=True,
                                        hard_obj_idx=obj_idx, hard_l=hard_l, mask=mask,
                                        debug_mode=self.debug_mode)
@@ -299,10 +291,73 @@ class PMOPrompt(Prompt):
 
                 # collect objs
                 ncc_losses_mo.append(objs)
-                # if f'l{hard_l}' in ncc_losses_mo.keys():
-                #     ncc_losses_mo[f'l{hard_l}'].append(objs)
-                # else:
-                #     ncc_losses_mo[f'l{hard_l}'] = [objs]
+
+                self.epoch_log['mo']['Tag'].extend(['loss' for _ in range(n_samples)])
+                self.epoch_log['mo']['Pop_id'].extend([s_i for s_i in range(n_samples)])
+                self.epoch_log['mo']['Obj_id'].extend([re_idx for _ in range(n_samples)])
+                self.epoch_log['mo']['Epoch_id'].extend([self.epoch for _ in range(n_samples)])
+                self.epoch_log['mo']['Inner_id'].extend([hard_l for _ in range(n_samples)])
+                self.epoch_log['mo']['Value'].extend(list(objs.detach().cpu().numpy()))
+
+            # ncc_losses = torch.mean(
+            #     torch.stack([torch.stack(ncc_losses_mo[f'l{hard_l}']) for hard_l in self.e_layers]), dim=0)
+            # # [5, 2, 100] -> [2, 100]
+            ncc_losses = torch.stack(ncc_losses_mo)
+        else:
+            ncc_losses = None
+
+        return ncc_losses
+
+    def obtain_mo_matrix_pop_prompt(self, hard_l, add_noise=True, mask=True):
+        """Return mo_matrix: Torch tensor [obj, pop]
+        Obj: samples; Pop: prompts
+        """
+        if self.n_obj <= 0:
+            return None
+
+        '''sampling by aux'''
+        samples, labels = [], []
+        while len(samples) < self.n_obj:
+            s, l = self.aux.sampling(100, sort=True)     # [1000, 3, 224, 224]
+
+
+
+
+        if self.gpu:
+            samples = samples.cuda()
+            labels = labels.cuda()
+        n_samples = samples.shape[0]
+
+        ncc_losses_mo = torch.zeros((self.n_obj, self.n_prompt_per_task), device=samples.device)
+
+        '''forward to get objectives'''
+        if hard_l in self.e_layers:
+            # random select self.n_obj obj_idx from self.n_prompt_per_task
+            selected_obj_idxs = np.sort(np.random.choice(self.n_prompt_per_task, self.n_obj, replace=False))
+            for re_idx, obj_idx in enumerate(selected_obj_idxs):
+                # pen: penultimate features; train: same forward as batch training.
+                logits, _ = self.model(samples, pen=False, train=True,
+                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask=mask,
+                                       debug_mode=self.debug_mode)
+                # [100, 768]
+                # objs = torch.var(logits, dim=1)  # torch[100]
+                logits = logits[:, :self.valid_out_dim]
+                # ce with heuristic
+                logits[:, :self.last_valid_out_dim] = -float('inf')
+                dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
+                objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [100]
+
+                # add noise on objs
+                if add_noise:
+                    objs_max = torch.max(objs).detach()
+                    objs_min = torch.min(objs).detach()
+                    noise = (objs_max - objs_min) / len(objs)*10    # scope of noise
+                    noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
+                    # noise = torch.randn_like(objs) * noise
+                    objs = objs + noise
+
+                # collect objs
+                ncc_losses_mo.append(objs)
 
                 self.epoch_log['mo']['Tag'].extend(['loss' for _ in range(n_samples)])
                 self.epoch_log['mo']['Pop_id'].extend([s_i for s_i in range(n_samples)])
