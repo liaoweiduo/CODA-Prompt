@@ -228,7 +228,7 @@ class PMOPrompt(Prompt):
 
                 # total_loss = total_loss + hv_loss
                 hv_loss = torch.mean(hv_loss)                       # align to 1 ce loss
-                coeff_hv_loss = torch.exp(hv_loss)*10               # exp() make loss \in [0, 1]
+                coeff_hv_loss = torch.exp(hv_loss)*5                # exp() make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
