@@ -215,7 +215,7 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, add_noise=False, mask=True)   # [10, 20]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, add_noise=True, mask=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
@@ -228,7 +228,7 @@ class PMOPrompt(Prompt):
 
                 # total_loss = total_loss + hv_loss
                 hv_loss = torch.mean(hv_loss)                       # align to 1 ce loss
-                coeff_hv_loss = torch.exp(hv_loss)*50               # exp() make loss \in [0, 1]
+                coeff_hv_loss = torch.exp(hv_loss)*10               # exp() make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
@@ -284,7 +284,7 @@ class PMOPrompt(Prompt):
                 if add_noise:
                     objs_max = torch.max(objs).detach()
                     objs_min = torch.min(objs).detach()
-                    noise = (objs_max - objs_min) / len(objs)*10    # scope of noise
+                    noise = (objs_max - objs_min) / len(objs)*2    # scope of noise
                     noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
                     # noise = torch.randn_like(objs) * noise
                     objs = objs + noise
