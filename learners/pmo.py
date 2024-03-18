@@ -22,6 +22,7 @@ from .prompt import Prompt
 from utils.schedulers import CosineSchedule
 from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_loss
 from models.losses import prototype_loss
+from mo_optimizers.functions_evaluation import fastNonDominatedSort
 import dataloaders
 
 
@@ -222,13 +223,20 @@ class PMOPrompt(Prompt):
 
             hv_loss = 0
             if mo_matrix is not None:
-                # norm mo matrix?
-                ref = None  # dynamic 1.5*max or 0
-                hv_loss = cal_hv_loss(mo_matrix, ref, reverse=True)       # not normalized mo matrix
+                # # cal weight on normed mo matrix?
+                # mo_min = torch.min(mo_matrix)
+                # mo_max = torch.max(mo_matrix)
+                # norm_mo_matrix = (mo_matrix - mo_min) / (mo_max - mo_min)
+
+                ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
+                hv_loss, weights = cal_hv_loss(mo_matrix, ref, return_weight=True, reverse=True)
+
+                if self.debug_mode:
+                    print(f'weights: {weights}')
 
                 # total_loss = total_loss + hv_loss
                 hv_loss = torch.mean(hv_loss)                       # align to 1 ce loss
-                coeff_hv_loss = torch.exp(hv_loss)*5                # exp() make loss \in [0, 1]
+                coeff_hv_loss = torch.exp(hv_loss)*2                # exp() make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
@@ -307,6 +315,20 @@ class PMOPrompt(Prompt):
             ncc_losses = None
 
         return ncc_losses
+
+    def return_front(self, mo_matrix, idx=-1):
+        """Return the specific front from mo_matrix: [obj, pop]"""
+        n_obj, n_pop = mo_matrix.shape
+        mo_obj = mo_matrix.detach().cpu().numpy()
+
+        # non-dom sorting to create multiple fronts
+        subfront_indices = fastNonDominatedSort(mo_obj)
+        number_of_fronts = np.max(subfront_indices) + 1  # +1 because of 0 indexing
+
+        if idx >= number_of_fronts or idx == -1:
+            idx = number_of_fronts - 1      # return the last front (dominated ones)
+
+        return mo_matrix[:, subfront_indices == idx]
 
     def obtain_mo_matrix_pop_prompt(self, hard_l, add_noise=True, mask=True):
         """Return mo_matrix: Torch tensor [obj, pop]

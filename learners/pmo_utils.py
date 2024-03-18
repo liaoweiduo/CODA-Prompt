@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import seaborn as sns
 
+from mo_optimizers import hv_maximization
+
 
 class Pool(data.Dataset):     # (nn.Module)
     """
@@ -522,7 +524,7 @@ def prototype_similarity(embeddings, labels, centers, distance='cos'):
     return logits, class_centroids
 
 
-def cal_hv_loss(objs, ref=None, reverse=False):
+def cal_hv_loss(objs, ref=None, return_weight=False, reverse=False):
     """
     HV loss calculation: weighted loss
     code function from HV maximization:
@@ -531,12 +533,12 @@ def cal_hv_loss(objs, ref=None, reverse=False):
     Args:
         objs: Tensor/ndarry with shape(obj_size, pop_size)     e.g., (3, 6)
         ref:
+        return_weight: whether to return weights or not
         reverse: True if use negative objs and return negative weights for loss maximization. False otherwise.
 
     Returns:
         weighted loss, for which the weights are based on HV gradients.
     """
-    from mo_optimizers import hv_maximization
 
     num_obj, num_sol = objs.shape[0], objs.shape[1]
     if ref is not None:
@@ -567,7 +569,10 @@ def cal_hv_loss(objs, ref=None, reverse=False):
         # weights = weights.permute([1, 0]).numpy()
         weighted_loss = np.sum(objs * weights, axis=0)
 
-    return weighted_loss
+    if return_weight:
+        return weighted_loss, weights
+    else:
+        return weighted_loss
 
 
 def cal_hv(objs, ref=2, target='loss'):
