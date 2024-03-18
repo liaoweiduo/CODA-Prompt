@@ -561,11 +561,11 @@ def cal_hv_loss(objs, ref=None, reverse=False):
     if type(objs) is torch.Tensor:
         weights = weights.to(objs.device)
         # weights = weights.permute([1, 0]).to(objs.device)
-        weighted_loss = torch.sum(objs * weights)
+        weighted_loss = torch.sum(objs * weights, dim=0)
     else:
         weights = weights.numpy()
         # weights = weights.permute([1, 0]).numpy()
-        weighted_loss = np.sum(objs * weights)
+        weighted_loss = np.sum(objs * weights, axis=0)
 
     return weighted_loss
 

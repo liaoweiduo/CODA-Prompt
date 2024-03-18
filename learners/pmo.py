@@ -227,8 +227,8 @@ class PMOPrompt(Prompt):
                 hv_loss = cal_hv_loss(mo_matrix, ref, reverse=True)       # not normalized mo matrix
 
                 # total_loss = total_loss + hv_loss
-                coeff_hv_loss = hv_loss / mo_matrix.shape[1]        # align to 1 ce loss
-                coeff_hv_loss = torch.exp(coeff_hv_loss)*100        # make loss \in [0, 1]
+                hv_loss = torch.mean(hv_loss)                       # align to 1 ce loss
+                coeff_hv_loss = torch.exp(hv_loss)*50               # exp() make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
