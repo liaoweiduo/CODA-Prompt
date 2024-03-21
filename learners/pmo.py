@@ -241,7 +241,7 @@ class PMOPrompt(Prompt):
                 hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
 
                 # total_loss = total_loss + hv_loss
-                coeff_hv_loss = torch.exp(hv_loss)*2                # exp() make loss \in [0, 1]
+                coeff_hv_loss = torch.exp(hv_loss)*1.1                # exp() make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 
