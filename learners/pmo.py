@@ -1,6 +1,8 @@
 from __future__ import print_function
 import sys
 import math
+from typing import Optional, Union
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -20,7 +22,7 @@ from datetime import datetime
 from .default import NormalNN, weight_reset, accumulate_acc
 from .prompt import Prompt
 from utils.schedulers import CosineSchedule
-from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_loss
+from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_weights, normalize_to_simplex
 from models.losses import prototype_loss
 from mo_optimizers.functions_evaluation import fastNonDominatedSort
 import dataloaders
@@ -216,7 +218,7 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, add_noise=True, mask=True)   # [10, 20]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask='uniform', train=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
@@ -227,15 +229,18 @@ class PMOPrompt(Prompt):
                 # mo_min = torch.min(mo_matrix)
                 # mo_max = torch.max(mo_matrix)
                 # norm_mo_matrix = (mo_matrix - mo_min) / (mo_max - mo_min)
+                with torch.no_grad():
+                    normed_mo_matrix = normalize_to_simplex(mo_matrix)
+                    ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
+                    weights = cal_hv_weights(normed_mo_matrix, ref, reverse=True)
 
-                ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                hv_loss, weights = cal_hv_loss(mo_matrix, ref, return_weight=True, reverse=True)
+                    if self.debug_mode:
+                        print(f'weights: {weights}')
 
-                if self.debug_mode:
-                    print(f'weights: {weights}')
+                hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
+                hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
 
                 # total_loss = total_loss + hv_loss
-                hv_loss = torch.mean(hv_loss)                       # align to 1 ce loss
                 coeff_hv_loss = torch.exp(hv_loss)*2                # exp() make loss \in [0, 1]
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
@@ -257,15 +262,23 @@ class PMOPrompt(Prompt):
 
         return total_loss.detach(), logits
 
-    def obtain_mo_matrix(self, hard_l, add_noise=True, mask=True):
-        """Return mo_matrix: Torch tensor [obj, pop]"""
+    def obtain_mo_matrix(self, hard_l, pop_size=None,
+                         add_noise=False, mask: Optional[Union[int, str]] = 0, train=True):
+        """Return mo_matrix: Torch tensor [obj, pop]
+        proj: whether to project mo matrix to simplex.
+        mask:   int to be constant prompts,
+                None to be only selecting specific prompt,
+                randn/uniform/ortho to be random prompts
+        """
         if self.n_obj <= 0:
             return None
 
         ncc_losses_mo = []  # [obj_idx]: obj_idx * tensor[pop_idx]
         # how many prompt for 1 obj according to n_obj
         '''sampling by aux'''
-        samples, labels = self.aux.sampling(self.num_aux_sampling, sort=True)     # [1000, 3, 224, 224]
+        if pop_size is None:
+            pop_size = self.num_aux_sampling
+        samples, labels = self.aux.sampling(pop_size, sort=True)     # [1000, 3, 224, 224]
         if self.gpu:
             samples = samples.cuda()
             labels = labels.cuda()
@@ -277,9 +290,11 @@ class PMOPrompt(Prompt):
             selected_obj_idxs = np.sort(np.random.choice(self.n_prompt_per_task, self.n_obj, replace=False))
             for re_idx, obj_idx in enumerate(selected_obj_idxs):
                 # pen: penultimate features; train: same forward as batch training.
-                logits, _ = self.model(samples, pen=False, train=True,
-                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask=mask,
-                                       debug_mode=self.debug_mode)
+                out = self.model(samples, pen=False, train=train,
+                                 hard_obj_idx=obj_idx, hard_l=hard_l, mask=mask,
+                                 debug_mode=self.debug_mode)
+                logits = out[0] if train else out
+
                 # [100, 768]
                 # objs = torch.var(logits, dim=1)  # torch[100]
                 logits = logits[:, :self.valid_out_dim]
@@ -330,36 +345,60 @@ class PMOPrompt(Prompt):
 
         return mo_matrix[:, subfront_indices == idx]
 
-    def obtain_mo_matrix_pop_prompt(self, hard_l, add_noise=True, mask=True):
+    def obtain_mo_matrix_pop_prompt(self, hard_l, add_noise=True, mask=0):
         """Return mo_matrix: Torch tensor [obj, pop]
         Obj: samples; Pop: prompts
         """
         if self.n_obj <= 0:
             return None
 
+        def sampling(n_obj, min_samples=10):
+            """Sample and check whether number of list of samples contains at least min_samples
+            is larger than n_obj, and return cat-ed samples and labels.
+            :param n_obj: number of column that need to satisfied.
+            :param min_samples:
+
+            :return cat-ed samples and labels.
+            """
+            _dict = {}
+            while len([_dict[_l] for _l in _dict.keys() if _dict[_l].shape[0] >= min_samples]) < n_obj:
+                ss, ls = self.aux.sampling(self.num_aux_sampling, sort=True)  # [100, 3, 224, 224]
+                for label in sorted(set(ls)):
+                    if label in _dict:
+                        _dict[label] = torch.cat((_dict[label], ss[ls == label]))
+                    else:
+                        _dict[label] = ss[ls == label]
+
+            _samples, _labels = [], []
+            for label, ss in _dict.items():
+                if ss.shape[0] >= min_samples:
+                    _samples.append(ss[:min_samples])
+                    _labels.append(torch.fill_(torch.empty(min_samples), label))
+
+            _samples = torch.stack(_samples)        # [10, 10, 3, 224, 224] [n_cls, min_samples, *img_size]
+            _labels = torch.stack(_labels)          # [10, 10]  [n_cls, min_samples]
+            index = np.random.choice(len(_samples), n_obj, replace=False)
+
+            return _samples[index].view(n_obj*min_samples, *_samples.shape[-3:]), _labels[index].view(n_obj*min_samples)
+
         '''sampling by aux'''
-        samples, labels = [], []
-        while len(samples) < self.n_obj:
-            s, l = self.aux.sampling(100, sort=True)     # [1000, 3, 224, 224]
-
-
-
+        num_sample_per_obj = 10
+        samples, labels = sampling(self.n_obj, min_samples=num_sample_per_obj)
+        # dead while when n_obj > n_class_per_task
 
         if self.gpu:
             samples = samples.cuda()
             labels = labels.cuda()
         n_samples = samples.shape[0]
 
-        ncc_losses_mo = torch.zeros((self.n_obj, self.n_prompt_per_task), device=samples.device)
-
         '''forward to get objectives'''
         if hard_l in self.e_layers:
-            # random select self.n_obj obj_idx from self.n_prompt_per_task
-            selected_obj_idxs = np.sort(np.random.choice(self.n_prompt_per_task, self.n_obj, replace=False))
-            for re_idx, obj_idx in enumerate(selected_obj_idxs):
+            ncc_losses_mo = torch.zeros((self.n_obj, self.n_prompt_per_task), device=samples.device)
+
+            for prompt_idx in range(self.n_prompt_per_task):
                 # pen: penultimate features; train: same forward as batch training.
                 logits, _ = self.model(samples, pen=False, train=True,
-                                       hard_obj_idx=obj_idx, hard_l=hard_l, mask=mask,
+                                       hard_obj_idx=prompt_idx, hard_l=hard_l, mask=mask,
                                        debug_mode=self.debug_mode)
                 # [100, 768]
                 # objs = torch.var(logits, dim=1)  # torch[100]
@@ -369,21 +408,25 @@ class PMOPrompt(Prompt):
                 dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
                 objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [100]
 
-                # add noise on objs
-                if add_noise:
-                    objs_max = torch.max(objs).detach()
-                    objs_min = torch.min(objs).detach()
-                    noise = (objs_max - objs_min) / len(objs)*10    # scope of noise
-                    noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
-                    # noise = torch.randn_like(objs) * noise
-                    objs = objs + noise
+                # # add noise on objs: need to check
+                # if add_noise:
+                #     objs_max = torch.max(objs).detach()
+                #     objs_min = torch.min(objs).detach()
+                #     noise = (objs_max - objs_min) / len(objs)*10    # scope of noise:
+                #     noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
+                #     # noise = torch.randn_like(objs) * noise
+                #     objs = objs + noise
 
-                # collect objs
-                ncc_losses_mo.append(objs)
+                # collect objs every num_sample_per_obj samples
+                # [n_obj * num_sample_per_obj] -> [n_obj]
+                mean_objs = torch.mean(objs.reshape(self.n_obj, num_sample_per_obj), dim=1)      # [n_obj]
+                objs_idxs = np.repeat(np.arange(self.n_obj), num_sample_per_obj)
+
+                ncc_losses_mo[:, prompt_idx] = mean_objs
 
                 self.epoch_log['mo']['Tag'].extend(['loss' for _ in range(n_samples)])
-                self.epoch_log['mo']['Pop_id'].extend([s_i for s_i in range(n_samples)])
-                self.epoch_log['mo']['Obj_id'].extend([re_idx for _ in range(n_samples)])
+                self.epoch_log['mo']['Pop_id'].extend([prompt_idx for _ in range(n_samples)])
+                self.epoch_log['mo']['Obj_id'].extend([objs_idxs[sample_idx] for sample_idx in range(n_samples)])
                 self.epoch_log['mo']['Epoch_id'].extend([self.epoch for _ in range(n_samples)])
                 self.epoch_log['mo']['Inner_id'].extend([hard_l for _ in range(n_samples)])
                 self.epoch_log['mo']['Value'].extend(list(objs.detach().cpu().numpy()))
@@ -391,7 +434,7 @@ class PMOPrompt(Prompt):
             # ncc_losses = torch.mean(
             #     torch.stack([torch.stack(ncc_losses_mo[f'l{hard_l}']) for hard_l in self.e_layers]), dim=0)
             # # [5, 2, 100] -> [2, 100]
-            ncc_losses = torch.stack(ncc_losses_mo)
+            ncc_losses = ncc_losses_mo
         else:
             ncc_losses = None
 

@@ -232,7 +232,7 @@ class Debugger:
         if ref == 'relative':
             ref = np.mean(objs[0], axis=-1).tolist()  # [n_obj]   to be list
         for inner_step in range(n_inner):
-            hv = cal_hv(objs[inner_step], ref, target=target)
+            hv = cal_hv(objs[inner_step], ref, target='min' if target == 'loss' else 'max')
             writer.add_scalar(f'{prefix}_details/{target}/{i+1}', hv, inner_step + 1)
         writer.add_scalar(f'{prefix}/{target}', hv, i + 1)
 
@@ -367,8 +367,9 @@ class Debugger:
             ])  # [n_inner, n_obj, n_pop]
 
             '''log objs figure'''
-            figure = draw_objs(objs, pop_labels)
-            writer.add_figure(f"{prefix}/objs_{target}", figure, i + 1)
+            fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
+            draw_objs(objs, pop_labels, ax=ax)
+            writer.add_figure(f"{prefix}/objs_{target}", fig, i + 1)
 
             with open(os.path.join(writer.log_dir, f'{prefix}_mo_dict_{target}.json'), 'w') as f:
                 json.dump(mo_dict, f)
@@ -393,15 +394,17 @@ class Debugger:
             objs = np.nan_to_num(objs)
 
             '''log objs figure along epoch for last inner step'''
-            figure = draw_objs(objs[:, -1], pop_labels)      # [:,-1,:2,:] for the first 2 axes
+            fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
+            draw_objs(objs[:, -1], pop_labels, ax=ax)      # [:,-1,:2,:] for the first 2 axes
             # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
             #                   figure, i + 1)
-            writer.add_figure(f"{prefix}/{target}_epoch", figure, i + 1)
+            writer.add_figure(f"{prefix}/{target}_epoch", fig, i + 1)
 
             '''log objs figure along inner step for all epoch'''
             for e in range(n_epoch):
-                figure = draw_objs(objs[e], pop_labels)   # [e, :, :2, :] for the first 2 axes
-                writer.add_figure(f"{prefix}_inner/{target}_t{i+1}", figure, e)
+                fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
+                draw_objs(objs[e], pop_labels, ax=ax)   # [e, :, :2, :] for the first 2 axes
+                writer.add_figure(f"{prefix}_inner/{target}_t{i+1}", fig, e)
 
     def write_task(self, pmo, task: dict, task_title, i, writer: Optional[SummaryWriter] = None, prefix='task'):
         """
