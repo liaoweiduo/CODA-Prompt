@@ -224,6 +224,7 @@ class PMOPrompt(Prompt):
                 print(f'mo_matrix: {mo_matrix}')
 
             hv_loss = 0
+            maximization = False
             if mo_matrix is not None:
                 # # cal weight on normed mo matrix?
                 # mo_min = torch.min(mo_matrix)
@@ -232,7 +233,7 @@ class PMOPrompt(Prompt):
                 with torch.no_grad():
                     normed_mo_matrix = normalize_to_simplex(mo_matrix)
                     ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                    weights = cal_hv_weights(normed_mo_matrix, ref, reverse=True)
+                    weights = cal_hv_weights(normed_mo_matrix, ref, reverse=maximization)
 
                     if self.debug_mode:
                         print(f'weights: {weights}')
@@ -241,7 +242,10 @@ class PMOPrompt(Prompt):
                 hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
 
                 # total_loss = total_loss + hv_loss
-                coeff_hv_loss = torch.exp(hv_loss)*1.1                # exp() make loss \in [0, 1]
+                if maximization:
+                    coeff_hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
+                else:
+                    coeff_hv_loss = hv_loss
                 coeff_hv_loss.backward()
                 hv_loss = hv_loss.item()
 

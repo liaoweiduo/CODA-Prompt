@@ -26,7 +26,7 @@ mkdir -p $OUTDIR
 #    arg 4 = num of objectives: 2
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-uni-100-4-c1_1
+LOGNAME=pmo-uni-min-100-4-c1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 4 \
