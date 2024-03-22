@@ -218,13 +218,13 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask='uniform', train=True)   # [10, 20]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask='randn', train=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
 
             hv_loss = 0
-            maximization = False
+            maximization = True
             if mo_matrix is not None:
                 # # cal weight on normed mo matrix?
                 # mo_min = torch.min(mo_matrix)
