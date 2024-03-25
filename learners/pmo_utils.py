@@ -571,12 +571,17 @@ def cal_hv_weights(objs, ref=None, reverse=False):
     return weights
 
 
-def normalize_to_simplex(tensor, dim=0):
+def normalize_to_simplex(tensor, dim=0, noise=False):
     # proj to simplex sum(f)=1
-    tensor = torch.clamp(tensor, min=1e-10)  # clamp negative value and too small value
+    tensor = torch.clamp(tensor, min=1e-7)  # clamp negative value and too small value
+
+    if noise:       # prevent the same point
+        noise = torch.from_numpy(np.random.rand(*tensor.shape)).float().to(tensor.device) * 2e-9 - 1e-9
+        # noise = torch.rand_like(tensor) * 2e-9 - 1e-9     # [0, 1e-9]
+        tensor = tensor + noise
 
     sum_tensor = torch.sum(tensor, dim=dim, keepdim=True)
-    normalized_tensor = tensor / (sum_tensor + 1e-12)
+    normalized_tensor = tensor / (sum_tensor + 1e-10)
 
     return normalized_tensor
 

@@ -55,6 +55,7 @@ class PMOPrompt(Prompt):
             prompt = self.model.prompt
         self.e_layers = prompt.e_layers
         self.n_prompt_per_task = prompt.n_prompt_per_task
+        self.n_obj_avail = prompt.n_obj
 
         # log
         self.epoch_log = dict()
@@ -218,7 +219,7 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask='randn', train=True)   # [10, 20]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask=0, mask_mode='maskout', train=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
@@ -226,18 +227,19 @@ class PMOPrompt(Prompt):
             hv_loss = 0
             maximization = True
             if mo_matrix is not None:
-                # # cal weight on normed mo matrix?
-                # mo_min = torch.min(mo_matrix)
-                # mo_max = torch.max(mo_matrix)
-                # norm_mo_matrix = (mo_matrix - mo_min) / (mo_max - mo_min)
-                with torch.no_grad():
-                    normed_mo_matrix = normalize_to_simplex(mo_matrix)
-                    ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                    weights = cal_hv_weights(normed_mo_matrix, ref, reverse=maximization)
+                if maximization:
+                    normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
+                else:
+                    with torch.no_grad():
+                        normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
+                ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
+                weights = cal_hv_weights(normed_mo_matrix, ref, reverse=maximization)
 
-                    if self.debug_mode:
-                        print(f'weights: {weights}')
+                if self.debug_mode:
+                    print(f'weights: {weights}')
 
+                if maximization:    # maximization using normed mo, minimization using no-normed mo
+                    mo_matrix = normed_mo_matrix
                 hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
                 hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
 
@@ -267,7 +269,8 @@ class PMOPrompt(Prompt):
         return total_loss.detach(), logits
 
     def obtain_mo_matrix(self, hard_l, pop_size=None,
-                         add_noise=False, mask: Optional[Union[int, str]] = 0, train=True):
+                         add_noise=False, mask: Optional[Union[int, str]] = 0, mask_mode='maskout',
+                         train=True):
         """Return mo_matrix: Torch tensor [obj, pop]
         proj: whether to project mo matrix to simplex.
         mask:   int to be constant prompts,
@@ -291,11 +294,12 @@ class PMOPrompt(Prompt):
         '''forward to get objectives'''
         if hard_l in self.e_layers:
             # random select self.n_obj obj_idx from self.n_prompt_per_task
-            selected_obj_idxs = np.sort(np.random.choice(self.n_prompt_per_task, self.n_obj, replace=False))
+            selected_obj_idxs = np.sort(np.random.choice(self.n_obj_avail, self.n_obj, replace=False))
             for re_idx, obj_idx in enumerate(selected_obj_idxs):
                 # pen: penultimate features; train: same forward as batch training.
                 out = self.model(samples, pen=False, train=train,
-                                 hard_obj_idx=obj_idx, hard_l=hard_l, mask=mask,
+                                 hard_obj_idx=obj_idx, hard_l=hard_l,
+                                 mask=mask, mask_mode=mask_mode,
                                  debug_mode=self.debug_mode)
                 logits = out[0] if train else out
 
@@ -309,11 +313,12 @@ class PMOPrompt(Prompt):
 
                 # add noise on objs
                 if add_noise:
-                    objs_max = torch.max(objs).detach()
-                    objs_min = torch.min(objs).detach()
-                    noise = (objs_max - objs_min) / len(objs)*2    # scope of noise
-                    noise = torch.from_numpy(np.random.randn(*objs.shape)).to(objs.device) * noise
-                    # noise = torch.randn_like(objs) * noise
+                    # objs_max = torch.max(objs).detach()
+                    # objs_min = torch.min(objs).detach()
+                    # noise = (objs_max - objs_min) / len(objs)*2    # scope of noise
+                    noise = 1e-9
+                    noise = torch.from_numpy(np.random.rand(*objs.shape)).float().to(objs.device) * noise * 2 - noise
+                    # noise = torch.randn_like(objs) * noise * 2 - noise
                     objs = objs + noise
 
                 # collect objs
@@ -397,9 +402,9 @@ class PMOPrompt(Prompt):
 
         '''forward to get objectives'''
         if hard_l in self.e_layers:
-            ncc_losses_mo = torch.zeros((self.n_obj, self.n_prompt_per_task), device=samples.device)
+            ncc_losses_mo = torch.zeros((self.n_obj, self.n_obj_avail), device=samples.device)
 
-            for prompt_idx in range(self.n_prompt_per_task):
+            for prompt_idx in range(self.n_obj_avail):
                 # pen: penultimate features; train: same forward as batch training.
                 logits, _ = self.model(samples, pen=False, train=True,
                                        hard_obj_idx=prompt_idx, hard_l=hard_l, mask=mask,
