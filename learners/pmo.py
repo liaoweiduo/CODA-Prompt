@@ -50,6 +50,12 @@ class PMOPrompt(Prompt):
         self.num_aux_sampling = int(self.config['num_aux_sampling'])
         self.mask = self.config['prompt_param'][1][4]               # constant float or randn or uniform or ortho
         self.mask_mode = int(self.config['prompt_param'][1][5])     # maskout or use
+        if int(self.mask) == -10000:
+            self.mask = 'randn'
+        elif int(self.mask) == -10001:
+            self.mask = 'uniform'
+        elif int(self.mask) == -10002:
+            self.mask = 'ortho'
         if self.mask_mode == 0:
             self.mask_mode = 'maskout'
         elif self.mask_mode == 1:
