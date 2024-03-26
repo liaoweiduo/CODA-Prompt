@@ -48,8 +48,14 @@ class PMOPrompt(Prompt):
         # mo
         self.n_obj = int(self.config['n_obj'])
         self.num_aux_sampling = int(self.config['num_aux_sampling'])
-        self.mask = self.config['prompt_param'][1][4]           # constant float or randn or uniform or ortho
-        self.mask_mode = self.config['prompt_param'][1][5]      # maskout or use
+        self.mask = self.config['prompt_param'][1][4]               # constant float or randn or uniform or ortho
+        self.mask_mode = int(self.config['prompt_param'][1][5])     # maskout or use
+        if self.mask_mode == 0:
+            self.mask_mode = 'maskout'
+        elif self.mask_mode == 1:
+            self.mask_mode = 'use'
+        else:
+            raise Exception(f'Unknown mask mode {self.mask_mode}')
         print(f'Mask info: {self.mask_mode}->{self.mask}')
 
         try:

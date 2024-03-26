@@ -25,13 +25,13 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    arg 4 = num of objectives: 2
 #    arg 5 = mask: 0.0
-#    arg 6 = mask_mode: maskout or use
+#    arg 6 = mask_mode: 0: maskout or 1: use
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
 LOGNAME=pmo-min-use-p0-100-2-c1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 0.0 2 0.0 use \
+    --prompt_param 100 8 0.0 2 0.0 1 \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 
