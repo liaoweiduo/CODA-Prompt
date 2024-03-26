@@ -48,6 +48,9 @@ class PMOPrompt(Prompt):
         # mo
         self.n_obj = int(self.config['n_obj'])
         self.num_aux_sampling = int(self.config['num_aux_sampling'])
+        self.mask = self.config['prompt_param'][1][4]           # constant float or randn or uniform or ortho
+        self.mask_mode = self.config['prompt_param'][1][5]      # maskout or use
+        print(f'Mask info: {self.mask_mode}->{self.mask}')
 
         try:
             prompt = self.model.module.prompt
@@ -219,7 +222,7 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask=0, mask_mode='maskout', train=True)   # [10, 20]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask=self.mask, mask_mode=self.mask_mode, train=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
@@ -269,7 +272,7 @@ class PMOPrompt(Prompt):
         return total_loss.detach(), logits
 
     def obtain_mo_matrix(self, hard_l, pop_size=None,
-                         add_noise=False, mask: Optional[Union[int, str]] = 0, mask_mode='maskout',
+                         add_noise=False, mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
                          train=True):
         """Return mo_matrix: Torch tensor [obj, pop]
         proj: whether to project mo matrix to simplex.

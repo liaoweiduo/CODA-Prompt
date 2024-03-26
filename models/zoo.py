@@ -354,7 +354,7 @@ class PmoPrompt(CodaPrompt):
                             p[(s + (hard_obj_idx + 1) * ot):]
                         ), dim=0)
                     else:  # mask is None: only select this prompt
-                        pass
+                        assert mask is None, f'mask `{mask}` is not None but unrecognized str'
                 elif mask_mode == 'use':
                     if type(mask) is int:  # constant prompt
                         p = torch.cat((

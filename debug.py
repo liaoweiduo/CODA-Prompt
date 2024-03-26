@@ -367,7 +367,10 @@ class Debugger:
             ])  # [n_inner, n_obj, n_pop]
 
             '''log objs figure'''
-            fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
+            if n_obj == 2:
+                fig, ax = plt.subplots(1, 1)
+            else:       # n_obj > 2
+                fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
             draw_objs(objs, pop_labels, ax=ax)
             writer.add_figure(f"{prefix}/objs_{target}", fig, i + 1)
 

@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0 1'   # '0 1 2 3'
+GPUID='0'   # '0 1 2 3'
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -24,12 +24,14 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    arg 4 = num of objectives: 2
+#    arg 5 = mask: 0.0
+#    arg 6 = mask_mode: maskout or use
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-max-p0-100-2-c1
+LOGNAME=pmo-min-use-p0-100-2-c1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 0.0 2 \
+    --prompt_param 100 8 0.0 2 0.0 use \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 
