@@ -397,7 +397,10 @@ class Debugger:
             objs = np.nan_to_num(objs)
 
             '''log objs figure along epoch for last inner step'''
-            fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
+            if n_obj == 2:
+                fig, ax = plt.subplots(1, 1)
+            else:       # n_obj > 2
+                fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
             draw_objs(objs[:, -1], pop_labels, ax=ax)      # [:,-1,:2,:] for the first 2 axes
             # writer.add_figure(f"objs_{target}_{exp}_innerlr_{inner_lr}{prefix}/logit_scale_{logit_scale}",
             #                   figure, i + 1)
