@@ -211,7 +211,7 @@ class PmoPrompt(CodaPrompt):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
         self.n_prompt_per_task = int(self.e_pool_size / (self.n_tasks))  # num of prompts for 1 task.
-        self.n_obj = 2
+        self.n_obj = self.n_prompt_per_task
         # self.n_prompt_per_task or prompt_param[3] or specify how many prompt used for 1 obj
 
         # # dataset with pool
@@ -225,7 +225,7 @@ class PmoPrompt(CodaPrompt):
     #     return vv
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None,
-                hard_obj_idx=None, hard_l=None, mask=None, mask_mode='maskout',
+                hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
                 debug_mode=False, **kwargs):
         """Differences:
             Use hard_obj_idx and hard_l to locate mask for prompt.
@@ -295,27 +295,27 @@ class PmoPrompt(CodaPrompt):
                 # aq_k [bs, f] modification
                 if mask_mode == 'maskout':
                     if type(mask) is int:  # constant prompt
-                        aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)] = 1
+                        aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
                     elif type(mask) is str:  # random prompt
-                        aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)] = 1
+                        aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
                     else:  # mask is None: only select this prompt
                         aq_k = torch.cat((
-                            torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),  # detach and mask 0
-                            aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)],  # mask 1
-                            torch.zeros_like(aq_k[:, (s + (hard_obj_idx + 1) * ot):]),  # detach and mask 0
+                            torch.zeros_like(aq_k[:, :(hard_obj_idx * ot)]),  # detach and mask 0
+                            aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],  # mask 1
+                            torch.zeros_like(aq_k[:, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
                         ), dim=1)
                 elif mask_mode == 'use':
                     if type(mask) is int:  # constant prompt
-                        aq_k[:, :(s + hard_obj_idx * ot)] = 1
-                        aq_k[:, (s + (hard_obj_idx + 1) * ot):] = 1
+                        aq_k[:, :(hard_obj_idx * ot)] = 1
+                        aq_k[:, ((hard_obj_idx + 1) * ot):] = 1
                     elif type(mask) is str:  # random prompt
-                        aq_k[:, :(s + hard_obj_idx * ot)] = 1
-                        aq_k[:, (s + (hard_obj_idx + 1) * ot):] = 1
+                        aq_k[:, :(hard_obj_idx * ot)] = 1
+                        aq_k[:, ((hard_obj_idx + 1) * ot):] = 1
                     else:  # mask is None: only select this prompt, other layer also do not use prompt
                         aq_k = torch.cat((
-                            torch.zeros_like(aq_k[:, :(s + hard_obj_idx * ot)]),  # detach and mask 0
-                            aq_k[:, (s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)],  # mask 1
-                            torch.zeros_like(aq_k[:, (s + (hard_obj_idx + 1) * ot):]),  # detach and mask 0
+                            torch.zeros_like(aq_k[:, :(hard_obj_idx * ot)]),  # detach and mask 0
+                            aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],  # mask 1
+                            torch.zeros_like(aq_k[:, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
                         ), dim=1)
                 else:
                     raise Exception(f'Unknown mask comb: {mask_mode}, {mask}')
@@ -325,60 +325,60 @@ class PmoPrompt(CodaPrompt):
                 if mask_mode == 'maskout':
                     if type(mask) is int:  # constant prompt
                         p = torch.cat((
-                            p[:(s + hard_obj_idx * ot)],
-                            torch.fill_(torch.empty_like(p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)]),
+                            p[:(hard_obj_idx * ot)],
+                            torch.fill_(torch.empty_like(p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),
                                         mask),
-                            p[(s + (hard_obj_idx + 1) * ot):]
+                            p[((hard_obj_idx + 1) * ot):]
                         ), dim=0)
                     elif mask == 'randn':  # random prompt
                         p = torch.cat((
-                            p[:(s + hard_obj_idx * ot)],
-                            torch.randn_like(p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)]) if train else
+                            p[:(hard_obj_idx * ot)],
+                            torch.randn_like(p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]) if train else
                             torch.from_numpy(np.random.randn(ot, *p.shape[1:])).float().to(p.device),
-                            p[(s + (hard_obj_idx + 1) * ot):]
+                            p[((hard_obj_idx + 1) * ot):]
                         ), dim=0)
                     elif mask == 'uniform':  # uniform random prompt
                         p = torch.cat((
-                            p[:(s + hard_obj_idx * ot)],
+                            p[:(hard_obj_idx * ot)],
                             torch.nn.init.uniform_(
-                                p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)].detach().clone()) if train else
+                                p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)].detach().clone()) if train else
                             torch.from_numpy(np.random.uniform(size=(ot, *p.shape[1:]))).float().to(p.device),
-                            p[(s + (hard_obj_idx + 1) * ot):]
+                            p[((hard_obj_idx + 1) * ot):]
                         ), dim=0)
                     elif mask == 'ortho':  # ortho random prompt
                         p = torch.cat((
-                            p[:(s + hard_obj_idx * ot)],
+                            p[:(hard_obj_idx * ot)],
                             torch.nn.init.orthogonal_(
-                                p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)].detach().clone()) if train else
+                                p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)].detach().clone()) if train else
                             torch.from_numpy(ortho_random(size=(ot, *p.shape[1:]))).float().to(p.device),
-                            p[(s + (hard_obj_idx + 1) * ot):]
+                            p[((hard_obj_idx + 1) * ot):]
                         ), dim=0)
                     else:  # mask is None: only select this prompt
                         assert mask is None, f'mask `{mask}` is not None but unrecognized str'
                 elif mask_mode == 'use':
                     if type(mask) is int:  # constant prompt
                         p = torch.cat((
-                            torch.fill_(torch.empty_like(p[:(s + hard_obj_idx * ot)]), mask),
-                            p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)],
-                            torch.fill_(torch.empty_like(p[(s + (hard_obj_idx + 1) * ot):]), mask),
+                            torch.fill_(torch.empty_like(p[:(hard_obj_idx * ot)]), mask),
+                            p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
+                            torch.fill_(torch.empty_like(p[((hard_obj_idx + 1) * ot):]), mask),
                         ), dim=0)
                     elif mask == 'randn':  # random prompt
                         p_ = torch.randn_like(p) if train else (
                             torch.from_numpy(np.random.randn(*p.shape)).float().to(p.device))
-                        p_[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)
-                        ] = p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)]
+                        p_[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)
+                        ] = p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]
                         p = p_
                     elif mask == 'uniform':  # uniform random prompt
                         p_ = torch.nn.init.uniform_(p.detach().clone()) if train else (
                             torch.from_numpy(np.random.uniform(size=p.shape)).float().to(p.device))
-                        p_[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)
-                        ] = p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)]
+                        p_[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)
+                        ] = p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]
                         p = p_
                     elif mask == 'ortho':  # ortho random prompt
                         p_ = torch.nn.init.orthogonal_(p.detach().clone()) if train else (
                             torch.from_numpy(ortho_random(size=p.shape)).float().to(p.device))
-                        p_[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)
-                        ] = p[(s + hard_obj_idx * ot):(s + (hard_obj_idx + 1) * ot)]
+                        p_[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)
+                        ] = p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]
                         p = p_
                     else:  # mask is None: only select this prompt
                         pass
@@ -780,7 +780,7 @@ class ViTZoo(nn.Module):
             param.requires_grad = False
 
     # pen: get penultimate features    
-    def forward(self, x, task_id=None, pen=False, train=False, cond_x=None, **kwargs):
+    def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False, cond_x=None, **kwargs):
         # kwargs for prompt
         if task_id is None:
             task_id = self.task_id
@@ -793,10 +793,11 @@ class ViTZoo(nn.Module):
                     q, _ = self.feat(x)
                 q = q[:, 0, :]
             out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id,
+                                         register_blk=register_blk,
                                          **kwargs)
             out = out[:, 0, :]
         else:
-            out, _ = self.feat(x)
+            out, _ = self.feat(x, register_blk=register_blk)
             out = out[:, 0, :]
         out = out.view(out.size(0), -1)
         if not pen:

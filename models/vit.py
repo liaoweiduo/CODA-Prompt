@@ -62,8 +62,14 @@ class Attention(nn.Module):
     
     def forward(self, x, register_hook=False, prompt=None):
         B, N, C = x.shape
+
+        # print(f'attn: B, N, C: {x.shape}')      # 2, 197, 768
+
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+
+        # print(f'attn: q, k, v: {q.shape, k.shape, v.shape}')
+        # q, k, v: [2, 12, 197, 64]     # 768 -> 12(head/channel)*64(head dim)
 
         if prompt is not None:
             pk, pv = prompt
@@ -72,10 +78,14 @@ class Attention(nn.Module):
             k = torch.cat((pk,k), dim=2)
             v = torch.cat((pv,v), dim=2)
 
+        # print(f'attn: after cat prompt: k, v: {k.shape, v.shape}')      # [2, 12, 201, 64]
+
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
-                
+
+        # print(f'attn: attn shape: {attn.shape}')    [2, 12, 197, 201]=[2, 12, 197, 64]@[2, 12, 64, 201]
+
         if register_hook:
             self.save_attention_map(attn)
             attn.register_hook(self.save_attn_gradients)        
@@ -83,6 +93,9 @@ class Attention(nn.Module):
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
+
+        # print(f'attn: after proj: {x.shape}')       # [2, 197, 768]
+
         return x
 
 
@@ -103,7 +116,13 @@ class Block(nn.Module):
 
     def forward(self, x, register_hook=False, prompt=None):
         x = x + self.drop_path(self.attn(self.norm1(x), register_hook=register_hook, prompt=prompt))
+
+        # print(f'after attn x shape: {x.shape}')       # [2, 197, 768]
+
         x = x + self.drop_path(self.mlp(self.norm2(x)))
+
+        # print(f'after mlp x shape: {x.shape}')      # [2, 197, 768]
+
         return x
 
     
@@ -174,14 +193,23 @@ class VisionTransformer(nn.Module):
         return {'pos_embed', 'cls_token'}
 
     def forward(self, x, register_blk=-1, prompt=None, q=None, train=False, task_id=None, **kwargs):
+
+        # print(f'img shape: {x.shape}')  # [bs, 3, 224, 224]
+
         B = x.shape[0]
         x = self.patch_embed(x)
 
+        # print(f'after patch_embed shape: {x.shape}')        # [bs, 196, 768]
+
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         x = torch.cat((cls_tokens, x), dim=1)
+
+        # print(f'after cat cls_tokens shape: {x.shape}')     # [2, 197, 768]
   
         x = x + self.pos_embed[:,:x.size(1),:]
         x = self.pos_drop(x)
+
+        # print(f'after cat cls_tokens shape: {x.shape}')     # [2, 197, 768]
 
         prompt_loss = torch.zeros((1,), requires_grad=True).cuda()
         for i,blk in enumerate(self.blocks):
@@ -204,8 +232,12 @@ class VisionTransformer(nn.Module):
             else:
                 p_list = None
 
+            # print(f'after blk{i}s prompt x shape: {x.shape}')       # [2, 197, 768]
+
             x = blk(x, register_blk==i, prompt=p_list)
             # if i == 11: x = x.detach()
+
+            # print(f'after blk{i}s blk x shape: {x.shape}')          # [2, 197, 768]
 
         x = self.norm(x)
         

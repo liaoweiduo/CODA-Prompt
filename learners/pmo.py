@@ -234,7 +234,9 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, mask=self.mask, mask_mode=self.mask_mode, train=True)   # [10, 20]
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, n_old_obj=1,
+                                              mask=self.mask, mask_mode=self.mask_mode,
+                                              train=True)   # [10, 20]
 
             if self.debug_mode:
                 print(f'mo_matrix: {mo_matrix}')
@@ -283,7 +285,7 @@ class PMOPrompt(Prompt):
 
         return total_loss.detach(), logits
 
-    def obtain_mo_matrix(self, hard_l, pop_size=None,
+    def obtain_mo_matrix(self, hard_l, pop_size=None, n_old_obj=0,
                          add_noise=False, mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
                          train=True):
         """Return mo_matrix: Torch tensor [obj, pop]
@@ -308,13 +310,31 @@ class PMOPrompt(Prompt):
 
         '''forward to get objectives'''
         if hard_l in self.e_layers:
+            selected_obj_idxs = []
+            old_objs = list(range(self.n_obj_avail * self.task_count))
+            new_objs = list(range(self.n_obj_avail * self.task_count, self.n_obj_avail * (self.task_count + 1)))
+            # select from old prompts
+            if len(old_objs) == 0:
+                n_old_obj = 0           # first task use 3 new prompts
+            selected_obj_idxs.append(np.sort(
+                np.random.choice(old_objs, n_old_obj, replace=False)).astype(int))
+
             # random select self.n_obj obj_idx from self.n_prompt_per_task
-            selected_obj_idxs = np.sort(np.random.choice(self.n_obj_avail, self.n_obj, replace=False))
+            n_obj = self.n_obj - n_old_obj
+            selected_obj_idxs.append(np.sort(
+                np.random.choice(new_objs, n_obj, replace=False)).astype(int))
+
+            selected_obj_idxs = np.concatenate(selected_obj_idxs)
+
+            if self.debug_mode:
+                print(f'selected_obj_idxs: {selected_obj_idxs}')
+
             for re_idx, obj_idx in enumerate(selected_obj_idxs):
                 # pen: penultimate features; train: same forward as batch training.
                 out = self.model(samples, pen=False, train=train,
                                  hard_obj_idx=obj_idx, hard_l=hard_l,
                                  mask=mask, mask_mode=mask_mode,
+                                 # register_blk=hard_l,
                                  debug_mode=self.debug_mode)
                 logits = out[0] if train else out
 
