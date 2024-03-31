@@ -22,7 +22,7 @@ class CodaPrompt(nn.Module):
         self.emb_d = emb_d
         self.key_d = key_dim
         self.n_tasks = n_tasks
-        self._init_smart(emb_d, prompt_param)
+        self._init_full(emb_d, prompt_param)       # _init_smart; _init_full
 
         # e prompt init
         for e in self.e_layers:
@@ -50,6 +50,16 @@ class CodaPrompt(nn.Module):
         self.e_pool_size = int(prompt_param[0])  # 100
         self.e_p_length = int(prompt_param[1])  # 8
         self.e_layers = [0, 1, 2, 3, 4]
+
+        # strenth of ortho penalty
+        self.ortho_mu = prompt_param[2]  # 0.0
+
+    def _init_full(self, emb_d, prompt_param):
+
+        # prompt basic param
+        self.e_pool_size = int(prompt_param[0])  # 100
+        self.e_p_length = int(prompt_param[1])  # 8
+        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
         # strenth of ortho penalty
         self.ortho_mu = prompt_param[2]  # 0.0
