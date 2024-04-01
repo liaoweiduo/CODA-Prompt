@@ -142,8 +142,8 @@ class Trainer:
         if len(args.prompt_param) > 3:
             self.learner_config.update({
                 'n_obj': int(args.prompt_param[3]),  # 2 -> 10
-                'aux_root': args.dataroot,
-                'num_aux_sampling': 50,
+                'aux_root': args.dataroot,  # no use, use train dataset instead
+                'num_aux_sampling': 20,
             })
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
