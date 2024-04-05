@@ -675,11 +675,11 @@ def cal_min_crowding_distance(objs):
     return min(cd)
 
 
-def draw_objs(objs, labels=None, ax=None):
+def draw_objs(objs, labels=None, ax=None, legend=False):
     """
     Example fig: fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True}, figsize=(10, 10))
     objs: numpy with shape [obj_size, pop_size] or [n_iter, obj_size, pop_size] with gradient color
-    labels: list of labels: ['p0', 'p1', 'm0', 'm1']
+    labels: list of labels: ['p0', 'p1', 'm0', 'm1'] or label str list for all pop
     """
     fig = None
     n_iter = 1
@@ -719,10 +719,34 @@ def draw_objs(objs, labels=None, ax=None):
             sns.scatterplot(data, x='f1', y='f2',
                             size='Iter', sizes=(100, 200), alpha=1., ax=ax)
 
-        # ax.legend(loc='lower left', bbox_to_anchor=(1.05, 0.1), ncol=1)
+        if legend:
+            ax.legend(loc='lower left', bbox_to_anchor=(1.05, 0.1), ncol=1)
     else:
         '''obj size larger than 2'''
         '''ax should with projection='polar' or polar=True '''
+        if labels is not None:
+            # 分配颜色 by to different iter
+            assert n_iter == 1, f'only 1 iter can assign labels'
+            objs = objs[0]      # [obj_size, pop_size]
+            reshaped_objs = []
+            label_map = {}
+            label_int = []
+            for label_i, label in enumerate(set(labels)):
+                label_map[label_i] = label
+                label_map[label] = label_i
+            for label in labels:
+                label_int.append(label_map[label])
+            label_int = np.array(label_int)
+            for label_i, label in enumerate(set(labels)):
+                int_label = label_map[label]
+                reshaped_objs.append(objs[:, label_int == int_label])
+
+            # remove some samples to match the same size
+            s = int(np.min([samples.shape[-1] for samples in reshaped_objs]))
+            reshaped_objs = [samples[:, :s] for samples in reshaped_objs]
+            reshaped_objs = np.stack(reshaped_objs)     # [n_label, obj_size, pop_size]
+            objs = reshaped_objs
+            n_iter, obj_size, pop_size = objs.shape     # update pop size == s
 
         # ax_labels = np.array([r'$f_{}$'.format(i) for i in range(obj_size)])
         ax_labels = np.array([None for i in range(obj_size)])
@@ -731,18 +755,23 @@ def draw_objs(objs, labels=None, ax=None):
         objs = np.concatenate([objs, objs[:, 0:1, :]], axis=1)  # cat last obj with first obj
         angles = np.concatenate([angles, [angles[0]]])
 
-        num_draw_iter = 5
+        num_draw_iter = 10
         color = sns.color_palette('tab10', num_draw_iter if n_iter > num_draw_iter else n_iter)
         for r_idx, i_idx in enumerate(np.linspace(
                 0, n_iter-1, num_draw_iter if n_iter > num_draw_iter else n_iter, dtype=int)):
             for sample_idx in range(pop_size):
+                if sample_idx == 0 and labels is not None:     # first sample with legend
+                    ex_params = {'label': label_map[i_idx]}
+                else:
+                    ex_params = {}
                 ax.plot(angles, objs[i_idx, :, sample_idx], '-', linewidth=(i_idx+1)/n_iter*5,
-                        color=color[r_idx], alpha=0.6)
+                        color=color[r_idx], alpha=0.6, **ex_params)
 
         ax.set_theta_zero_location('N')
         ax.set_rlabel_position(0)
         ax.tick_params(axis='both', labelsize=12)
-        # plt.legend(loc='lower center', frameon=False, ncol=2, bbox_to_anchor=(0.5, -0.2))
+        if legend:
+            ax.legend(loc='lower center', frameon=False, ncol=2, bbox_to_anchor=(0.5, -0.2))
 
         # pcp = PCP()     # legend=(True, {'loc': "upper left"}), cmap='Reds' x
         # pcp.set_axis_style(color="grey", alpha=0.5)

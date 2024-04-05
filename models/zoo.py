@@ -22,7 +22,7 @@ class CodaPrompt(nn.Module):
         self.emb_d = emb_d
         self.key_d = key_dim
         self.n_tasks = n_tasks
-        self._init_no(emb_d, prompt_param)       # _init_smart; _init_full
+        self._init_full(emb_d, prompt_param)       # _init_smart; _init_full
 
         # e prompt init
         for e in self.e_layers:
@@ -314,7 +314,7 @@ class PmoPrompt(CodaPrompt):
 
                 # aq_k [bs, f] modification
                 if mask_mode == 'maskout':
-                    if type(mask) is float:  # constant prompt
+                    if type(mask) is float or type(mask) is int:  # constant prompt
                         aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
                     elif type(mask) is str:  # random prompt
                         aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
@@ -325,7 +325,7 @@ class PmoPrompt(CodaPrompt):
                             torch.zeros_like(aq_k[:, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
                         ), dim=1)
                 elif mask_mode == 'use':
-                    if type(mask) is float:  # constant prompt
+                    if type(mask) is float or type(mask) is int:  # constant prompt
                         aq_k[:, :(hard_obj_idx * ot)] = 1
                         aq_k[:, ((hard_obj_idx + 1) * ot):] = 1
                     elif type(mask) is str:  # random prompt
@@ -343,7 +343,7 @@ class PmoPrompt(CodaPrompt):
                 # p [f, 8, 768] modification
                 # if train use torch random seed, else use numpy random seed (since it can be fixed)
                 if mask_mode == 'maskout':
-                    if type(mask) is float:  # constant prompt
+                    if type(mask) is float or type(mask) is int:  # constant prompt
                         p = torch.cat((
                             p[:(hard_obj_idx * ot)],
                             torch.fill_(torch.empty_like(p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),
@@ -376,7 +376,7 @@ class PmoPrompt(CodaPrompt):
                     else:  # mask is None: only select this prompt
                         assert mask is None, f'mask `{mask}` is not None but unrecognized str'
                 elif mask_mode == 'use':
-                    if type(mask) is float:  # constant prompt
+                    if type(mask) is float or type(mask) is int:  # constant prompt
                         p = torch.cat((
                             torch.fill_(torch.empty_like(p[:(hard_obj_idx * ot)]), mask),
                             p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],

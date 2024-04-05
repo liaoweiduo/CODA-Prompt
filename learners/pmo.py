@@ -287,7 +287,7 @@ class PMOPrompt(Prompt):
 
     def obtain_mo_matrix(self, hard_l, pop_size=None, n_old_obj=0,
                          add_noise=False, mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
-                         train=True):
+                         train=True, return_labels=False):
         """Return mo_matrix: Torch tensor [obj, pop]
         proj: whether to project mo matrix to simplex.
         mask:   int to be constant prompts,
@@ -372,8 +372,10 @@ class PMOPrompt(Prompt):
             ncc_losses = torch.stack(ncc_losses_mo)
         else:
             ncc_losses = None
-
-        return ncc_losses
+        if return_labels:
+            return ncc_losses, samples, labels
+        else:
+            return ncc_losses
 
     def return_front(self, mo_matrix, idx=-1):
         """Return the specific front from mo_matrix: [obj, pop]"""
