@@ -28,10 +28,10 @@ mkdir -p $OUTDIR
 #    arg 6 = mask_mode: 0: maskout or 1: use
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-full-max-maskout-p0-20-3-c1
+LOGNAME=pmo-full-min-use-p1-20-3-c1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 0.0 3 0.0 0 \
+    --prompt_param 100 8 0.0 3 1.0 1 \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 

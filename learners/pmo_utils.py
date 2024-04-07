@@ -741,30 +741,33 @@ def draw_objs(objs, labels=None, ax=None, legend=False):
                 int_label = label_map[label]
                 reshaped_objs.append(objs[:, label_int == int_label])
 
-            # remove some samples to match the same size
-            s = int(np.min([samples.shape[-1] for samples in reshaped_objs]))
-            reshaped_objs = [samples[:, :s] for samples in reshaped_objs]
-            reshaped_objs = np.stack(reshaped_objs)     # [n_label, obj_size, pop_size]
-            objs = reshaped_objs
-            n_iter, obj_size, pop_size = objs.shape     # update pop size == s
+            # # remove some samples to match the same size
+            # s = int(np.min([samples.shape[-1] for samples in reshaped_objs]))
+            # reshaped_objs = [samples[:, :s] for samples in reshaped_objs]
+            # reshaped_objs = np.stack(reshaped_objs)     # [n_label, obj_size, pop_size]
+            objs = reshaped_objs        # n_label * [obj_size, pop_size(different)]
+            # n_iter, obj_size, pop_size = objs.shape     # update pop size == s
+            n_iter = len(objs)
+            pop_size = None     # differ for different class(iter)
 
         # ax_labels = np.array([r'$f_{}$'.format(i) for i in range(obj_size)])
         ax_labels = np.array([None for i in range(obj_size)])
         angles = np.linspace(0, 2 * np.pi, obj_size, endpoint=False)
         ax.set_thetagrids(angles * 180 / np.pi, ax_labels, fontsize=12)
-        objs = np.concatenate([objs, objs[:, 0:1, :]], axis=1)  # cat last obj with first obj
         angles = np.concatenate([angles, [angles[0]]])
 
         num_draw_iter = 10
         color = sns.color_palette('tab10', num_draw_iter if n_iter > num_draw_iter else n_iter)
         for r_idx, i_idx in enumerate(np.linspace(
                 0, n_iter-1, num_draw_iter if n_iter > num_draw_iter else n_iter, dtype=int)):
+            pop_size = objs[i_idx].shape[-1]
+            _objs = np.concatenate([objs[i_idx], objs[i_idx][0:1, :]], axis=0)  # cat last obj with first obj
             for sample_idx in range(pop_size):
                 if sample_idx == 0 and labels is not None:     # first sample with legend
                     ex_params = {'label': label_map[i_idx]}
                 else:
                     ex_params = {}
-                ax.plot(angles, objs[i_idx, :, sample_idx], '-', linewidth=(i_idx+1)/n_iter*5,
+                ax.plot(angles, _objs[:, sample_idx], '-', linewidth=2 if labels is not None else (i_idx+1)/n_iter*5,
                         color=color[r_idx], alpha=0.6, **ex_params)
 
         ax.set_theta_zero_location('N')
