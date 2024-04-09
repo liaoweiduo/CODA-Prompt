@@ -56,6 +56,8 @@ class PMOPrompt(Prompt):
             self.mask = 'uniform'
         elif int(self.mask) == -10002:
             self.mask = 'ortho'
+        elif int(self.mask) == -10003:
+            self.mask = None
         if self.mask_mode == 0:
             self.mask_mode = 'maskout'
         elif self.mask_mode == 1:
@@ -234,7 +236,7 @@ class PMOPrompt(Prompt):
         '''hv loss'''
         for l in self.e_layers:
             # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, n_old_obj=1,
+            mo_matrix = self.obtain_mo_matrix(hard_l=l, use_old_obj=True,
                                               mask=self.mask, mask_mode=self.mask_mode,
                                               train=True)   # [10, 20]
 
@@ -285,7 +287,7 @@ class PMOPrompt(Prompt):
 
         return total_loss.detach(), logits
 
-    def obtain_mo_matrix(self, hard_l, pop_size=None, n_old_obj=0,
+    def obtain_mo_matrix(self, hard_l, pop_size=None, use_old_obj=False,
                          add_noise=False, mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
                          train=True, return_labels=False):
         """Return mo_matrix: Torch tensor [obj, pop]
@@ -313,14 +315,19 @@ class PMOPrompt(Prompt):
             selected_obj_idxs = []
             old_objs = list(range(self.n_obj_avail * self.task_count))
             new_objs = list(range(self.n_obj_avail * self.task_count, self.n_obj_avail * (self.task_count + 1)))
+            n_obj = self.n_obj
             # select from old prompts
-            if len(old_objs) == 0:
-                n_old_obj = 0           # first task use 3 new prompts
-            selected_obj_idxs.append(np.sort(
-                np.random.choice(old_objs, n_old_obj, replace=False)).astype(int))
+            if self.task_count == 0:
+                use_old_obj = False           # first task use 3 new prompts
+            if use_old_obj is True:     # use all old prompt as 1 obj
+                n_obj = self.n_obj - 1      # the first obj is to use all old prompt
+                selected_obj_idxs.append(np.asarray([-1]).astype(int))
+            elif type(use_old_obj) is int:      # select some old objs
+                n_obj = self.n_obj - use_old_obj
+                selected_obj_idxs.append(np.sort(
+                    np.random.choice(old_objs, use_old_obj, replace=False)).astype(int))
 
             # random select self.n_obj obj_idx from self.n_prompt_per_task
-            n_obj = self.n_obj - n_old_obj
             selected_obj_idxs.append(np.sort(
                 np.random.choice(new_objs, n_obj, replace=False)).astype(int))
 

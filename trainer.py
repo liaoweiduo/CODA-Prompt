@@ -236,7 +236,7 @@ class Trainer:
             self.reset_cluster_labels = True
             for j in range(i+1):
                 acc_table.append(self.task_eval(j))
-            temp_table['acc'].append(np.mean(np.asarray(acc_table)))
+            temp_table['acc'].append(np.asarray([*acc_table, *[0 for _ in range(i+1, self.max_task)], np.mean(np.asarray(acc_table))]))      # pt and mean
 
             # save temporary acc results
             for mkey in ['acc']:

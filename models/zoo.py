@@ -249,6 +249,7 @@ class PmoPrompt(CodaPrompt):
                 debug_mode=False, **kwargs):
         """Differences:
             Use hard_obj_idx and hard_l to locate mask for prompt.
+            hard_obj_idx can be -1 to select all old prompts.
             Use mask to determine whether to mask out the prompt (True) or only select the prompt (False)
             mask_mode: 'maskout' or 'use'
         """
@@ -314,7 +315,17 @@ class PmoPrompt(CodaPrompt):
 
                 # aq_k [bs, f] modification
                 if mask_mode == 'maskout':
-                    if type(mask) is float or type(mask) is int:  # constant prompt
+                    if hard_obj_idx == -1:      # mask out all old prompt
+                        if type(mask) is float or type(mask) is int:  # constant prompt
+                            aq_k[:, :s] = 1
+                        elif type(mask) is str:  # random prompt
+                            aq_k[:, :s] = 1
+                        else:  # mask is None: only select this prompt
+                            aq_k = torch.cat((
+                                torch.zeros_like(aq_k[:, :s]),  # detach and mask 0
+                                aq_k[:, s:],                    # mask 1
+                            ), dim=1)
+                    elif type(mask) is float or type(mask) is int:  # constant prompt
                         aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
                     elif type(mask) is str:  # random prompt
                         aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
@@ -325,7 +336,17 @@ class PmoPrompt(CodaPrompt):
                             torch.zeros_like(aq_k[:, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
                         ), dim=1)
                 elif mask_mode == 'use':
-                    if type(mask) is float or type(mask) is int:  # constant prompt
+                    if hard_obj_idx == -1:      # use all old prompt
+                        if type(mask) is float or type(mask) is int:  # constant prompt
+                            aq_k[:, s:] = 1
+                        elif type(mask) is str:  # random prompt
+                            aq_k[:, s:] = 1
+                        else:  # mask is None: only select this prompt
+                            aq_k = torch.cat((
+                                aq_k[:, :s],                    # mask 1
+                                torch.zeros_like(aq_k[:, s:]),  # detach and mask 0
+                            ), dim=1)
+                    elif type(mask) is float or type(mask) is int:  # constant prompt
                         aq_k[:, :(hard_obj_idx * ot)] = 1
                         aq_k[:, ((hard_obj_idx + 1) * ot):] = 1
                     elif type(mask) is str:  # random prompt
@@ -338,12 +359,40 @@ class PmoPrompt(CodaPrompt):
                             torch.zeros_like(aq_k[:, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
                         ), dim=1)
                 else:
-                    raise Exception(f'Unknown mask comb: {mask_mode}, {mask}')
+                    raise Exception(f'Unknown mask comb: {mask_mode}, {mask} for obj{hard_obj_idx}')
 
                 # p [f, 8, 768] modification
                 # if train use torch random seed, else use numpy random seed (since it can be fixed)
                 if mask_mode == 'maskout':
-                    if type(mask) is float or type(mask) is int:  # constant prompt
+                    if hard_obj_idx == -1:      # mask out all old prompt
+                        if type(mask) is float or type(mask) is int:  # constant prompt
+                            p = torch.cat((
+                                torch.fill_(torch.empty_like(p[:s]), mask),
+                                p[s:]
+                            ), dim=0)
+                        elif mask == 'randn':  # random prompt
+                            p = torch.cat((
+                                torch.randn_like(p[:s]) if train else
+                                torch.from_numpy(np.random.randn(s, *p.shape[1:])).float().to(p.device),
+                                p[s:]
+                            ), dim=0)
+                        elif mask == 'uniform':  # uniform random prompt
+                            p = torch.cat((
+                                torch.nn.init.uniform_(
+                                    p[:s].detach().clone()) if train else
+                                torch.from_numpy(np.random.uniform(size=(s, *p.shape[1:]))).float().to(p.device),
+                                p[s:]
+                            ), dim=0)
+                        elif mask == 'ortho':  # ortho random prompt
+                            p = torch.cat((
+                                torch.nn.init.orthogonal_(
+                                    p[:s].detach().clone()) if train else
+                                torch.from_numpy(ortho_random(size=(s, *p.shape[1:]))).float().to(p.device),
+                                p[s:]
+                            ), dim=0)
+                        else:  # mask is None: only select this prompt
+                            assert mask is None, f'mask `{mask}` is not None but unrecognized str'
+                    elif type(mask) is float or type(mask) is int:  # constant prompt
                         p = torch.cat((
                             p[:(hard_obj_idx * ot)],
                             torch.fill_(torch.empty_like(p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),
@@ -376,7 +425,30 @@ class PmoPrompt(CodaPrompt):
                     else:  # mask is None: only select this prompt
                         assert mask is None, f'mask `{mask}` is not None but unrecognized str'
                 elif mask_mode == 'use':
-                    if type(mask) is float or type(mask) is int:  # constant prompt
+                    if hard_obj_idx == -1:      # use all old prompt
+                        if type(mask) is float or type(mask) is int:  # constant prompt
+                            p = torch.cat((
+                                p[:s],
+                                torch.fill_(torch.empty_like(p[s:]), mask),
+                            ), dim=0)
+                        elif mask == 'randn':  # random prompt
+                            p_ = torch.randn_like(p) if train else (
+                                torch.from_numpy(np.random.randn(*p.shape)).float().to(p.device))
+                            p_[:s] = p[:s]
+                            p = p_
+                        elif mask == 'uniform':  # uniform random prompt
+                            p_ = torch.nn.init.uniform_(p.detach().clone()) if train else (
+                                torch.from_numpy(np.random.uniform(size=p.shape)).float().to(p.device))
+                            p_[:s] = p[:s]
+                            p = p_
+                        elif mask == 'ortho':  # ortho random prompt
+                            p_ = torch.nn.init.orthogonal_(p.detach().clone()) if train else (
+                                torch.from_numpy(ortho_random(size=p.shape)).float().to(p.device))
+                            p_[:s] = p[:s]
+                            p = p_
+                        else:  # mask is None: only select this prompt
+                            pass
+                    elif type(mask) is float or type(mask) is int:  # constant prompt
                         p = torch.cat((
                             torch.fill_(torch.empty_like(p[:(hard_obj_idx * ot)]), mask),
                             p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
