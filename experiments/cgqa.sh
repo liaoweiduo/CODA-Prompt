@@ -26,14 +26,14 @@ mkdir -p $OUTDIR
 #    arg 4 = num of objectives: 2
 #    arg 5 = mask: 0.0; -10000: randn; -10001: uniform; -10002: ortho
 #    arg 6 = mask_mode: 0: maskout or 1: use
-LEARNERTYPE=pmo
-LEARNERNAME=PMOPrompt
-LOGNAME=pmo-full-min-use-p-1-20-3-c1
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 0.0 3 -1.0 1 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
+#LEARNERTYPE=pmo
+#LEARNERNAME=PMOPrompt
+#LOGNAME=pmo-full-min-use-p-1-20-3-c1
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --prompt_param 100 8 0.0 3 -1.0 1 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
 
 # CODA-P-Replay
 #
@@ -69,10 +69,10 @@ date
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPrompt \
-#    --prompt_param 100 8 0.0 \
-#    --log_dir ${OUTDIR}/coda-p-no
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPrompt \
+    --prompt_param 100 8 0.0 \
+    --log_dir ${OUTDIR}/coda-p-full-2epoch
 
 # DualPrompt
 #

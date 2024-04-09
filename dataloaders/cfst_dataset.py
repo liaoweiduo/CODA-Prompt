@@ -122,6 +122,28 @@ class CFSTDataset(data.Dataset):
 
         self.update_pool(coreset_size, self.t, self.memory)
 
+    def relabel2str(self, relabel):
+        """Valid only on class-IL setting"""
+        original_classes_in_exp = self.benchmark.original_classes_in_exp    # [[real_label]]
+        classes_in_exp = self.benchmark.classes_in_exp      # [[0-9], [10-19],...]
+        label_info = self.benchmark.label_info
+        ori_label_2_str = label_info[2]
+
+        # find relabel to ori label
+        task_id = None
+        label_id = None
+        for _task_id, task in enumerate(classes_in_exp):
+            if relabel in task:
+                task_id = _task_id
+                label_id = list(task).index(relabel)
+                break
+        if task_id is None:
+            return None
+
+        ori_label = original_classes_in_exp[task_id][label_id]
+        label_str = ori_label_2_str[ori_label]
+        return label_str, [task_id, label_id]
+
     def load(self):
         """need to implement,
         load benchmark contain train_datasets, test_datasets, val_datasts"""
