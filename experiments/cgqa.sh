@@ -28,7 +28,7 @@ mkdir -p $OUTDIR
 #    arg 6 = mask_mode: 0: maskout or 1: use
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-full-min-use-p0-20-3-c1-allold
+LOGNAME=pmo-full-min-use-p0-20-3-c1-5epoch
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 3 0.0 1 \
@@ -72,7 +72,7 @@ date
 #python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type prompt --learner_name CODAPrompt \
 #    --prompt_param 100 8 0.0 \
-#    --log_dir ${OUTDIR}/coda-p-full-2epoch
+#    --log_dir ${OUTDIR}/coda-p-full-5epoch
 
 # DualPrompt
 #
