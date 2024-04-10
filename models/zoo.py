@@ -186,14 +186,17 @@ class CodaPrompt(nn.Module):
                 A = A[0:f]
                 p = p[0:f]
 
-            # b = bs, d = 768, k = 100, l=8
-            # with attention and cosine sim
-            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
-            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
-            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-            n_K = nn.functional.normalize(K, dim=1)
-            q = nn.functional.normalize(a_querry, dim=2)
-            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+            # # b = bs, d = 768, k = 100, l=8
+            # # with attention and cosine sim
+            # # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            # a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            # n_K = nn.functional.normalize(K, dim=1)
+            # q = nn.functional.normalize(a_querry, dim=2)
+            # aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+
+            aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1
+
             # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
             P_ = torch.einsum('bk,kld->bld', aq_k, p)
 

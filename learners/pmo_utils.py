@@ -785,13 +785,15 @@ def draw_objs(objs, labels=None, ax=None, legend=False):
 
     return fig
 
-def draw_heatmap(data, verbose=True):
+def draw_heatmap(data, verbose=True, ax=None):
     """
     return a figure of heatmap.
     :param data: 2-D Numpy
     :param verbose: whether to use annot
     """
-    fig, ax = plt.subplots()
+    fig = None
+    if ax is None:
+        fig, ax = plt.subplots()
     if verbose:
         sns.heatmap(
             data, cmap=plt.get_cmap('Greens'), annot=True, fmt=".3f", cbar=False,
