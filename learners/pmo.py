@@ -194,7 +194,111 @@ class PMOPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets):
+    def learn_batch_diff_stage(self, train_loader, train_dataset, model_save_dir, val_loader=None):
+        self.init_train_log()
+
+        self.train_dataset = train_dataset
+        self.aux.update_source(train_dataset)       # aux samples from the current task
+
+        # try to load model
+        need_train = True
+        if not self.overwrite:
+            try:
+                self.load_model(model_save_dir)
+                need_train = False
+            except:
+                pass
+
+        # trains
+        if self.reset_optimizer:  # Reset optimizer before learning each task
+            self.log('Optimizer is reset!')
+            self.init_optimizer()
+
+        if need_train:
+            # data weighting
+            self.data_weighting(train_dataset)
+            losses = AverageMeter()
+            acc = AverageMeter()
+            batch_time = AverageMeter()
+            batch_timer = Timer()
+
+            pre_learn_epochs = 5
+            for epoch in range(self.config['schedule'][-1]):
+                self.epoch = epoch
+
+                if epoch == 0:
+                    self.log(f'epoch: {epoch}: Optimizer is reset for last')
+                    self.init_optimizer(target='last', schedule=[pre_learn_epochs])
+                elif epoch == pre_learn_epochs:
+                    self.log(f'epoch: {epoch}: Optimizer is reset for prompt and last')
+                    self.init_optimizer(schedule=[s-pre_learn_epochs for s in self.schedule])
+
+                for param_group in self.optimizer.param_groups:
+                    self.log('LR:', param_group['lr'])
+                batch_timer.tic()
+                for i, (x, y, task) in enumerate(train_loader):
+                    self.batch_idx = i
+
+                    # verify in train mode
+                    self.model.train()
+
+                    # send data to gpu
+                    if self.gpu:
+                        x = x.cuda()
+                        y = y.cuda()
+                        # task = task.cuda()
+
+                    # # debug
+                    # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                    # model update
+                    loss, output = self.update_model(x, y, pre_learn=True if epoch < pre_learn_epochs else False)
+
+                    # measure elapsed time
+                    batch_time.update(batch_timer.toc())
+                    batch_timer.tic()
+
+                    # measure accuracy and record loss
+                    y = y.detach()
+                    accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                    losses.update(loss, y.size(0))
+                    batch_timer.tic()
+
+                # eval update
+                self.log(
+                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
+                self.log(
+                    ' * Loss {loss.avg:.3f} | '
+                    'Train Acc {acc.avg:.3f} | '
+                    'Time {time.avg:.3f}*{i}'.format(
+                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
+
+                if self.epoch == 0:
+                    '''nvidia-smi'''
+                    print(os.system('nvidia-smi'))
+
+                self.scheduler.step()
+
+                # reset
+                losses = AverageMeter()
+                acc = AverageMeter()
+
+        self.model.eval()
+
+        self.last_valid_out_dim = self.valid_out_dim
+        self.first_task = False
+
+        # Extend memory
+        self.task_count += 1
+        if self.memory_size > 0:
+            train_dataset.update_coreset(self.memory_size, np.arange(self.last_valid_out_dim))
+
+        try:
+            return batch_time.avg
+        except:
+            return None
+
+    def update_model(self, inputs, targets, pre_learn=False):
         """Difference:
             Cal mo loss matrix and hv loss.
             backward one loss by one since hv loss is huge
@@ -203,7 +307,7 @@ class PMOPrompt(Prompt):
         self.optimizer.zero_grad()
 
         # logits
-        logits, prompt_loss = self.model(inputs, train=True)
+        logits, prompt_loss = self.model(inputs, train=True, pre_learn=pre_learn)
         logits = logits[:,:self.valid_out_dim]
 
         if self.debug_mode:
@@ -228,59 +332,60 @@ class PMOPrompt(Prompt):
 
         total_loss.backward()
 
-        # hv loss calculation without affecting RNG state
-        state = np.random.get_state()
-        # seed with taskid epochid batchid
-        np.random.seed(self.seed + self.train_dataset.t + self.epoch + self.batch_idx)
+        if not pre_learn:       # for pre_learn, only ce loss is used.
+            # hv loss calculation without affecting RNG state
+            state = np.random.get_state()
+            # seed with taskid epochid batchid
+            np.random.seed(self.seed + self.train_dataset.t + self.epoch + self.batch_idx)
 
-        '''hv loss'''
-        for l in self.e_layers:
-            # if self.train_dataset.t > 0:        # start from the second task
-            mo_matrix = self.obtain_mo_matrix(hard_l=l, use_old_obj=True,
-                                              mask=self.mask, mask_mode=self.mask_mode,
-                                              train=True)   # [10, 20]
+            '''hv loss'''
+            for l in self.e_layers:
+                # if self.train_dataset.t > 0:        # start from the second task
+                mo_matrix = self.obtain_mo_matrix(hard_l=l, use_old_obj=True,
+                                                  mask=self.mask, mask_mode=self.mask_mode,
+                                                  train=True)   # [10, 20]
 
-            if self.debug_mode:
-                print(f'mo_matrix: {mo_matrix}')
+                if self.debug_mode:
+                    print(f'mo_matrix: {mo_matrix}')
 
-            hv_loss = 0
-            maximization = True if self.mask_mode == 'maskout' else False
-            if mo_matrix is not None:
-                # if maximization:
-                normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
+                hv_loss = 0
+                maximization = True if self.mask_mode == 'maskout' else False
+                if mo_matrix is not None:
+                    # if maximization:
+                    normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
+                    # else:
+                    #     with torch.no_grad():
+                    #         normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
+                    ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
+                    weights = cal_hv_weights(normed_mo_matrix, ref, reverse=maximization)
+
+                    if self.debug_mode:
+                        print(f'weights: {weights}')
+
+                    # if maximization:    # maximization using normed mo, minimization using no-normed mo
+                    mo_matrix = normed_mo_matrix
+                    hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
+                    hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
+
+                    # total_loss = total_loss + hv_loss
+                    if maximization:
+                        coeff_hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
+                    else:
+                        coeff_hv_loss = hv_loss
+                    coeff_hv_loss.backward()
+                    hv_loss = hv_loss.item()
+
+                    if self.debug_mode:
+                        print(f'hv loss in layer{l}: {hv_loss}')
+
                 # else:
-                #     with torch.no_grad():
-                #         normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
-                ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                weights = cal_hv_weights(normed_mo_matrix, ref, reverse=maximization)
+                #     print(f'ERROR: mo_matrix is None, skip layer{l}')
 
-                if self.debug_mode:
-                    print(f'weights: {weights}')
+                self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(hv_loss)
 
-                # if maximization:    # maximization using normed mo, minimization using no-normed mo
-                mo_matrix = normed_mo_matrix
-                hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
-                hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
-
-                # total_loss = total_loss + hv_loss
-                if maximization:
-                    coeff_hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
-                else:
-                    coeff_hv_loss = hv_loss
-                coeff_hv_loss.backward()
-                hv_loss = hv_loss.item()
-
-                if self.debug_mode:
-                    print(f'hv loss in layer{l}: {hv_loss}')
-
-            # else:
-            #     print(f'ERROR: mo_matrix is None, skip layer{l}')
-
-            self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
-            self.epoch_log['scaler']['Idx'].append(self.epoch)
-            self.epoch_log['scaler']['Value'].append(hv_loss)
-
-        np.random.set_state(state)
+            np.random.set_state(state)
 
         # step
         self.optimizer.step()

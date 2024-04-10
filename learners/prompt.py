@@ -56,7 +56,7 @@ class Prompt(NormalNN):
         return total_loss.detach(), logits
 
     # sets model optimizers
-    def init_optimizer(self):
+    def init_optimizer(self, target=None, schedule=None):
 
         # parse optimizer args
         # Multi-GPU
@@ -64,13 +64,22 @@ class Prompt(NormalNN):
             if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
                 # if fewshot testing self.config['mode'], only learn classifier: model.last
                 params_to_opt = list(self.model.module.last.parameters())
+            elif target == 'last':
+                params_to_opt = list(self.model.module.last.parameters())
+            elif target == 'prompt':
+                params_to_opt = list(self.model.module.prompt.parameters())
             else:
                 params_to_opt = list(self.model.module.prompt.parameters()) + list(self.model.module.last.parameters())
         else:
             if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
                 params_to_opt = list(self.model.last.parameters())
+            elif target == 'last':
+                params_to_opt = list(self.model.last.parameters())
+            elif target == 'prompt':
+                params_to_opt = list(self.model.prompt.parameters())
             else:
                 params_to_opt = list(self.model.prompt.parameters()) + list(self.model.last.parameters())
+
         print('*****************************************')
         optimizer_arg = {'params':params_to_opt,
                          'lr':self.config['lr'],
@@ -87,12 +96,15 @@ class Prompt(NormalNN):
 
         # create optimizers
         self.optimizer = torch.optim.__dict__[self.config['optimizer']](**optimizer_arg)
-        
+
+        if schedule is None:
+            schedule = self.schedule
+
         # create schedules
         if self.schedule_type == 'cosine':
-            self.scheduler = CosineSchedule(self.optimizer, K=self.schedule[-1])
+            self.scheduler = CosineSchedule(self.optimizer, K=schedule[-1])
         elif self.schedule_type == 'decay':
-            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=self.schedule, gamma=0.1)
+            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule, gamma=0.1)
 
     def create_model(self):
         pass

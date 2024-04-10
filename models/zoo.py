@@ -186,16 +186,16 @@ class CodaPrompt(nn.Module):
                 A = A[0:f]
                 p = p[0:f]
 
-            # # b = bs, d = 768, k = 100, l=8
-            # # with attention and cosine sim
-            # # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
-            # a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
-            # # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-            # n_K = nn.functional.normalize(K, dim=1)
-            # q = nn.functional.normalize(a_querry, dim=2)
-            # aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
 
-            aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1
+            # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
 
             # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
             P_ = torch.einsum('bk,kld->bld', aq_k, p)
@@ -249,15 +249,21 @@ class PmoPrompt(CodaPrompt):
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None,
                 hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
+                pre_learn=False,
                 debug_mode=False, **kwargs):
         """Differences:
             Use hard_obj_idx and hard_l to locate mask for prompt.
             hard_obj_idx can be -1 to select all old prompts.
             Use mask to determine whether to mask out the prompt (True) or only select the prompt (False)
             mask_mode: 'maskout' or 'use'
+            pre_learn: True to only use ViT or old prompt
         """
         # e prompts
         e_valid = False
+
+        if pre_learn and self.task_count == 0:      # first task, use vit
+            return None, 0, x_block     # p_return, loss, x_block
+
         if l in self.e_layers:
             e_valid = True
             B, C = x_querry.shape  # [bs, 768]
@@ -284,7 +290,11 @@ class PmoPrompt(CodaPrompt):
             # f = int((self.task_count + 1) * pt)
 
             # freeze/control past tasks
-            if train:
+            if pre_learn and self.task_count > 0:      # other tasks, only use old prompt
+                K = K[:s].detach().clone()
+                A = A[:s].detach().clone()
+                p = p[:s].detach().clone()
+            elif train:
                 if self.task_count > 0:
                     K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
                     A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
@@ -297,11 +307,6 @@ class PmoPrompt(CodaPrompt):
                 K = K[0:f]
                 A = A[0:f]
                 p = p[0:f]
-
-            # # do not freeze old prompts
-            # K = K[0:f]
-            # A = A[0:f]
-            # p = p[0:f]
 
             # b = bs, d = 768, k = 100, l=8
             # with attention and cosine sim
