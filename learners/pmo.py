@@ -374,6 +374,7 @@ class PMOPrompt(Prompt):
                         coeff_hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
                     else:
                         coeff_hv_loss = hv_loss
+                    coeff_hv_loss = coeff_hv_loss * 0.1
                     coeff_hv_loss.backward()
                     hv_loss = hv_loss.item()
 
