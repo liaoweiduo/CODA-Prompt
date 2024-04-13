@@ -101,7 +101,7 @@ class PMOPrompt(Prompt):
         Save batch_idx
         See nvidia-smi.
         """
-        return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
+        # return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
 
         self.init_train_log()
 
