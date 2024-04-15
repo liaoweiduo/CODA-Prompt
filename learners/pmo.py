@@ -227,7 +227,7 @@ class PMOPrompt(Prompt):
 
             # pre_learn_epochs = 5
             iter_epochs = 5
-            phase = 'p'        # phase start from 'ka' and p-ka loop
+            phase = 'ka'        # phase start from 'p' and p-ka loop
             for epoch in range(self.config['schedule'][-1]):
                 self.epoch = epoch
 
