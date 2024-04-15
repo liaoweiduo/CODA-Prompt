@@ -61,24 +61,27 @@ class Prompt(NormalNN):
         # parse optimizer args
         # Multi-GPU
         if len(self.config['gpuid']) > 1:
-            if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
-                # if fewshot testing self.config['mode'], only learn classifier: model.last
-                params_to_opt = list(self.model.module.last.parameters())
-            elif target == 'last':
-                params_to_opt = list(self.model.module.last.parameters())
-            elif target == 'prompt':
-                params_to_opt = list(self.model.module.prompt.parameters())
-            else:
-                params_to_opt = list(self.model.module.prompt.parameters()) + list(self.model.module.last.parameters())
+            last = self.model.module.last
+            prompt = self.model.module.prompt
         else:
-            if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
-                params_to_opt = list(self.model.last.parameters())
-            elif target == 'last':
-                params_to_opt = list(self.model.last.parameters())
-            elif target == 'prompt':
-                params_to_opt = list(self.model.prompt.parameters())
-            else:
-                params_to_opt = list(self.model.prompt.parameters()) + list(self.model.last.parameters())
+            last = self.model.last
+            prompt = self.model.prompt
+
+        if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
+            # if fewshot testing self.config['mode'], only learn classifier: model.last
+            params_to_opt = list(last.parameters())
+        elif target == 'last':
+            params_to_opt = list(last.parameters())
+        elif target == 'prompt':
+            params_to_opt = list(prompt.parameters())
+        elif target == 'p':
+            params_to_opt = [param for key, param in prompt.named_parameters()
+                             if 'e_p_' in key]
+        elif target == 'ka':
+            params_to_opt = [param for key, param in prompt.named_parameters()
+                             if 'e_k_' in key or 'e_a_' in key]
+        else:
+            params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
         print('*****************************************')
         optimizer_arg = {'params':params_to_opt,

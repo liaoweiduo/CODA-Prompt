@@ -101,7 +101,7 @@ class PMOPrompt(Prompt):
         Save batch_idx
         See nvidia-smi.
         """
-        # return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
+        return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
 
         self.init_train_log()
 
@@ -197,6 +197,7 @@ class PMOPrompt(Prompt):
             return None
 
     def learn_batch_diff_stage(self, train_loader, train_dataset, model_save_dir, val_loader=None):
+        """iteratively learn p and Ak"""
         self.init_train_log()
 
         self.train_dataset = train_dataset
@@ -224,16 +225,18 @@ class PMOPrompt(Prompt):
             batch_time = AverageMeter()
             batch_timer = Timer()
 
-            pre_learn_epochs = 5
+            # pre_learn_epochs = 5
+            iter_epochs = 5
+            phase = 'ka'        # phase start from 'p' and p-ka loop
             for epoch in range(self.config['schedule'][-1]):
                 self.epoch = epoch
 
-                if epoch == 0:
-                    self.log(f'epoch: {epoch}: Optimizer is reset for last')
-                    self.init_optimizer(target='last', schedule=[pre_learn_epochs])
-                elif epoch == pre_learn_epochs:
-                    self.log(f'epoch: {epoch}: Optimizer is reset for prompt and last')
-                    self.init_optimizer(schedule=[s-pre_learn_epochs for s in self.schedule])
+                if epoch % iter_epochs == 0:
+                    # update lr
+                    self.config['lr'] = self.optimizer.param_groups[0]['lr']
+                    phase = 'p' if phase == 'ka' else 'ka'
+                    self.log(f'epoch: {epoch}: Optimizer is reset for {phase}')
+                    self.init_optimizer(target=phase, schedule=[s-epoch for s in self.schedule])
 
                 for param_group in self.optimizer.param_groups:
                     self.log('LR:', param_group['lr'])
@@ -254,7 +257,8 @@ class PMOPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output = self.update_model(x, y, pre_learn=True if epoch < pre_learn_epochs else False)
+                    # loss, output = self.update_model(x, y, pre_learn=True if epoch < pre_learn_epochs else False)
+                    loss, output = self.update_model(x, y)
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -370,11 +374,12 @@ class PMOPrompt(Prompt):
                     hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
 
                     # total_loss = total_loss + hv_loss
+                    coeff = 1
                     if maximization:
                         coeff_hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
                     else:
                         coeff_hv_loss = hv_loss
-                    coeff_hv_loss = coeff_hv_loss * 0.1
+                    coeff_hv_loss = coeff_hv_loss * coeff
                     coeff_hv_loss.backward()
                     hv_loss = hv_loss.item()
 
