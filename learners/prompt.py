@@ -76,10 +76,10 @@ class Prompt(NormalNN):
             params_to_opt = list(prompt.parameters())
         elif target == 'p':
             params_to_opt = [param for key, param in prompt.named_parameters()
-                             if 'e_p_' in key]
+                             if 'e_p_' in key] + list(last.parameters())
         elif target == 'ka':
             params_to_opt = [param for key, param in prompt.named_parameters()
-                             if 'e_k_' in key or 'e_a_' in key]
+                             if 'e_k_' in key or 'e_a_' in key] + list(last.parameters())
         else:
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
