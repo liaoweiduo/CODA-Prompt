@@ -65,6 +65,7 @@ class PMOPrompt(Prompt):
         else:
             raise Exception(f'Unknown mask mode {self.mask_mode}')
         print(f'Mask info: {self.mask_mode}->{self.mask}')
+        self.hv_coeff = self.config['hv_coeff']
 
         try:
             prompt = self.model.module.prompt
@@ -101,7 +102,7 @@ class PMOPrompt(Prompt):
         Save batch_idx
         See nvidia-smi.
         """
-        return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
+        # return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
 
         self.init_train_log()
 
@@ -227,7 +228,7 @@ class PMOPrompt(Prompt):
 
             # pre_learn_epochs = 5
             iter_epochs = 5
-            phase = 'p'        # phase start from 'p' and p-ka loop
+            phase = 'p'        # phase start from 'ka' and p-ka loop
             for epoch in range(self.config['schedule'][-1]):
                 self.epoch = epoch
 
@@ -373,13 +374,12 @@ class PMOPrompt(Prompt):
                     hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
                     hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
 
-                    # total_loss = total_loss + hv_loss
-                    coeff = 1
+                    # total_loss = total_loss + hv_loss * hv_coeff
                     if maximization:
                         coeff_hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
                     else:
                         coeff_hv_loss = hv_loss
-                    coeff_hv_loss = coeff_hv_loss * coeff
+                    coeff_hv_loss = coeff_hv_loss * self.hv_coeff
                     coeff_hv_loss.backward()
                     hv_loss = hv_loss.item()
 
