@@ -29,10 +29,10 @@ mkdir -p $OUTDIR
 #    arg 7 = hv coeff
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-full-min-use-pNone-10-3-c02
+LOGNAME=pmo-full-min-use-pNone-10-3-c04
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 0.0 3 -10003 1 0.2 \
+    --prompt_param 100 8 0.0 3 -10003 1 0.4 \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 
