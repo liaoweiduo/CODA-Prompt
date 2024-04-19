@@ -462,7 +462,8 @@ class PMOPrompt(Prompt):
                 # objs = torch.var(logits, dim=1)  # torch[100]
                 logits = logits[:, :self.valid_out_dim]
                 # ce with heuristic
-                logits[:, :self.last_valid_out_dim] = -float('inf')
+                # logits[:, :self.last_valid_out_dim] = -float('inf')
+                logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
                 dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
                 objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [100]
 
