@@ -176,7 +176,7 @@ class PMOPrompt(Prompt):
 
                 if self.epoch == 0:
                     '''nvidia-smi'''
-                    print(os.system('nvidia-smi'))
+                    self.log(os.system('nvidia-smi'))
 
                 # reset
                 losses = AverageMeter()
@@ -348,9 +348,11 @@ class PMOPrompt(Prompt):
             '''hv loss'''
             for l in self.e_layers:
                 # if self.train_dataset.t > 0:        # start from the second task
+                repeat = 8
+                pop_size = self.num_aux_sampling
                 mo_matrix = self.obtain_mo_matrix(hard_l=l, use_old_obj=True,
                                                   mask=self.mask, mask_mode=self.mask_mode,
-                                                  train=True)   # [10, 20]
+                                                  train=True, repeat=repeat)   # [obj10, pop20]
 
                 if self.debug_mode:
                     print(f'mo_matrix: {mo_matrix}')
@@ -363,13 +365,20 @@ class PMOPrompt(Prompt):
                     # else:
                     #     with torch.no_grad():
                     #         normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
+
+                    # repeat for hv_loss
                     ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                    weights = cal_hv_weights(normed_mo_matrix, ref, reverse=maximization)
+                    weights = []
+                    for r in range(repeat):
+                        weights.append(cal_hv_weights(
+                            normed_mo_matrix[:, r*pop_size:(r+1)*pop_size], ref, reverse=maximization))
 
                     if self.debug_mode:
                         print(f'weights: {weights}')
 
-                    # if maximization:    # maximization using normed mo, minimization using no-normed mo
+                    weights = torch.cat(weights, dim=1)     # [obj, pop]
+
+                    # if maximization:    # use normed mo
                     mo_matrix = normed_mo_matrix
                     hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
                     hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
@@ -402,7 +411,7 @@ class PMOPrompt(Prompt):
 
     def obtain_mo_matrix(self, hard_l, pop_size=None, use_old_obj=False,
                          add_noise=False, mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
-                         train=True, return_labels=False):
+                         train=True, return_labels=False, repeat=1):
         """Return mo_matrix: Torch tensor [obj, pop]
         proj: whether to project mo matrix to simplex.
         mask:   int to be constant prompts,
@@ -417,7 +426,7 @@ class PMOPrompt(Prompt):
         '''sampling by aux'''
         if pop_size is None:
             pop_size = self.num_aux_sampling
-        samples, labels = self.aux.sampling(pop_size, sort=True)     # [1000, 3, 224, 224]
+        samples, labels = self.aux.sampling(pop_size * repeat, sort=False)     # [1000, 3, 224, 224]
         if self.gpu:
             samples = samples.cuda()
             labels = labels.cuda()
