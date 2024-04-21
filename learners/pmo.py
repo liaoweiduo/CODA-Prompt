@@ -348,7 +348,7 @@ class PMOPrompt(Prompt):
             '''hv loss'''
             for l in self.e_layers:
                 # if self.train_dataset.t > 0:        # start from the second task
-                repeat = 8
+                repeat = 1
                 pop_size = self.num_aux_sampling
                 mo_matrix = self.obtain_mo_matrix(hard_l=l, use_old_obj=True,
                                                   mask=self.mask, mask_mode=self.mask_mode,
@@ -368,10 +368,11 @@ class PMOPrompt(Prompt):
 
                     # repeat for hv_loss
                     ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                    weights = []
-                    for r in range(repeat):
-                        weights.append(cal_hv_weights(
-                            normed_mo_matrix[:, r*pop_size:(r+1)*pop_size], ref, reverse=maximization))
+                    weights = [
+                        cal_hv_weights(
+                            normed_mo_matrix[:, r*pop_size:(r+1)*pop_size], ref, reverse=maximization)
+                        for r in range(repeat)
+                    ]
 
                     if self.debug_mode:
                         print(f'weights: {weights}')
