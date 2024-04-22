@@ -459,13 +459,21 @@ class PMOPrompt(Prompt):
             if self.debug_mode:
                 print(f'selected_obj_idxs: {selected_obj_idxs}')
 
+            # detach classifier
+            try:
+                last = copy.deepcopy(self.model.last)
+            except:
+                last = copy.deepcopy(self.model.module.last)
+            for p in last.parameters():
+                p.requires_grad = False
             for re_idx, obj_idx in enumerate(selected_obj_idxs):
                 # pen: penultimate features; train: same forward as batch training.
-                out = self.model(samples, pen=False, train=train,
+                out = self.model(samples, pen=True, train=train,
                                  hard_obj_idx=obj_idx, hard_l=hard_l,
                                  mask=mask, mask_mode=mask_mode,
                                  # register_blk=hard_l,
                                  debug_mode=self.debug_mode)
+                out = last(out)
                 logits = out[0] if train else out
 
                 # [100, 768]
@@ -522,9 +530,13 @@ class PMOPrompt(Prompt):
 
         return mo_matrix[:, subfront_indices == idx]
 
-    def obtain_mo_matrix_pop_prompt(self, hard_l, add_noise=True, mask=0):
+    def obtain_mo_matrix_pop_prompt(self, hard_l, use_old_obj=False, add_noise=False,
+                                    mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
+                                    train=True, return_labels=False, repeat=1,
+                                    samples=None, labels=None):
         """Return mo_matrix: Torch tensor [obj, pop]
         Obj: samples; Pop: prompts
+        if use old obj, then add 1 individual to use all old prompts
         """
         if self.n_obj <= 0:
             return None
@@ -572,11 +584,18 @@ class PMOPrompt(Prompt):
         if hard_l in self.e_layers:
             ncc_losses_mo = torch.zeros((self.n_obj, self.n_obj_avail), device=samples.device)
 
+            try:
+                last = copy.deepcopy(self.model.last)
+            except:
+                last = copy.deepcopy(self.model.module.last)
+            for p in last.parameters():
+                p.requires_grad = False
             for prompt_idx in range(self.n_obj_avail):
                 # pen: penultimate features; train: same forward as batch training.
                 logits, _ = self.model(samples, pen=False, train=True,
                                        hard_obj_idx=prompt_idx, hard_l=hard_l, mask=mask,
                                        debug_mode=self.debug_mode)
+                logits = last(last)
                 # [100, 768]
                 # objs = torch.var(logits, dim=1)  # torch[100]
                 logits = logits[:, :self.valid_out_dim]
