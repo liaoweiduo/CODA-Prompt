@@ -473,8 +473,8 @@ class PMOPrompt(Prompt):
                                  mask=mask, mask_mode=mask_mode,
                                  # register_blk=hard_l,
                                  debug_mode=self.debug_mode)
-                out = last(out)     # detached last
                 logits = out[0] if train else out
+                logits = last(logits)     # detached last
 
                 # [100, 768]
                 # objs = torch.var(logits, dim=1)  # torch[100]
