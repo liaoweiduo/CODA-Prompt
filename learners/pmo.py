@@ -65,7 +65,7 @@ class PMOPrompt(Prompt):
         else:
             raise Exception(f'Unknown mask mode {self.mask_mode}')
         print(f'Mask info: {self.mask_mode}->{self.mask}')
-        self.hv_coeff = self.config['hv_coeff']
+        self.hv_coeff = self.config['hv_coeff']     # -1 if use LCQP
 
         try:
             prompt = self.model.module.prompt
@@ -182,6 +182,14 @@ class PMOPrompt(Prompt):
                 losses = AverageMeter()
                 acc = AverageMeter()
 
+                # validation
+                if val_loader is not None:
+                    val_acc = self.validation(val_loader)
+                    # log
+                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(val_acc)
+
         self.model.eval()
 
         self.last_valid_out_dim = self.valid_out_dim
@@ -198,7 +206,7 @@ class PMOPrompt(Prompt):
             return None
 
     def learn_batch_diff_stage(self, train_loader, train_dataset, model_save_dir, val_loader=None):
-        """iteratively learn p and Ak"""
+        """iteratively learn"""
         self.init_train_log()
 
         self.train_dataset = train_dataset
@@ -290,6 +298,14 @@ class PMOPrompt(Prompt):
                 losses = AverageMeter()
                 acc = AverageMeter()
 
+                # validation
+                if val_loader is not None:
+                    val_acc = self.validation(val_loader)
+                    # log
+                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(val_acc)
+
         self.model.eval()
 
         self.last_valid_out_dim = self.valid_out_dim
@@ -312,6 +328,22 @@ class PMOPrompt(Prompt):
         """
 
         self.optimizer.zero_grad()
+        try:
+            prompt = self.model.module.prompt
+            last = self.model.module.last
+        except:
+            prompt = self.model.prompt
+            last = self.model.last
+
+        grads = {}
+        params_to_opt = {key: param for key, param in prompt.named_parameters() if 'e_k_' in key or 'e_a_' in key}
+        params_for_ce = {key: param for key, param in last.named_parameters()}
+        params_for_ce.update({key: param for key, param in prompt.named_parameters() if 'e_p_' in key})
+
+        for k, p in params_to_opt.items():      # use ce+hv
+            grads[k] = {'shape': p.shape, 'grads': []}
+        for k, p in params_for_ce.items():      # use ce
+            grads[k] = {'shape': p.shape, 'grads': []}
 
         # logits
         logits, prompt_loss = self.model(inputs, train=True, pre_learn=pre_learn)
@@ -337,7 +369,14 @@ class PMOPrompt(Prompt):
         # ce loss
         total_loss = total_loss + prompt_loss.sum()
 
+        self.optimizer.zero_grad()
         total_loss.backward()
+
+        for k, p in params_to_opt.items():
+            grads[k]['grads'].append(p.grad)
+
+        for k, p in params_for_ce.items():
+            grads[k]['grads'].append(p.grad)
 
         if not pre_learn:       # for pre_learn, only ce loss is used.
             # hv loss calculation without affecting RNG state
@@ -346,6 +385,7 @@ class PMOPrompt(Prompt):
             np.random.seed(self.seed + self.train_dataset.t + self.epoch + self.batch_idx)
 
             '''hv loss'''
+            self.optimizer.zero_grad()
             for l in self.e_layers:
                 # if self.train_dataset.t > 0:        # start from the second task
                 repeat = 1
@@ -384,13 +424,14 @@ class PMOPrompt(Prompt):
                     hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
                     hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
 
-                    # total_loss = total_loss + hv_loss * hv_coeff
                     if maximization:
-                        coeff_hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
+                        hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
                     else:
-                        coeff_hv_loss = hv_loss
-                    coeff_hv_loss = coeff_hv_loss * self.hv_coeff
-                    coeff_hv_loss.backward()
+                        hv_loss = hv_loss
+                    # hv_loss = hv_loss * self.hv_coeff
+
+                    hv_loss.backward()
+
                     hv_loss = hv_loss.item()
 
                     if self.debug_mode:
@@ -404,6 +445,27 @@ class PMOPrompt(Prompt):
                 self.epoch_log['scaler']['Value'].append(hv_loss)
 
             np.random.set_state(state)
+
+            for k, p in params_to_opt.items():
+                grads[k]['grads'].append(p.grad)
+
+            # cal grad for 2 opt processes
+            # params_to_opt
+            l1 = torch.cat([grads[k]['grads'][0].flatten() for k, p in params_to_opt.items()])
+            l2 = torch.cat([grads[k]['grads'][1].flatten() for k, p in params_to_opt.items()])
+            alpha = torch.nn.functional.relu(torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)))
+
+            if self.debug_mode:
+                print(f'hv alpha: {alpha}')
+            self.epoch_log['scaler']['Tag'].append('alpha')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(alpha.item())
+
+            self.optimizer.zero_grad()
+            for k, p in params_to_opt.items():
+                p.grad = alpha * grads[k]['grads'][0] + (1 - alpha) * grads[k]['grads'][1]
+            for k, p in params_for_ce.items():
+                p.grad = grads[k]['grads'][0]
 
         # step
         self.optimizer.step()
@@ -459,29 +521,29 @@ class PMOPrompt(Prompt):
             if self.debug_mode:
                 print(f'selected_obj_idxs: {selected_obj_idxs}')
 
-            # detach classifier
-            try:
-                last = copy.deepcopy(self.model.last)
-            except:
-                last = copy.deepcopy(self.model.module.last)
-            for p in last.parameters():
-                p.requires_grad = False
+            # # detach classifier
+            # try:
+            #     last = copy.deepcopy(self.model.last)
+            # except:
+            #     last = copy.deepcopy(self.model.module.last)
+            # for p in last.parameters():
+            #     p.requires_grad = False
             for re_idx, obj_idx in enumerate(selected_obj_idxs):
                 # pen: penultimate features; train: same forward as batch training.
-                out = self.model(samples, pen=True, train=train,
+                out = self.model(samples, pen=False, train=train,
                                  hard_obj_idx=obj_idx, hard_l=hard_l,
                                  mask=mask, mask_mode=mask_mode,
                                  # register_blk=hard_l,
                                  debug_mode=self.debug_mode)
                 logits = out[0] if train else out
-                logits = last(logits)     # detached last
+                # logits = last(logits)     # detached last
 
                 # [100, 768]
                 # objs = torch.var(logits, dim=1)  # torch[100]
                 logits = logits[:, :self.valid_out_dim]
                 # ce with heuristic
-                # logits[:, :self.last_valid_out_dim] = -float('inf')
-                logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+                logits[:, :self.last_valid_out_dim] = -float('inf')
+                # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
                 dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
                 objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [100]
 

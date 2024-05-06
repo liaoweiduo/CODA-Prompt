@@ -340,7 +340,8 @@ class PmoPrompt(CodaPrompt):
                     else:  # mask is None: only select this prompt
                         aq_k = torch.cat((
                             torch.zeros_like(aq_k[:, :(hard_obj_idx * ot)]),  # detach and mask 0
-                            aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],  # mask 1
+                            # aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
+                            torch.ones_like(aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),  # mask 1
                             torch.zeros_like(aq_k[:, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
                         ), dim=1)
                 elif mask_mode == 'use':
@@ -363,7 +364,8 @@ class PmoPrompt(CodaPrompt):
                     else:  # mask is None: only select this prompt, other layer also do not use prompt
                         aq_k = torch.cat((
                             torch.zeros_like(aq_k[:, :(hard_obj_idx * ot)]),  # detach and mask 0
-                            aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],  # mask 1
+                            # aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
+                            torch.ones_like(aq_k[:, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),  # mask 1
                             torch.zeros_like(aq_k[:, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
                         ), dim=1)
                 else:
