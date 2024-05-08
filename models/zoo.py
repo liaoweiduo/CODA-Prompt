@@ -22,7 +22,18 @@ class CodaPrompt(nn.Module):
         self.emb_d = emb_d
         self.key_d = key_dim
         self.n_tasks = n_tasks
-        self._init_full(emb_d, prompt_param)       # _init_smart; _init_full
+
+        # prompt basic param
+        self.e_pool_size = int(prompt_param[0])  # 100
+        self.e_p_length = int(prompt_param[1])  # 8
+        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        # [] for no prompt.
+
+        # strenth of ortho penalty
+        self.ortho_mu = prompt_param[2]  # 0.0
+
+        # trigger fixed prompt size (FPS)
+        self.FPS = True         # set to False to use origin coda-p
 
         # e prompt init
         for e in self.e_layers:
@@ -44,57 +55,28 @@ class CodaPrompt(nn.Module):
             setattr(self, f'e_k_{e}', k)
             setattr(self, f'e_a_{e}', a)
 
-    def _init_no(self, emb_d, prompt_param):
-
-        # prompt basic param
-        self.e_pool_size = int(prompt_param[0])  # 100
-        self.e_p_length = int(prompt_param[1])  # 8
-        self.e_layers = []
-
-        # strenth of ortho penalty
-        self.ortho_mu = prompt_param[2]  # 0.0
-
-    def _init_smart(self, emb_d, prompt_param):
-
-        # prompt basic param
-        self.e_pool_size = int(prompt_param[0])  # 100
-        self.e_p_length = int(prompt_param[1])  # 8
-        self.e_layers = [0, 1, 2, 3, 4]
-
-        # strenth of ortho penalty
-        self.ortho_mu = prompt_param[2]  # 0.0
-
-    def _init_full(self, emb_d, prompt_param):
-
-        # prompt basic param
-        self.e_pool_size = int(prompt_param[0])  # 100
-        self.e_p_length = int(prompt_param[1])  # 8
-        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-
-        # strenth of ortho penalty
-        self.ortho_mu = prompt_param[2]  # 0.0
-
     def process_task_count(self):
         self.task_count += 1
 
-        # in the spirit of continual learning, we will reinit the new components
-        # for the new task with Gram Schmidt
-        #
-        # in the original paper, we used ortho init at the start - this modification is more 
-        # fair in the spirit of continual learning and has little affect on performance
-        # 
-        # code for this function is modified from:
-        # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
-        for e in self.e_layers:
-            K = getattr(self, f'e_k_{e}')
-            A = getattr(self, f'e_a_{e}')
-            P = getattr(self, f'e_p_{e}')
-            k = self.gram_schmidt(K)
-            a = self.gram_schmidt(A)
-            p = self.gram_schmidt(P)
-            setattr(self, f'e_p_{e}', p)
-            setattr(self, f'e_k_{e}', k)
-            setattr(self, f'e_a_{e}', a)
+        if not self.FPS:
+            # in the spirit of continual learning, we will reinit the new components
+            # for the new task with Gram Schmidt
+            #
+            # in the original paper, we used ortho init at the start - this modification is more
+            # fair in the spirit of continual learning and has little affect on performance
+            #
+            # code for this function is modified from:
+            # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
+            for e in self.e_layers:
+                K = getattr(self, f'e_k_{e}')
+                A = getattr(self, f'e_a_{e}')
+                P = getattr(self, f'e_p_{e}')
+                k = self.gram_schmidt(K)
+                a = self.gram_schmidt(A)
+                p = self.gram_schmidt(P)
+                setattr(self, f'e_p_{e}', p)
+                setattr(self, f'e_k_{e}', k)
+                setattr(self, f'e_a_{e}', a)
 
     # code for this function is modified from:
     # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
@@ -167,9 +149,13 @@ class CodaPrompt(nn.Module):
             K = getattr(self, f'e_k_{l}')  # [100, 768]
             A = getattr(self, f'e_a_{l}')  # [100, 768]
             p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
-            pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
-            s = int(self.task_count * pt)  # 10 prompts for one task
-            f = int((self.task_count + 1) * pt)
+            if self.FPS:        # use all prompts
+                s = 0
+                f = self.e_pool_size
+            else:
+                pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+                s = int(self.task_count * pt)  # 10 prompts for one task
+                f = int((self.task_count + 1) * pt)
 
             # freeze/control past tasks
             if train:
@@ -908,7 +894,6 @@ class ViTZoo(nn.Module):
             return out, prompt_loss
         else:
             return out
-
 
 def vit_pt_imnet(out_dim, block_division=None, prompt_flag='None', prompt_param=None):
     return ViTZoo(num_classes=out_dim, pt=True, prompt_flag=prompt_flag, prompt_param=prompt_param)
