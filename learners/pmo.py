@@ -91,9 +91,9 @@ class PMOPrompt(Prompt):
         self.epoch_log['mo'] = pd.DataFrame(self.epoch_log['mo'])
         self.epoch_log['scaler'] = pd.DataFrame(self.epoch_log['scaler'])
 
-    def create_model(self):
+    def create_model(self, use_vit_emb=False):
         cfg = self.config
-        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'pmo',prompt_param=self.prompt_param)
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'pmo',prompt_param=self.prompt_param, use_vit_emb=use_vit_emb)
         return model
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):

@@ -143,6 +143,8 @@ class CodaPrompt(nn.Module):
         return torch.nn.Parameter(uu)
 
     def handle_x_querry(self, x_querry, x_block):
+        if x_querry is None:
+            raise ValueError('x_querry is None')
         return x_querry
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
@@ -224,7 +226,7 @@ def ortho_penalty(t):
 
 class CodaPromptCond(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
-        super(CodaPromptCond, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
+        super(CodaPromptCond, self).__init__(emb_d, n_tasks, prompt_param, key_dim=key_dim)
 
     def handle_x_querry(self, x_querry, x_block):
         # use x_block to drive x_querry
@@ -234,7 +236,7 @@ class CodaPromptCond(CodaPrompt):
         return x_querry
 
 
-class PmoPrompt(CodaPrompt):        # change to CodaPromptCond的话， pmo.py 的create_model里 use_vit_emb=False
+class PmoPrompt(CodaPromptCond):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
