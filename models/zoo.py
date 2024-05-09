@@ -923,5 +923,5 @@ class ViTZoo(nn.Module):
             return out
 
 
-def vit_pt_imnet(out_dim, block_division=None, prompt_flag='None', prompt_param=None):
-    return ViTZoo(num_classes=out_dim, pt=True, prompt_flag=prompt_flag, prompt_param=prompt_param)
+def vit_pt_imnet(out_dim, block_division=None, prompt_flag='None', prompt_param=None, **kwargs):
+    return ViTZoo(num_classes=out_dim, pt=True, prompt_flag=prompt_flag, prompt_param=prompt_param, **kwargs)
