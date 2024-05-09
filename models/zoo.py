@@ -104,9 +104,13 @@ class CodaPrompt(nn.Module):
         uu = torch.zeros_like(vv, device=vv.device)
 
         # get starting point
-        pt = int(self.e_pool_size / (self.n_tasks))
-        s = int(self.task_count * pt)
-        f = int((self.task_count + 1) * pt)
+        if self.FPS:        # use all prompts
+            s = 0
+            f = self.e_pool_size
+        else:
+            pt = int(self.e_pool_size / (self.n_tasks))
+            s = int(self.task_count * pt)
+            f = int((self.task_count + 1) * pt)
         if s > 0:
             uu[:, 0:s] = vv[:, 0:s].clone()
         for k in range(s, f):
@@ -138,8 +142,11 @@ class CodaPrompt(nn.Module):
 
         return torch.nn.Parameter(uu)
 
-    def forward(self, x_querry, l, x_block, train=False, task_id=None):
+    def handle_x_querry(self, x_querry, x_block):
+        return x_querry
 
+    def forward(self, x_querry, l, x_block, train=False, task_id=None):
+        x_querry = self.handle_x_querry(x_querry, x_block)
         # e prompts
         e_valid = False
         if l in self.e_layers:
@@ -215,7 +222,19 @@ def ortho_penalty(t):
     return ((t @ t.T - torch.eye(t.shape[0]).cuda()) ** 2).mean()
 
 
-class PmoPrompt(CodaPrompt):
+class CodaPromptCond(CodaPrompt):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+        super(CodaPromptCond, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
+
+    def handle_x_querry(self, x_querry, x_block):
+        # use x_block to drive x_querry
+        # x_block shape: [bs, 197, 768]
+        x_querry = torch.mean(x_block, dim=1)  # average over cls_token and other patches.
+
+        return x_querry
+
+
+class PmoPrompt(CodaPrompt):        # change to CodaPromptCond的话， pmo.py 的create_model里 use_vit_emb=False
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
@@ -244,6 +263,7 @@ class PmoPrompt(CodaPrompt):
             mask_mode: 'maskout' or 'use'
             pre_learn: True to only use ViT or old prompt
         """
+        x_querry = self.handle_x_querry(x_querry, x_block)
         # e prompts
         e_valid = False
 
@@ -816,13 +836,14 @@ def tensor_prompt(a, b, c=None, ortho=False):
 
 
 class ViTZoo(nn.Module):
-    def __init__(self, num_classes=10, pt=False, prompt_flag=False, prompt_param=None):
+    def __init__(self, num_classes=10, pt=False, prompt_flag=False, prompt_param=None, use_vit_emb=True):
         super(ViTZoo, self).__init__()
 
         # get last layer
         self.last = nn.Linear(512, num_classes)
         self.prompt_flag = prompt_flag
         self.task_id = None
+        self.use_vit_emb = use_vit_emb
 
         # get feature encoder
         zoo_model = None
@@ -855,6 +876,8 @@ class ViTZoo(nn.Module):
             self.prompt = CodaPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'coda_r':
             self.prompt = CodaPromptR(768, prompt_param[0], prompt_param[1])
+        elif self.prompt_flag == 'coda_cond':
+            self.prompt = CodaPromptCond(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'pmo':
             self.prompt = PmoPrompt(768, prompt_param[0], prompt_param[1])
         else:
@@ -868,18 +891,22 @@ class ViTZoo(nn.Module):
             param.requires_grad = False
 
     # pen: get penultimate features    
-    def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False, cond_x=None, **kwargs):
+    def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False,
+                cond_x=None, **kwargs):
         # kwargs for prompt
         if task_id is None:
             task_id = self.task_id
 
         if self.prompt is not None:
-            with torch.no_grad():
-                if cond_x is not None:  # condition model
-                    q, _ = self.feat(cond_x)
-                else:
-                    q, _ = self.feat(x)
-                q = q[:, 0, :]
+            if self.use_vit_emb:
+                with torch.no_grad():
+                    if cond_x is not None:  # condition model
+                        q, _ = self.feat(cond_x)
+                    else:
+                        q, _ = self.feat(x)
+                    q = q[:, 0, :]
+            else:
+                q = None
             out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id,
                                          register_blk=register_blk,
                                          **kwargs)
@@ -894,6 +921,7 @@ class ViTZoo(nn.Module):
             return out, prompt_loss
         else:
             return out
+
 
 def vit_pt_imnet(out_dim, block_division=None, prompt_flag='None', prompt_param=None):
     return ViTZoo(num_classes=out_dim, pt=True, prompt_flag=prompt_flag, prompt_param=prompt_param)

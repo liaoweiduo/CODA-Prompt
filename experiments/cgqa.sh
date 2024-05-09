@@ -73,7 +73,18 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 20 8 0.0 \
-    --log_dir ${OUTDIR}/coda-full-FPS
+    --log_dir ${OUTDIR}/coda-full-FPS-20
+
+# CODA-P
+#
+# prompt parameter args:
+#    arg 1 = prompt component pool size     20 for fixed prompt size
+#    arg 2 = prompt length
+#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPromptCond \
+#    --prompt_param 20 8 0.0 \
+#    --log_dir ${OUTDIR}/coda-cond-full-FPS
 
 # DualPrompt
 #

@@ -136,6 +136,17 @@ class CODAPrompt(Prompt):
         return model
 
 
+class CODAPromptCond(Prompt):
+
+    def __init__(self, learner_config):
+        super(CODAPromptCond, self).__init__(learner_config)
+
+    def create_model(self):
+        cfg = self.config
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda_cond',prompt_param=self.prompt_param, use_vit_emb=False)
+        return model
+
+
 # CODA-Prompt with memory replay
 class CODAPromptR(Prompt):
     """
