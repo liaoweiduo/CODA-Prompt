@@ -561,14 +561,14 @@ class PMOPrompt(Prompt):
 
                 maximization = True if self.mask_mode == 'maskout' else False
                 if mo_matrix is not None:
-                    # repeat for hv_loss
+                    normed_mo_matrix = normalize_to_simplex(mo_matrix)
                     ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                    weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
+                    weights = cal_hv_weights(normed_mo_matrix, ref, reverse=maximization)
 
                     if self.debug_mode:
                         print(f'weights: {weights}')
 
-                    hv_loss = torch.sum(mo_matrix * weights, dim=0)  # to vector over samples
+                    hv_loss = torch.sum(normed_mo_matrix * weights, dim=0)  # to vector over samples
                     hv_loss = torch.mean(hv_loss)  # align to 1 sample's ce loss
 
                     if maximization:
