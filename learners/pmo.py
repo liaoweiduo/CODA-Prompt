@@ -593,19 +593,25 @@ class PMOPrompt(Prompt):
 
                 # cal grad for 2 opt processes
                 # params_to_opt
-                l1 = torch.cat([grads[k]['grads'][0].flatten() for k, p in params_to_opt.items()])
-                l2 = torch.cat([grads[k]['grads'][1].flatten() for k, p in params_to_opt.items()])
-                alpha = torch.nn.functional.relu(
-                    torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)))
+                alphas = []
+                for k, p in params_to_opt.items():
+                    l1 = grads[k]['grads'][0].flatten()
+                    l2 = grads[k]['grads'][1].flatten()
+                    alpha = torch.nn.functional.relu(
+                        torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)))
+                    grads[k]['alpha'] = alpha
+                    alphas.append(alpha)
 
+                mean_alpha = torch.mean(torch.cat(alphas)).item()
                 if self.debug_mode:
-                    print(f'hv alpha: {alpha}')
+                    print(f'hv mean alpha: {mean_alpha}')
                 self.epoch_log['scaler']['Tag'].append('alpha')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
-                self.epoch_log['scaler']['Value'].append(alpha.item())
+                self.epoch_log['scaler']['Value'].append(mean_alpha)
 
                 self.optimizer.zero_grad()
                 for k, p in params_to_opt.items():
+                    alpha = grads[k]['alpha']
                     p.grad = alpha * grads[k]['grads'][0] + (1 - alpha) * grads[k]['grads'][1]
                 for k, p in params_for_ce.items():
                     p.grad = grads[k]['grads'][0]
