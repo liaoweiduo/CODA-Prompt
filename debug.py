@@ -408,7 +408,10 @@ class Debugger:
 
             '''log objs figure along inner step for all epoch'''
             for e in range(n_epoch):
-                fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
+                if n_obj == 2:
+                    fig, ax = plt.subplots(1, 1)
+                else:       # n_obj > 2
+                    fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True})
                 draw_objs(objs[e], pop_labels, ax=ax)   # [e, :, :2, :] for the first 2 axes
                 writer.add_figure(f"{prefix}_inner/{target}_t{i+1}", fig, e)
 

@@ -549,7 +549,7 @@ class PMOPrompt(Prompt):
                 self.optimizer.zero_grad()
                 # for l in self.e_layers:
                 mo_matrix = self.obtain_mo_matrix_pop_prompt(
-                    None, use_old_prompts=True,
+                    None, use_old_prompts=False if prompt.FPS else True,
                     mask=self.mask, mask_mode=self.mask_mode,
                     train=True,
                     samples=selected_inputs,
@@ -566,7 +566,7 @@ class PMOPrompt(Prompt):
                     weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
 
                     if self.debug_mode:
-                        print(f'weights for layer{l}: {weights}')
+                        print(f'weights: {weights}')
 
                     hv_loss = torch.sum(mo_matrix * weights, dim=0)  # to vector over samples
                     hv_loss = torch.mean(hv_loss)  # align to 1 sample's ce loss
