@@ -33,7 +33,7 @@ class CodaPrompt(nn.Module):
         self.ortho_mu = prompt_param[2]  # 0.0
 
         # trigger fixed prompt size (FPS)
-        self.FPS = False         # set to False to use origin coda-p
+        self.FPS = True         # set to False to use origin coda-p
 
         # e prompt init
         for e in self.e_layers:
