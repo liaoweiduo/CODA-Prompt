@@ -33,7 +33,7 @@ class CodaPrompt(nn.Module):
         self.ortho_mu = prompt_param[2]  # 0.0
 
         # trigger fixed prompt size (FPS)
-        self.FPS = True         # set to False to use origin coda-p
+        self.FPS = False         # set to False to use origin coda-p
 
         # e prompt init
         for e in self.e_layers:
@@ -240,8 +240,11 @@ class PmoPrompt(CodaPromptCond):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
-        self.n_prompt_per_task = int(self.e_pool_size / (self.n_tasks))  # num of prompts for 1 task.
-        self.n_obj = self.n_prompt_per_task
+        if self.FPS:
+            self.n_prompt_per_task = int(self.e_pool_size)  # num of prompts
+        else:
+            self.n_prompt_per_task = int(self.e_pool_size / (self.n_tasks))  # num of prompts for 1 task.
+        self.n_obj = self.n_prompt_per_task     # here, n_obj is number of prompt per task
         # self.n_prompt_per_task or prompt_param[3] or specify how many prompt used for 1 obj
 
         # # dataset with pool
@@ -269,7 +272,7 @@ class PmoPrompt(CodaPromptCond):
         # e prompts
         e_valid = False
 
-        if pre_learn and self.task_count == 0:      # first task, use vit
+        if pre_learn and (self.task_count == 0 or self.FPS):      # first task, use vit
             return None, 0, x_block     # p_return, loss, x_block
 
         if l in self.e_layers:
@@ -291,14 +294,19 @@ class PmoPrompt(CodaPromptCond):
             task_id = self.task_count
             # if task_id is None:
             #     task_id = self.task_count
-            pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
-            s = int(task_id * pt)  # 10 prompts for one task
-            f = int((task_id + 1) * pt)
+
+            if self.FPS:        # use all prompts
+                s = 0
+                f = self.e_pool_size
+            else:
+                pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+                s = int(self.task_count * pt)  # 10 prompts for one task
+                f = int((self.task_count + 1) * pt)
             # s = int(self.task_count * pt)  # 10 prompts for one task
             # f = int((self.task_count + 1) * pt)
 
             # freeze/control past tasks
-            if pre_learn and self.task_count > 0:      # other tasks, only use old prompt
+            if pre_learn and self.task_count > 0 and not self.FPS:      # other tasks, only use old prompt
                 K = K[:s].detach().clone()
                 A = A[:s].detach().clone()
                 p = p[:s].detach().clone()
@@ -326,8 +334,9 @@ class PmoPrompt(CodaPromptCond):
             aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 10->100]
 
             # mask according to obj idx
-            if hard_obj_idx is not None and hard_l == l:
-                ot = int(pt / self.n_obj)  # number of prompts for one obj
+            if hard_obj_idx is not None and (hard_l == l or hard_l is None):
+                # if hard_l is None, do for all layer
+                ot = int(self.n_prompt_per_task / self.n_obj)  # number of prompts for one obj
 
                 # aq_k [bs, f] modification
                 if mask_mode == 'maskout':
@@ -336,7 +345,7 @@ class PmoPrompt(CodaPromptCond):
                             aq_k[:, :s] = 1
                         elif type(mask) is str:  # random prompt
                             aq_k[:, :s] = 1
-                        else:  # mask is None: only select this prompt
+                        else:  # mask is None: only maskout this prompt
                             aq_k = torch.cat((
                                 torch.zeros_like(aq_k[:, :s]),  # detach and mask 0
                                 aq_k[:, s:],                    # mask 1

@@ -487,9 +487,10 @@ class PMOPrompt(Prompt):
             last = self.model.last
 
         grads = {}
-        params_to_opt = {key: param for key, param in prompt.named_parameters() if 'e_k_' in key or 'e_a_' in key}
+        # params_to_opt = {key: param for key, param in prompt.named_parameters() if 'e_k_' in key or 'e_a_' in key}
+        params_to_opt = {key: param for key, param in prompt.named_parameters()}
         params_for_ce = {key: param for key, param in last.named_parameters()}
-        params_for_ce.update({key: param for key, param in prompt.named_parameters() if 'e_p_' in key})
+        # params_for_ce.update({key: param for key, param in prompt.named_parameters() if 'e_p_' in key})
 
         for k, p in params_to_opt.items():  # use ce+hv
             grads[k] = {'shape': p.shape, 'grads': []}
@@ -546,44 +547,46 @@ class PMOPrompt(Prompt):
                 selected_targets = torch.cat([targets[targets == label] for label in selected_labels])
 
                 self.optimizer.zero_grad()
-                for l in self.e_layers:
-                    mo_matrix = self.obtain_mo_matrix_pop_prompt(
-                        l, use_old_prompts=True,
-                        mask=self.mask, mask_mode=self.mask_mode,
-                        train=True,
-                        samples=selected_inputs,
-                        labels=selected_targets,
-                    )  # [obj2, pop120+1]
+                # for l in self.e_layers:
+                mo_matrix = self.obtain_mo_matrix_pop_prompt(
+                    None, use_old_prompts=True,
+                    mask=self.mask, mask_mode=self.mask_mode,
+                    train=True,
+                    samples=selected_inputs,
+                    labels=selected_targets,
+                )  # [obj2, pop120+1]
+
+                if self.debug_mode:
+                    print(f'mo_matrix: {mo_matrix}')
+
+                maximization = True if self.mask_mode == 'maskout' else False
+                if mo_matrix is not None:
+                    # repeat for hv_loss
+                    ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
+                    weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
 
                     if self.debug_mode:
-                        print(f'mo_matrix for layer{l}: {mo_matrix}')
+                        print(f'weights for layer{l}: {weights}')
 
-                    maximization = True if self.mask_mode == 'maskout' else False
-                    if mo_matrix is not None:
-                        # repeat for hv_loss
-                        ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                        weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
+                    hv_loss = torch.sum(mo_matrix * weights, dim=0)  # to vector over samples
+                    hv_loss = torch.mean(hv_loss)  # align to 1 sample's ce loss
 
-                        if self.debug_mode:
-                            print(f'weights for layer{l}: {weights}')
+                    if maximization:
+                        hv_loss = torch.exp(hv_loss)  # exp() make loss \in [0, 1]
+                    else:
+                        hv_loss = hv_loss
+                    # hv_loss = hv_loss * self.hv_coeff
 
-                        hv_loss = torch.sum(mo_matrix * weights, dim=0)  # to vector over samples
-                        hv_loss = torch.mean(hv_loss)  # align to 1 sample's ce loss
+                    hv_loss.backward()
 
-                        if maximization:
-                            hv_loss = torch.exp(hv_loss)  # exp() make loss \in [0, 1]
-                        else:
-                            hv_loss = hv_loss
-                        # hv_loss = hv_loss * self.hv_coeff
+                    if self.debug_mode:
+                        print(f'hv loss: {hv_loss.item()}')
 
-                        hv_loss.backward()
-
-                        if self.debug_mode:
-                            print(f'hv loss for layer{l}: {hv_loss.item()}')
-
-                        self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
-                        self.epoch_log['scaler']['Idx'].append(self.epoch)
-                        self.epoch_log['scaler']['Value'].append(hv_loss.item())
+                    self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(hv_loss.item())
+                else:
+                    raise ValueError('mo_matrix is None')
 
                 for k, p in params_to_opt.items():
                     grads[k]['grads'].append(p.grad)        # hv grad
@@ -741,7 +744,7 @@ class PMOPrompt(Prompt):
 
         return mo_matrix[:, subfront_indices == idx]
 
-    def obtain_mo_matrix_pop_prompt(self, hard_l, use_old_prompts=False,
+    def obtain_mo_matrix_pop_prompt(self, hard_l=None, use_old_prompts=False,
                                     mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
                                     train=True,
                                     samples=None, labels=None):
@@ -796,7 +799,7 @@ class PMOPrompt(Prompt):
         '''forward all prompts get objectives [n_samples, pop], pop may with old prompt'''
         ncc_losses = []
 
-        if hard_l in self.e_layers:
+        if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
             for prompt_idx in range(self.n_obj_avail):
                 # pen: penultimate features; train: same forward as batch training.
                 out = self.model(samples, pen=False, train=train,
