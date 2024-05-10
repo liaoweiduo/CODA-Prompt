@@ -602,7 +602,7 @@ class PMOPrompt(Prompt):
                     grads[k]['alpha'] = alpha
                     alphas.append(alpha)
 
-                mean_alpha = torch.mean(torch.cat(alphas)).item()
+                mean_alpha = torch.mean(torch.stack(alphas)).item()
                 if self.debug_mode:
                     print(f'hv mean alpha: {mean_alpha}')
                 self.epoch_log['scaler']['Tag'].append('alpha')
