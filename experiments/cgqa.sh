@@ -32,7 +32,7 @@ LEARNERNAME=PMOPrompt
 LOGNAME=pmo-cond-full-min-use-pNone-bs32-e30-11-2-1-LCQP_kap
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 20 8 0.0 2 -10003 1 -1 \
+    --prompt_param 100 8 0.0 2 -10003 1 -1 \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 
