@@ -423,7 +423,8 @@ class PMOPrompt(Prompt):
                     # if maximization:    # use normed mo
                     mo_matrix = normed_mo_matrix
                     hv_loss = torch.sum(mo_matrix * weights, dim=0)     # to vector over samples
-                    hv_loss = torch.mean(hv_loss)                       # align to 1 sample's ce loss
+                    hv_loss = torch.sum(hv_loss)
+                    # sum to balance over prompts, mean to align to 1 sample's ce loss
 
                     if maximization:
                         hv_loss = torch.exp(hv_loss)                  # exp() make loss \in [0, 1]
@@ -569,7 +570,8 @@ class PMOPrompt(Prompt):
                         print(f'weights: {weights}')
 
                     hv_loss = torch.sum(normed_mo_matrix * weights, dim=0)  # to vector over samples
-                    hv_loss = torch.mean(hv_loss)  # align to 1 sample's ce loss
+                    hv_loss = torch.sum(hv_loss)
+                    # sum to balance over prompts, mean to align to 1 sample's ce loss
 
                     if maximization:
                         hv_loss = torch.exp(hv_loss)  # exp() make loss \in [0, 1]
