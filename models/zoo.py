@@ -334,8 +334,8 @@ class PmoPrompt(CodaPromptCond):
             aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 10->100]
 
             # mask according to obj idx
-            if hard_obj_idx is not None and (hard_l == l or hard_l is None):
-                # if hard_l is None, do for all layer
+            # if hard_l is None, do for all layer
+            if hard_obj_idx is not None and (hard_l == l or (hard_l is None and (s > 0 or hard_obj_idx > -1))):
                 ot = int(self.n_prompt_per_task / self.n_obj)  # number of prompts for one obj
 
                 # aq_k [bs, f] modification

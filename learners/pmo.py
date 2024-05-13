@@ -599,8 +599,12 @@ class PMOPrompt(Prompt):
                 for k, p in params_to_opt.items():
                     l1 = grads[k]['grads'][0].flatten()
                     l2 = grads[k]['grads'][1].flatten()
+                    # norm each grad ?
+                    # l1 = l1 / torch.norm(l1, p=2)
+                    # l2 = l2 / torch.norm(l2, p=2)
+
                     alpha = torch.nn.functional.relu(
-                        torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)))
+                        -torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)))
                     grads[k]['alpha'] = alpha
                     alphas.append(alpha)
 
