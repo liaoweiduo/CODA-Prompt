@@ -526,10 +526,10 @@ class PMOPrompt(Prompt):
         total_loss.backward()
 
         for k, p in params_to_opt.items():
-            grads[k]['grads'].append(p.grad)        # ce grad
+            grads[k]['grads'].append(p.grad.clone())        # ce grad
 
         for k, p in params_for_ce.items():
-            grads[k]['grads'].append(p.grad)
+            grads[k]['grads'].append(p.grad.clone())
 
         if not pre_learn:  # for pre_learn, only ce loss is used.
             # hv loss calculation without affecting RNG state
@@ -562,7 +562,7 @@ class PMOPrompt(Prompt):
 
                 maximization = True if self.mask_mode == 'maskout' else False
                 if mo_matrix is not None:
-                    # mo_matrix = normalize_to_simplex(mo_matrix)
+                    mo_matrix = normalize_to_simplex(mo_matrix)
                     ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
                     weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
 
@@ -591,20 +591,19 @@ class PMOPrompt(Prompt):
                     raise ValueError('mo_matrix is None')
 
                 for k, p in params_to_opt.items():
-                    grads[k]['grads'].append(p.grad)        # hv grad
+                    grads[k]['grads'].append(p.grad.clone())        # hv grad
 
                 # cal grad for 2 opt processes
                 # params_to_opt
                 alphas = []
                 for k, p in params_to_opt.items():
-                    l1 = grads[k]['grads'][0].flatten()
+                    l1 = grads[k]['grads'][0].flatten()       # although many parts are 0, because only use 10 prompts
                     l2 = grads[k]['grads'][1].flatten()
-                    # norm each grad ?
+                    # norm each grad ? will cause alpha to be 0.5
                     # l1 = l1 / torch.norm(l1, p=2)
                     # l2 = l2 / torch.norm(l2, p=2)
 
-                    alpha = torch.nn.functional.relu(
-                        -torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)))
+                    alpha = torch.clip(-torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)), 0, 1)
                     grads[k]['alpha'] = alpha
                     alphas.append(alpha)
 
@@ -811,8 +810,12 @@ class PMOPrompt(Prompt):
         '''forward all prompts get objectives [n_samples, pop], pop may with old prompt'''
         ncc_losses = []
 
+        old_objs = list(range(self.n_obj_avail * self.task_count))
+        new_objs = list(range(self.n_obj_avail * self.task_count, self.n_obj_avail * (self.task_count + 1)))
+        n_obj = self.n_obj
+
         if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
-            for prompt_idx in range(self.n_obj_avail):
+            for prompt_idx in new_objs:
                 # pen: penultimate features; train: same forward as batch training.
                 out = self.model(samples, pen=False, train=train,
                                  hard_obj_idx=prompt_idx, hard_l=hard_l,
