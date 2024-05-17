@@ -807,9 +807,10 @@ class PMOPrompt(Prompt):
                 labels = labels.cuda()
 
         n_samples = samples.shape[0]
+        nui_labels = torch.unique(labels)
         # check if any label has only 1 sample
         check = True
-        for label in torch.unique(labels):
+        for label in nui_labels:
             if len(labels[labels == label]) < 2:
                 check = False
         if not check:
@@ -829,7 +830,7 @@ class PMOPrompt(Prompt):
         if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
             for prompt_idx in new_objs:
                 # pen: penultimate features; train: same forward as batch training.
-                out = self.model(samples, pen=False, train=train,
+                out = self.model(samples, pen=True, train=train,
                                  hard_obj_idx=prompt_idx, hard_l=hard_l,
                                  mask=mask, mask_mode=mask_mode,
                                  # register_blk=hard_l,
@@ -837,16 +838,26 @@ class PMOPrompt(Prompt):
                 logits = out[0] if train else out       # pen=True, logits is features: [bs, 768]
 
                 ## ce loss
-                # [bs, 100]
-                logits = logits[:, :self.valid_out_dim]
-                # ce with heuristic
-                logits[:, :self.last_valid_out_dim] = -float('inf')
-                dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
-                objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [bs]
+                # # [bs, 100]
+                # logits = logits[:, :self.valid_out_dim]
+                # # ce with heuristic
+                # logits[:, :self.last_valid_out_dim] = -float('inf')
+                # dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
+                # objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [bs]
+                # ncc_losses.append(objs)
 
                 ## pair-wise sim loss
-                # logits = logits / np.linalg.norm(logits, axis=1, keepdims=True)
-
+                logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
+                # group according to labels
+                objs = []
+                for label in nui_labels:
+                    label_logits = logits[labels == label]
+                    # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
+                    label_logits_anchor = torch.mean(label_logits, dim=0)
+                    cos_sim = label_logits_anchor @ label_logits.T + 1     # [bs]
+                    # +1 to scope [-1, 1] -> [0, 2]
+                    objs.append(torch.mean(cos_sim))
+                objs = torch.stack(objs)
                 ncc_losses.append(objs)
 
             if use_old_prompts:
@@ -859,20 +870,33 @@ class PMOPrompt(Prompt):
                                  debug_mode=self.debug_mode)
                 logits = out[0] if train else out
 
-                # [100, 768]
-                logits = logits[:, :self.valid_out_dim]
-                # ce with heuristic
-                logits[:, :self.last_valid_out_dim] = -float('inf')
-                dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
-                objs = self.criterion_fn(logits, labels.long()) * dw_cls  # [100]
+                ## ce loss
+                # # [bs, 100]
+                # logits = logits[:, :self.valid_out_dim]
+                # # ce with heuristic
+                # logits[:, :self.last_valid_out_dim] = -float('inf')
+                # dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
+                # objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [bs]
+                # ncc_losses.append(objs)
 
+                ## pair-wise sim loss
+                logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
+                # group according to labels
+                objs = []
+                for label in nui_labels:
+                    label_logits = logits[labels == label]
+                    # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
+                    label_logits_anchor = torch.mean(label_logits, dim=0)
+                    cos_sim = label_logits_anchor @ label_logits.T + 1     # [bs]
+                    # +1 to scope [-1, 1] -> [0, 2]
+                    objs.append(torch.mean(cos_sim))
+                objs = torch.stack(objs)
                 ncc_losses.append(objs)
 
         ncc_losses = torch.stack(ncc_losses, dim=1)
 
-        '''group objectives [n_samples, pop] -> [n_obj, pop]'''
-        nui_labels = torch.unique(labels)
-        ncc_losses = torch.stack([torch.mean(ncc_losses[labels == label], dim=0) for label in nui_labels])
+        # '''group objectives [n_samples, pop] -> [n_obj, pop]'''
+        # ncc_losses = torch.stack([torch.mean(ncc_losses[labels == label], dim=0) for label in nui_labels])
 
         '''log'''
         for obj_idx in range(ncc_losses.shape[0]):
