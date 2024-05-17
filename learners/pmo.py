@@ -603,7 +603,9 @@ class PMOPrompt(Prompt):
                     # l1 = l1 / torch.norm(l1, p=2)
                     # l2 = l2 / torch.norm(l2, p=2)
 
-                    alpha = torch.clip(-torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2)), 0, 1)
+                    alpha = -torch.sum(l2 * (l1 - l2)) / torch.sum((l1 - l2) * (l1 - l2))
+                    alpha = torch.clip(alpha, 0, 1)
+                    # alpha = torch.clip(alpha - 0.5, 0, 0.5) + 0.5     # [0.5 - 1]
                     grads[k]['alpha'] = alpha
                     alphas.append(alpha)
 
@@ -810,8 +812,12 @@ class PMOPrompt(Prompt):
         '''forward all prompts get objectives [n_samples, pop], pop may with old prompt'''
         ncc_losses = []
 
-        old_objs = list(range(self.n_obj_avail * self.task_count))
-        new_objs = list(range(self.n_obj_avail * self.task_count, self.n_obj_avail * (self.task_count + 1)))
+        if self.FPS:
+            old_objs = []
+            new_objs = list(range(self.n_obj_avail))
+        else:
+            old_objs = list(range(self.n_obj_avail * self.task_count))
+            new_objs = list(range(self.n_obj_avail * self.task_count, self.n_obj_avail * (self.task_count + 1)))
         n_obj = self.n_obj
 
         if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
