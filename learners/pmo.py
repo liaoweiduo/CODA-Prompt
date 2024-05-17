@@ -75,6 +75,7 @@ class PMOPrompt(Prompt):
         self.e_layers = prompt.e_layers
         self.n_prompt_per_task = prompt.n_prompt_per_task
         self.n_obj_avail = prompt.n_obj
+        self.FPS = prompt.FPS
 
         # log
         self.epoch_log = dict()
@@ -540,55 +541,53 @@ class PMOPrompt(Prompt):
             '''hv loss'''
             # group samples by label
             labels = torch.unique(targets)
-            if len(labels) >= self.n_obj:       # drive hv loss
-                # select n_obj groups
-                selected_labels = np.sort(
-                    np.random.choice(labels.cpu().numpy(), self.n_obj, replace=False)).astype(int)
-                selected_inputs = torch.cat([inputs[targets == label] for label in selected_labels])
-                selected_targets = torch.cat([targets[targets == label] for label in selected_labels])
+            # select n_obj groups
+            selected_labels = np.sort(
+                np.random.choice(labels.cpu().numpy(), self.n_obj, replace=False)).astype(int)
+            selected_inputs = torch.cat([inputs[targets == label] for label in selected_labels])
+            selected_targets = torch.cat([targets[targets == label] for label in selected_labels])
 
-                self.optimizer.zero_grad()
-                # for l in self.e_layers:
-                mo_matrix = self.obtain_mo_matrix_pop_prompt(
-                    None, use_old_prompts=False if prompt.FPS else True,
-                    mask=self.mask, mask_mode=self.mask_mode,
-                    train=True,
-                    samples=selected_inputs,
-                    labels=selected_targets,
-                )  # [obj2, pop120+1]
+            self.optimizer.zero_grad()
+            # for l in self.e_layers:
+            mo_matrix = self.obtain_mo_matrix_pop_prompt(
+                None, use_old_prompts=False if prompt.FPS else True,
+                mask=self.mask, mask_mode=self.mask_mode,
+                train=True,
+                samples=selected_inputs,
+                labels=selected_targets,
+            )  # [obj2, pop120+1]
+
+            if self.debug_mode:
+                print(f'mo_matrix: {mo_matrix}')
+
+            maximization = True if self.mask_mode == 'maskout' else False
+
+            if mo_matrix is not None:       # None when n_obj <= 0 or any target only has 1 image
+                mo_matrix = normalize_to_simplex(mo_matrix)
+                ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
+                weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
 
                 if self.debug_mode:
-                    print(f'mo_matrix: {mo_matrix}')
+                    print(f'weights: {weights}')
 
-                maximization = True if self.mask_mode == 'maskout' else False
-                if mo_matrix is not None:
-                    mo_matrix = normalize_to_simplex(mo_matrix)
-                    ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
-                    weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
+                hv_loss = torch.sum(mo_matrix * weights, dim=0)  # to vector over samples
+                hv_loss = torch.sum(hv_loss)
+                # sum to balance over prompts, mean to align to 1 sample's ce loss
 
-                    if self.debug_mode:
-                        print(f'weights: {weights}')
-
-                    hv_loss = torch.sum(mo_matrix * weights, dim=0)  # to vector over samples
-                    hv_loss = torch.sum(hv_loss)
-                    # sum to balance over prompts, mean to align to 1 sample's ce loss
-
-                    if maximization:
-                        hv_loss = torch.exp(hv_loss)  # exp() make loss \in [0, 1]
-                    else:
-                        hv_loss = hv_loss
-                    # hv_loss = hv_loss * self.hv_coeff
-
-                    hv_loss.backward()
-
-                    if self.debug_mode:
-                        print(f'hv loss: {hv_loss.item()}')
-
-                    self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
-                    self.epoch_log['scaler']['Idx'].append(self.epoch)
-                    self.epoch_log['scaler']['Value'].append(hv_loss.item())
+                if maximization:
+                    hv_loss = torch.exp(hv_loss)  # exp() make loss \in [0, 1]
                 else:
-                    raise ValueError('mo_matrix is None')
+                    hv_loss = hv_loss
+                # hv_loss = hv_loss * self.hv_coeff
+
+                hv_loss.backward()
+
+                if self.debug_mode:
+                    print(f'hv loss: {hv_loss.item()}')
+
+                self.epoch_log['scaler']['Tag'].append('loss/hv_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(hv_loss.item())
 
                 for k, p in params_to_opt.items():
                     grads[k]['grads'].append(p.grad.clone())        # hv grad
@@ -808,6 +807,13 @@ class PMOPrompt(Prompt):
                 labels = labels.cuda()
 
         n_samples = samples.shape[0]
+        # check if any label has only 1 sample
+        check = True
+        for label in torch.unique(labels):
+            if len(labels[labels == label]) < 2:
+                check = False
+        if not check:
+            return None
 
         '''forward all prompts get objectives [n_samples, pop], pop may with old prompt'''
         ncc_losses = []
@@ -828,14 +834,18 @@ class PMOPrompt(Prompt):
                                  mask=mask, mask_mode=mask_mode,
                                  # register_blk=hard_l,
                                  debug_mode=self.debug_mode)
-                logits = out[0] if train else out
+                logits = out[0] if train else out       # pen=True, logits is features: [bs, 768]
 
-                # [100, 768]
+                ## ce loss
+                # [bs, 100]
                 logits = logits[:, :self.valid_out_dim]
                 # ce with heuristic
                 logits[:, :self.last_valid_out_dim] = -float('inf')
                 dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
-                objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [100]
+                objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [bs]
+
+                ## pair-wise sim loss
+                # logits = logits / np.linalg.norm(logits, axis=1, keepdims=True)
 
                 ncc_losses.append(objs)
 
