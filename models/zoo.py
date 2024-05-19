@@ -142,13 +142,13 @@ class CodaPrompt(nn.Module):
 
         return torch.nn.Parameter(uu)
 
-    def handle_x_querry(self, x_querry, x_block):
+    def handle_x_querry(self, x_querry, x_block, l):
         if x_querry is None:
             raise ValueError('x_querry is None')
         return x_querry
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
-        x_querry = self.handle_x_querry(x_querry, x_block)
+        x_querry = self.handle_x_querry(x_querry, x_block, l)
         # e prompts
         e_valid = False
         if l in self.e_layers:
@@ -228,13 +228,20 @@ class CodaPromptCond(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(CodaPromptCond, self).__init__(emb_d, n_tasks, prompt_param, key_dim=key_dim)
 
-    def handle_x_querry(self, x_querry, x_block):
-        # use x_block to drive x_querry
+    def handle_x_querry(self, x_querry, x_block, l):
         # x_block shape: [bs, 197, 768]
+        return self.handle_x_querry_avg_x(x_querry, x_block, l)
+
+    def handle_x_querry_avg_x(self, x_querry, x_block, l):
+        # use x_block to drive x_querry
+        # x_querry shape: [bs, 768]
         x_querry = torch.mean(x_block, dim=1)  # average over cls_token and other patches.
 
         return x_querry
 
+    def handle_x_querry_single_x(self, x_querry, x_block, l):
+        # x_querry shape: [bs, 197, 768]
+        return x_block
 
 class PmoPrompt(CodaPromptCond):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
@@ -268,7 +275,7 @@ class PmoPrompt(CodaPromptCond):
             mask_mode: 'maskout' or 'use'
             pre_learn: True to only use ViT or old prompt
         """
-        x_querry = self.handle_x_querry(x_querry, x_block)
+        x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 197, 768]
         # e prompts
         e_valid = False
 
@@ -277,7 +284,7 @@ class PmoPrompt(CodaPromptCond):
 
         if l in self.e_layers:
             e_valid = True
-            B, C = x_querry.shape  # [bs, 768]
+            B, C = x_querry.shape  # [bs, 768]  #
 
             # if self.updated_weights is not None and fast_weights:
             #     # put to the same device to support computation
