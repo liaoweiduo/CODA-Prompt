@@ -847,14 +847,15 @@ class PMOPrompt(Prompt):
                 # ncc_losses.append(objs)
 
                 ## pair-wise sim loss
-                logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
+                # logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
+                cos = nn.CosineSimilarity(dim=1, eps=1e-6)
                 # group according to labels
                 objs = []
                 for label in nui_labels:
                     label_logits = logits[labels == label]
                     # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
                     label_logits_anchor = torch.mean(label_logits, dim=0)
-                    cos_sim = label_logits_anchor @ label_logits.T + 1     # [bs]
+                    cos_sim = cos(label_logits_anchor, label_logits) + 1     # [bs]
                     # +1 to scope [-1, 1] -> [0, 2]
                     objs.append(torch.mean(cos_sim))
                 objs = torch.stack(objs)
@@ -880,14 +881,15 @@ class PMOPrompt(Prompt):
                 # ncc_losses.append(objs)
 
                 ## pair-wise sim loss
-                logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
+                # logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
+                cos = nn.CosineSimilarity(dim=1, eps=1e-6)
                 # group according to labels
                 objs = []
                 for label in nui_labels:
                     label_logits = logits[labels == label]
                     # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
                     label_logits_anchor = torch.mean(label_logits, dim=0)
-                    cos_sim = label_logits_anchor @ label_logits.T + 1     # [bs]
+                    cos_sim = cos(label_logits_anchor, label_logits) + 1     # [bs]
                     # +1 to scope [-1, 1] -> [0, 2]
                     objs.append(torch.mean(cos_sim))
                 objs = torch.stack(objs)
