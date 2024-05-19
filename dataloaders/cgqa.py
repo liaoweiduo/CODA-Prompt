@@ -548,18 +548,21 @@ def _get_gqa_datasets(
             files=train_list,     # train_list,      val_list for debug
             transform=transforms.Compose([transforms.Resize(image_size)]),
             loaded=load_set == 'train',
+            name='con_train',
         )
         val_set = PathsDataset(
             root=img_folder_path,
             files=val_list,
             transform=transforms.Compose([transforms.Resize(image_size)]),
             loaded=load_set == 'val',
+            name='con_val',
         )
         test_set = PathsDataset(
             root=img_folder_path,
             files=test_list,
             transform=transforms.Compose([transforms.Resize(image_size)]),
             loaded=load_set == 'test',
+            name='con_test',
         )
 
         datasets = {'train': train_set, 'val': val_set, 'test': test_set}
@@ -581,6 +584,7 @@ def _get_gqa_datasets(
             files=img_list,
             transform=transforms.Compose([transforms.Resize(image_size)]),
             loaded=True,
+            name=f'few_{mode}',
         )
 
         datasets = {'dataset': dataset}
@@ -617,6 +621,7 @@ class PathsDataset(torch.utils.data.Dataset):
         target_transform=None,
         loader=default_image_loader,
         loaded=True,
+        name='data',
     ):
         """
         Creates a File Dataset from a list of files and labels.
@@ -633,6 +638,7 @@ class PathsDataset(torch.utils.data.Dataset):
         :param loaded: True, load images into memory.
         If False, load when call getitem.
         Default True.
+        :param name: Name if save to folder
         """
 
         if root is not None:
@@ -645,6 +651,7 @@ class PathsDataset(torch.utils.data.Dataset):
         self.target_transform = target_transform
         self.loader = loader
         self.loaded = loaded
+        self.name = name
 
         if self.loaded:
             self.load_data()
@@ -654,13 +661,24 @@ class PathsDataset(torch.utils.data.Dataset):
         load all data and replace imgs.
         """
         print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] Load data in PathsDataset.')
-        for index in tqdm(range(len(self.imgs))):
-            impath = self.imgs[index][0]
-            if self.root is not None:
-                impath = self.root / impath
-            img = self.loader(impath)
 
-            self.imgs[index] = (img, *self.imgs[index][1:])
+        # if has saved, just load
+        if os.path.exists(os.path.join(self.root, f'{self.name}.npy')):
+            data = np.load(os.path.join(self.root, f'{self.name}.npy'), allow_pickle=True).item()
+            self.imgs = data['imgs']
+            self.targets = data['targets']
+        else:
+            for index in tqdm(range(len(self.imgs))):
+                impath = self.imgs[index][0]
+                if self.root is not None:
+                    impath = self.root / impath
+                img = self.loader(impath)
+
+                self.imgs[index] = (img, *self.imgs[index][1:])
+
+            # save self.imgs and targets to root
+            data = {'imgs': self.imgs, 'targets': self.targets}
+            np.save(os.path.join(self.root, f'{self.name}.npy'), data)
 
         print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] DONE.')
 
@@ -771,3 +789,15 @@ class Benchmark:
 
 
 __all__ = ["continual_training_benchmark", "fewshot_testing_benchmark"]
+
+
+if __name__ == '__main__':
+    datasets, label_info = _get_gqa_datasets(
+        '..//..//..//..//OneDrive - City University of Hong Kong - Student//datasets//CFST',
+        mode='continual', image_size=(224, 224), load_set='val')
+
+    # # save self.imgs and targets to root
+    # data = {'imgs': [(torch.arange(2), 0), (torch.arange(2), 1)], 'targets': [0, 1]}
+    # np.save(os.path.join('.', f'test.npy'), data)
+    #
+    # test_data = np.load(os.path.join('.', f'test.npy'), allow_pickle=True).item()

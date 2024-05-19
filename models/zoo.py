@@ -320,6 +320,10 @@ class PmoPrompt(CodaPromptCond):
             mask_mode: 'maskout' or 'use'
             pre_learn: True to only use ViT or old prompt
         """
+        return self.forward_patch_wise(x_querry, l, x_block, train, task_id,
+                                       hard_obj_idx, hard_l, mask, mask_mode,
+                                       pre_learn, debug_mode, **kwargs)
+
         x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 768]
         # e prompts
         e_valid = False
