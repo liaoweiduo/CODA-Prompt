@@ -603,7 +603,7 @@ class PmoPrompt(CodaPromptCond):
                             aq_k = torch.cat((
                                 torch.zeros_like(aq_k[:, :, :s]),  # detach and mask 0
                                 aq_k[:, :, s:],                    # mask 1
-                            ), dim=1)
+                            ), dim=2)
                     elif type(mask) is float or type(mask) is int:  # constant prompt
                         aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
                     elif type(mask) is str:  # random prompt
@@ -614,7 +614,7 @@ class PmoPrompt(CodaPromptCond):
                             aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
                             # torch.ones_like(aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),  # mask 1
                             torch.zeros_like(aq_k[:, :, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
-                        ), dim=1)
+                        ), dim=2)
                 elif mask_mode == 'use':
                     if hard_obj_idx == -1:      # use all old prompt
                         if type(mask) is float or type(mask) is int:  # constant prompt
@@ -625,7 +625,7 @@ class PmoPrompt(CodaPromptCond):
                             aq_k = torch.cat((
                                 aq_k[:, :, :s],                    # mask 1
                                 torch.zeros_like(aq_k[:, :, s:]),  # detach and mask 0
-                            ), dim=1)
+                            ), dim=2)
                     elif type(mask) is float or type(mask) is int:  # constant prompt
                         aq_k[:, :, :(hard_obj_idx * ot)] = 1
                         aq_k[:, :, ((hard_obj_idx + 1) * ot):] = 1
@@ -638,7 +638,7 @@ class PmoPrompt(CodaPromptCond):
                             aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
                             # torch.ones_like(aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),  # mask 1
                             torch.zeros_like(aq_k[:, :, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
-                        ), dim=1)
+                        ), dim=2)
                 else:
                     raise Exception(f'Unknown mask comb: {mask_mode}, {mask} for obj{hard_obj_idx}')
 
