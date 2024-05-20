@@ -230,7 +230,7 @@ class CodaPromptCond(CodaPrompt):
 
     def handle_x_querry(self, x_querry, x_block, l):
         # x_block shape: [bs, 197, 768]
-        return self.handle_x_querry_avg_x(x_querry, x_block, l)
+        return self.handle_x_querry_single_x(x_querry, x_block, l)
 
     def handle_x_querry_avg_x(self, x_querry, x_block, l):
         # use x_block to drive x_querry
