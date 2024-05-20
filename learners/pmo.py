@@ -290,7 +290,7 @@ class PMOPrompt(Prompt):
                     'Time {time.avg:.3f}*{i}'.format(
                         loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
 
-                if self.epoch == 0:
+                if self.epoch % 10 == 0:
                     '''nvidia-smi'''
                     print(os.system('nvidia-smi'))
 
