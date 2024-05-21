@@ -579,7 +579,7 @@ class PmoPrompt(CodaPromptCond):
 
             # rearrange KAp, according to obj for each x
             if hard_obj_idx is not None and (hard_l == l or hard_l is None):
-                assert (hard_obj_idx == -1 or len(hard_obj_idx) == len(x_querry)
+                assert ((type(hard_obj_idx) is int and hard_obj_idx == -1) or len(hard_obj_idx) == len(x_querry)
                         ), f"hard_obj_idx: {hard_obj_idx}; x_querry: {x_querry.shape}"
                 ot = int(self.n_prompt_per_task / self.n_obj)  # number of prompts for one obj
                 # K A -> [bs, ot, 768], p -> [bs, ot, 8, 768]
