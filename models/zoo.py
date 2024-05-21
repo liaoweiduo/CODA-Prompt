@@ -583,7 +583,7 @@ class PmoPrompt(CodaPromptCond):
                         ), f"hard_obj_idx: {hard_obj_idx}; x_querry: {x_querry.shape}"
                 ot = int(self.n_prompt_per_task / self.n_obj)  # number of prompts for one obj
                 # K A -> [bs, ot, 768], p -> [bs, ot, 8, 768]
-                if hard_obj_idx == -1:
+                if type(hard_obj_idx) is int and hard_obj_idx == -1:
                     if s == 0:      # first task no conditioning
                         return None, 0, x_block     # p_return, loss, x_block
                     K = torch.stack([K[:s] for _ in range(B)])
