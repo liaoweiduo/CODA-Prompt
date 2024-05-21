@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0 1 2 3'   # '0 1 2 3'
+GPUID='0 1'   # '0 1 2 3'
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -29,7 +29,7 @@ mkdir -p $OUTDIR
 #    arg 7 = hv coeff, -1 to use LCQP
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-condip-full-min-use-pNone-bs32-e100-lr1e-3-11-2-1-sumhv-norm-anchor-cossim-LCQP_kap
+LOGNAME=pmo-condip-full-min-use-pNone-bs32-e100-lr1e-3-11-2-1-sumhv-norm-anchor-cossim-LCQP_kap-1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 0.0 2 -10003 1 -1 \
