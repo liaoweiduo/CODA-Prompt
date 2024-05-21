@@ -834,8 +834,8 @@ class PMOPrompt(Prompt):
             samples = torch.stack([samples for _ in range(len(target_objs))],
                                   dim=1).reshape(-1, *samples.shape[1:])
             # [bs * n_obj, 3, 224, 224]
-            prompt_idxs = [obj for _ in range(n_samples) for obj in target_objs]
-            # list [bs * n_obj]
+            prompt_idxs = torch.as_tensor([obj for _ in range(n_samples) for obj in target_objs]).cuda()
+            # int64 tensor [bs * n_obj] -> thus can be separated to diff devices
 
             if self.debug_mode:
                 print('mo samples', samples.shape)
