@@ -825,77 +825,43 @@ class PMOPrompt(Prompt):
         else:
             old_objs = list(range(self.n_obj_avail * self.task_count))
             new_objs = list(range(self.n_obj_avail * self.task_count, self.n_obj_avail * (self.task_count + 1)))
-        n_obj = self.n_obj
+        target_objs = new_objs + old_objs if use_old_prompts else new_objs
+
+        # n_obj = self.n_obj
 
         if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
-            for prompt_idx in new_objs:
-                # pen: penultimate features; train: same forward as batch training.
-                out = self.model(samples, pen=True, train=train,
-                                 hard_obj_idx=prompt_idx, hard_l=hard_l,
-                                 mask=mask, mask_mode=mask_mode,
-                                 # register_blk=hard_l,
-                                 debug_mode=self.debug_mode)
-                logits = out[0] if train else out       # pen=True, logits is features: [bs, 768]
+            # rearrange samples labels and hard_obj_idx
+            samples = torch.stack([samples for _ in range(len(target_objs))],
+                                  dim=1).reshape(-1, *samples.shape[1:])
+            # [bs * n_obj, 3, 224, 224]
+            prompt_idxs = [obj for _ in range(n_samples) for obj in target_objs]
+            # list [bs * n_obj]
 
-                ## ce loss
-                # # [bs, 100]
-                # logits = logits[:, :self.valid_out_dim]
-                # # ce with heuristic
-                # logits[:, :self.last_valid_out_dim] = -float('inf')
-                # dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
-                # objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [bs]
-                # ncc_losses.append(objs)
+            if self.debug_mode:
+                print('mo samples', samples.shape)
 
-                ## pair-wise sim loss
-                # logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
-                cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-                # group according to labels
-                objs = []
-                for label in nui_labels:
-                    label_logits = logits[labels == label]
-                    # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
-                    label_logits_anchor = torch.mean(label_logits, dim=0)
-                    cos_sim = cos(label_logits_anchor, label_logits) + 1     # [bs]
-                    # +1 to scope [-1, 1] -> [0, 2]
-                    objs.append(torch.mean(cos_sim))
-                objs = torch.stack(objs)
-                ncc_losses.append(objs)
+            # pen: penultimate features; train: same forward as batch training.
+            out = self.model(samples, pen=True, train=train,
+                             hard_obj_idx=prompt_idxs, hard_l=hard_l,
+                             mask=mask, mask_mode=mask_mode,
+                             # register_blk=hard_l,
+                             debug_mode=self.debug_mode)
+            logits = out[0] if train else out       # pen=True, logits is features: [bs*n_prompt, 768]
 
-            if use_old_prompts:
-                # out = self.model(samples, train=train, pre_learn=True,
-                #                  debug_mode=self.debug_mode)
-                out = self.model(samples, pen=False, train=train,
-                                 hard_obj_idx=-1, hard_l=hard_l,
-                                 mask=mask, mask_mode=mask_mode,
-                                 # register_blk=hard_l,
-                                 debug_mode=self.debug_mode)
-                logits = out[0] if train else out
-
-                ## ce loss
-                # # [bs, 100]
-                # logits = logits[:, :self.valid_out_dim]
-                # # ce with heuristic
-                # logits[:, :self.last_valid_out_dim] = -float('inf')
-                # dw_cls = self.dw_k[-1 * torch.ones(labels.size()).long()]
-                # objs = self.criterion_fn(logits, labels.long()) * dw_cls        # [bs]
-                # ncc_losses.append(objs)
-
-                ## pair-wise sim loss
-                # logits = logits / torch.norm(logits, dim=1, keepdim=True)     # [bs, 768]
-                cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-                # group according to labels
-                objs = []
-                for label in nui_labels:
-                    label_logits = logits[labels == label]
-                    # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
-                    label_logits_anchor = torch.mean(label_logits, dim=0)
-                    cos_sim = cos(label_logits_anchor, label_logits) + 1     # [bs]
-                    # +1 to scope [-1, 1] -> [0, 2]
-                    objs.append(torch.mean(cos_sim))
-                objs = torch.stack(objs)
-                ncc_losses.append(objs)
-
-        ncc_losses = torch.stack(ncc_losses, dim=1)
+            ## pair-wise sim loss
+            logits = logits.reshape(n_samples, len(target_objs), logits.shape[-1])   # [bs, n_prompt, 768]
+            # logits = logits / torch.norm(logits, dim=2, keepdim=True)     # [bs, n_prompt, 768]
+            cos = nn.CosineSimilarity(dim=2, eps=1e-6)
+            # group according to labels
+            # objs = []
+            for label in nui_labels:
+                label_logits = logits[labels == label]          # [n_img, n_prompt, 768]
+                # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
+                label_logits_anchor = torch.mean(label_logits, dim=0)       # [n_prompt, 768]
+                cos_sim = cos(label_logits_anchor, label_logits) + 1  # [n_img, n_prompt]
+                # +1 to scope [-1, 1] -> [0, 2]
+                ncc_losses.append(torch.mean(cos_sim, dim=0))     # [n_prompt]
+            ncc_losses = torch.stack(ncc_losses)        # [n_label(obj), n_prompt (new, old)]
 
         # '''group objectives [n_samples, pop] -> [n_obj, pop]'''
         # ncc_losses = torch.stack([torch.mean(ncc_losses[labels == label], dim=0) for label in nui_labels])

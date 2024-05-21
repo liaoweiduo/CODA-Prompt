@@ -559,6 +559,7 @@ class PmoPrompt(CodaPromptCond):
                            debug_mode=False, **kwargs):
         """Differences:
             cal Prompt for each patch
+            hard_obj_idx can be a list without -1, or scaler -1
         """
         x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 197, 768]
         # e prompts
@@ -572,205 +573,51 @@ class PmoPrompt(CodaPromptCond):
 
         if l in self.e_layers:
             e_valid = True
-            # B, C = x_querry.shape  # [bs, 768]
+            B, pp, C = x_querry.shape  # [bs, 197, 768]
             K, A, p, s, f = self.KAPselection(l, pre_learn, train)
             # K [100, 768] A [100, 768] p [100, 8, 768]
 
-            # b = bs, p=197, d = 768, k = 100, l=8,
-            # with attention and cosine sim
-            # x_querry = x_querry[:, 1:]      # remove cls-token
-            # (b x p x 1 x d) * soft([1 x 1 x k x d]) = (b x p x k x d) -> attention = k x d
-            a_querry = torch.einsum('bpd,kd->bpkd', x_querry, A)
-            # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-            n_K = nn.functional.normalize(K, dim=1)
-            q = nn.functional.normalize(a_querry, dim=3)
-            aq_k = torch.einsum('bpkd,kd->bpk', q, n_K)
-            # aq_k is alpha (cosine similarity) [bs, 197, 10->100]
-
-            # mask according to obj idx
-            # if hard_l is None, do for all layer
-            if hard_obj_idx is not None and (hard_l == l or (hard_l is None and (s > 0 or hard_obj_idx > -1))):
+            # rearrange KAp, according to obj for each x
+            if hard_obj_idx is not None and (hard_l == l or hard_l is None):
+                assert (hard_obj_idx == -1 or len(hard_obj_idx) == len(x_querry)
+                        ), f"hard_obj_idx: {hard_obj_idx}"
                 ot = int(self.n_prompt_per_task / self.n_obj)  # number of prompts for one obj
-
-                # aq_k [bs, 196, f] modification
-                if mask_mode == 'maskout':
-                    if hard_obj_idx == -1:      # mask out all old prompt
-                        if type(mask) is float or type(mask) is int:  # constant prompt
-                            aq_k[:, :, s] = 1
-                        elif type(mask) is str:  # random prompt
-                            aq_k[:, :, :s] = 1
-                        else:  # mask is None: only maskout this prompt
-                            aq_k = torch.cat((
-                                torch.zeros_like(aq_k[:, :, :s]),  # detach and mask 0
-                                aq_k[:, :, s:],                    # mask 1
-                            ), dim=2)
-                    elif type(mask) is float or type(mask) is int:  # constant prompt
-                        aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
-                    elif type(mask) is str:  # random prompt
-                        aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)] = 1
-                    else:  # mask is None: only select this prompt
-                        aq_k = torch.cat((
-                            torch.zeros_like(aq_k[:, :, :(hard_obj_idx * ot)]),  # detach and mask 0
-                            aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
-                            # torch.ones_like(aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),  # mask 1
-                            torch.zeros_like(aq_k[:, :, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
-                        ), dim=2)
-                elif mask_mode == 'use':
-                    if hard_obj_idx == -1:      # use all old prompt
-                        if type(mask) is float or type(mask) is int:  # constant prompt
-                            aq_k[:, :, s:] = 1
-                        elif type(mask) is str:  # random prompt
-                            aq_k[:, :, s:] = 1
-                        else:  # mask is None: only select this prompt
-                            aq_k = torch.cat((
-                                aq_k[:, :, :s],                    # mask 1
-                                torch.zeros_like(aq_k[:, :, s:]),  # detach and mask 0
-                            ), dim=2)
-                    elif type(mask) is float or type(mask) is int:  # constant prompt
-                        aq_k[:, :, :(hard_obj_idx * ot)] = 1
-                        aq_k[:, :, ((hard_obj_idx + 1) * ot):] = 1
-                    elif type(mask) is str:  # random prompt
-                        aq_k[:, :, :(hard_obj_idx * ot)] = 1
-                        aq_k[:, :, ((hard_obj_idx + 1) * ot):] = 1
-                    else:  # mask is None: only select this prompt, other layer also do not use prompt
-                        aq_k = torch.cat((
-                            torch.zeros_like(aq_k[:, :, :(hard_obj_idx * ot)]),  # detach and mask 0
-                            aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
-                            # torch.ones_like(aq_k[:, :, (hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),  # mask 1
-                            torch.zeros_like(aq_k[:, :, ((hard_obj_idx + 1) * ot):]),  # detach and mask 0
-                        ), dim=2)
+                # K A -> [bs, ot, 768], p -> [bs, ot, 8, 768]
+                if hard_obj_idx == -1:
+                    if s == 0:      # first task no conditioning
+                        return None, 0, x_block     # p_return, loss, x_block
+                    K = torch.stack([K[:s] for _ in range(B)])
+                    A = torch.stack([A[:s] for _ in range(B)])
+                    p = torch.stack([p[:s] for _ in range(B)])
                 else:
-                    raise Exception(f'Unknown mask comb: {mask_mode}, {mask} for obj{hard_obj_idx}')
+                    K = torch.stack([K[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+                    A = torch.stack([A[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+                    p = torch.stack([p[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+            else:       # use all prompts
+                # K A -> [bs, 10->100, 768], p -> [bs, 10->100, 8, 768]
+                K = torch.stack([K for _ in range(B)])
+                A = torch.stack([A for _ in range(B)])
+                p = torch.stack([p for _ in range(B)])
 
-                # p [f, 8, 768] modification
-                # if train use torch random seed, else use numpy random seed (since it can be fixed)
-                if mask_mode == 'maskout':
-                    if hard_obj_idx == -1:      # mask out all old prompt
-                        if type(mask) is float or type(mask) is int:  # constant prompt
-                            p = torch.cat((
-                                torch.fill_(torch.empty_like(p[:s]), mask),
-                                p[s:]
-                            ), dim=0)
-                        elif mask == 'randn':  # random prompt
-                            p = torch.cat((
-                                torch.randn_like(p[:s]) if train else
-                                torch.from_numpy(np.random.randn(s, *p.shape[1:])).float().to(p.device),
-                                p[s:]
-                            ), dim=0)
-                        elif mask == 'uniform':  # uniform random prompt
-                            p = torch.cat((
-                                torch.nn.init.uniform_(
-                                    p[:s].detach().clone()) if train else
-                                torch.from_numpy(np.random.uniform(size=(s, *p.shape[1:]))).float().to(p.device),
-                                p[s:]
-                            ), dim=0)
-                        elif mask == 'ortho':  # ortho random prompt
-                            p = torch.cat((
-                                torch.nn.init.orthogonal_(
-                                    p[:s].detach().clone()) if train else
-                                torch.from_numpy(ortho_random(size=(s, *p.shape[1:]))).float().to(p.device),
-                                p[s:]
-                            ), dim=0)
-                        else:  # mask is None: only select this prompt
-                            assert mask is None, f'mask `{mask}` is not None but unrecognized str'
-                    elif type(mask) is float or type(mask) is int:  # constant prompt
-                        p = torch.cat((
-                            p[:(hard_obj_idx * ot)],
-                            torch.fill_(torch.empty_like(p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]),
-                                        mask),
-                            p[((hard_obj_idx + 1) * ot):]
-                        ), dim=0)
-                    elif mask == 'randn':  # random prompt
-                        p = torch.cat((
-                            p[:(hard_obj_idx * ot)],
-                            torch.randn_like(p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]) if train else
-                            torch.from_numpy(np.random.randn(ot, *p.shape[1:])).float().to(p.device),
-                            p[((hard_obj_idx + 1) * ot):]
-                        ), dim=0)
-                    elif mask == 'uniform':  # uniform random prompt
-                        p = torch.cat((
-                            p[:(hard_obj_idx * ot)],
-                            torch.nn.init.uniform_(
-                                p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)].detach().clone()) if train else
-                            torch.from_numpy(np.random.uniform(size=(ot, *p.shape[1:]))).float().to(p.device),
-                            p[((hard_obj_idx + 1) * ot):]
-                        ), dim=0)
-                    elif mask == 'ortho':  # ortho random prompt
-                        p = torch.cat((
-                            p[:(hard_obj_idx * ot)],
-                            torch.nn.init.orthogonal_(
-                                p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)].detach().clone()) if train else
-                            torch.from_numpy(ortho_random(size=(ot, *p.shape[1:]))).float().to(p.device),
-                            p[((hard_obj_idx + 1) * ot):]
-                        ), dim=0)
-                    else:  # mask is None: only select this prompt
-                        assert mask is None, f'mask `{mask}` is not None but unrecognized str'
-                elif mask_mode == 'use':
-                    if hard_obj_idx == -1:      # use all old prompt
-                        if type(mask) is float or type(mask) is int:  # constant prompt
-                            p = torch.cat((
-                                p[:s],
-                                torch.fill_(torch.empty_like(p[s:]), mask),
-                            ), dim=0)
-                        elif mask == 'randn':  # random prompt
-                            p_ = torch.randn_like(p) if train else (
-                                torch.from_numpy(np.random.randn(*p.shape)).float().to(p.device))
-                            p_[:s] = p[:s]
-                            p = p_
-                        elif mask == 'uniform':  # uniform random prompt
-                            p_ = torch.nn.init.uniform_(p.detach().clone()) if train else (
-                                torch.from_numpy(np.random.uniform(size=p.shape)).float().to(p.device))
-                            p_[:s] = p[:s]
-                            p = p_
-                        elif mask == 'ortho':  # ortho random prompt
-                            p_ = torch.nn.init.orthogonal_(p.detach().clone()) if train else (
-                                torch.from_numpy(ortho_random(size=p.shape)).float().to(p.device))
-                            p_[:s] = p[:s]
-                            p = p_
-                        else:  # mask is None: only select this prompt
-                            pass
-                    elif type(mask) is float or type(mask) is int:  # constant prompt
-                        p = torch.cat((
-                            torch.fill_(torch.empty_like(p[:(hard_obj_idx * ot)]), mask),
-                            p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)],
-                            torch.fill_(torch.empty_like(p[((hard_obj_idx + 1) * ot):]), mask),
-                        ), dim=0)
-                    elif mask == 'randn':  # random prompt
-                        p_ = torch.randn_like(p) if train else (
-                            torch.from_numpy(np.random.randn(*p.shape)).float().to(p.device))
-                        p_[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)
-                        ] = p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]
-                        p = p_
-                    elif mask == 'uniform':  # uniform random prompt
-                        p_ = torch.nn.init.uniform_(p.detach().clone()) if train else (
-                            torch.from_numpy(np.random.uniform(size=p.shape)).float().to(p.device))
-                        p_[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)
-                        ] = p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]
-                        p = p_
-                    elif mask == 'ortho':  # ortho random prompt
-                        p_ = torch.nn.init.orthogonal_(p.detach().clone()) if train else (
-                            torch.from_numpy(ortho_random(size=p.shape)).float().to(p.device))
-                        p_[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)
-                        ] = p[(hard_obj_idx * ot):((hard_obj_idx + 1) * ot)]
-                        p = p_
-                    else:  # mask is None: only select this prompt
-                        pass
-
-            elif hard_obj_idx is not None and mask is None:
-                # do not use prompts for all other layers if only select this prompt (mask: None)
-                aq_k = torch.zeros_like(aq_k)
-                e_valid = False  # make p_return to be None
+            # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
+            # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
+            a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
+            n_K = nn.functional.normalize(K, dim=-1)
+            q = nn.functional.normalize(a_querry, dim=-1)
+            # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
+            aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
+            # aq_k is alpha (cosine similarity) [bs, 197, ot]
 
             if debug_mode:
-                print(f'aq_k in layer{l}: {aq_k[0]}')
-                print(f'p in layer{l}: {p[:, 0, 0]}')
+                print(f'aq_k in layer{l}: {aq_k.shape} \n{aq_k[0, 0]}')
+                print(f'p in layer{l}: {p.shape} \n{p[:, 0, 0, 0]}')
 
-            # (b x p x k x 1 x 1) * [1 x k x l x d] = (b x p x l x d) -> prompt = k x l x d
-            P_ = torch.einsum('bpk,kld->bpld', aq_k, p)
+            # (b x p x ot x 1 x 1) * [b x 1 x ot x l x d] = (b x p x l x d) -> prompt = b x ot x l x d
+            P_ = torch.einsum('bpo,bold->bpld', aq_k, p)
 
             # select prompts
             i = int(self.e_p_length / 2)  # 8 / 2
-            Ek = P_[:, :, :i, :]        # 2-nd 197, contain cls-token
+            Ek = P_[:, :, :i, :]        # 2-nd dim (197), contain cls-token
             Ev = P_[:, :, i:, :]
 
             # ortho penalty
