@@ -27,13 +27,13 @@ mkdir -p $OUTDIR
 #    arg 5 = mask: 0.0; -10000: randn; -10001: uniform; -10002: ortho; -10003: None
 #    arg 6 = mask_mode: 0: maskout or 1: use
 #    arg 7 = hv coeff, -1 to use LCQP
-#LEARNERTYPE=pmo
-#LEARNERNAME=PMOPrompt
-#LOGNAME=pmo-condip-full-min-use-pNone-bs32-e100-lr1e-3-11-2-1-sumhv-norm-anchor-cossim-LCQP_kap-1
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 2 0.0 2 -10003 1 -1 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
+LEARNERTYPE=pmo
+LEARNERNAME=PMOPrompt
+LOGNAME=pmo-condip-full-min-use-pNone-bs32-e50-e2-lr1e-3-10-2-sumhv-norm-anchor-cossim-LCQP_kap
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+    --prompt_param 100 2 0.0 2 -10003 1 -1 \
+    --log_dir ${OUTDIR}/${LOGNAME}
 #date
 
 # CODA-P-Replay
@@ -81,10 +81,10 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name CODAPromptCond \
-    --prompt_param 100 2 0.0 \
-    --log_dir ${OUTDIR}/coda-cond-ip
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPromptCond \
+#    --prompt_param 100 2 0.0 \
+#    --log_dir ${OUTDIR}/coda-cond-ip
 
 # DualPrompt
 #
