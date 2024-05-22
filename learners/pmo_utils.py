@@ -720,7 +720,10 @@ def draw_objs(objs, labels=None, ax=None, legend=False):
                             size='Iter', sizes=(100, 200), alpha=1., ax=ax)
 
         if legend:
-            ax.legend(loc='lower left', bbox_to_anchor=(1.05, 0.1), ncol=1)
+            # ax.legend(loc='lower left', bbox_to_anchor=(1.05, 0.1), ncol=1)
+            ax.legend(loc='lower center', frameon=False, ncol=2, bbox_to_anchor=(0.5, -0.2))
+        else:
+            ax.legend([], [], frameon=False)
     else:
         '''obj size larger than 2'''
         '''ax should with projection='polar' or polar=True '''

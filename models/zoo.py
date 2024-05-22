@@ -225,6 +225,7 @@ def ortho_penalty(t):
 
 
 class CodaPromptCond(CodaPrompt):
+    """i-Prompt-based conditioning"""
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(CodaPromptCond, self).__init__(emb_d, n_tasks, prompt_param, key_dim=key_dim)
 
@@ -242,6 +243,94 @@ class CodaPromptCond(CodaPrompt):
     def handle_x_querry_single_x(self, x_querry, x_block, l):
         # x_querry shape: [bs, 197, 768]
         return x_block
+
+    def forward(self, x_querry, l, x_block, train=False, task_id=None):
+        """Differences:
+            cal Prompt for each patch
+        """
+        x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 197, 768]
+        # e prompts
+        e_valid = False
+        task_id = self.task_count
+        # if task_id is None:
+        #     task_id = self.task_count
+
+        if l in self.e_layers:
+            e_valid = True
+            B, pp, C = x_querry.shape  # [bs, 197, 768]
+
+            K = getattr(self, f'e_k_{l}')  # [100, 768]
+            A = getattr(self, f'e_a_{l}')  # [100, 768]
+            p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+
+            if self.FPS:  # use all prompts
+                s = 0
+                f = self.e_pool_size
+            else:
+                pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+                s = int(self.task_count * pt)  # 10 prompts for one task
+                f = int((self.task_count + 1) * pt)
+            # s = int(self.task_count * pt)  # 10 prompts for one task
+            # f = int((self.task_count + 1) * pt)
+
+            # freeze/control past tasks
+            if train:
+                if self.task_count > 0:
+                    K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
+                    A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
+                    p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
+                else:
+                    K = K[s:f]
+                    A = A[s:f]
+                    p = p[s:f]
+            else:
+                K = K[0:f]
+                A = A[0:f]
+                p = p[0:f]
+            # K [100, 768] A [100, 768] p [100, 8, 768]
+
+            # rearrange KAp, according to obj for each x
+            # K A -> [bs, 10->100, 768], p -> [bs, 10->100, 8, 768]
+            K = torch.stack([K for _ in range(B)])
+            A = torch.stack([A for _ in range(B)])
+            p = torch.stack([p for _ in range(B)])
+
+            # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
+            # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
+            a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
+            n_K = nn.functional.normalize(K, dim=-1)
+            q = nn.functional.normalize(a_querry, dim=-1)
+            # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
+            aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
+            # aq_k is alpha (cosine similarity) [bs, 197, ot]
+
+            # (b x p x ot x 1 x 1) * [b x 1 x ot x l x d] = (b x p x l x d) -> prompt = b x ot x l x d
+            P_ = torch.einsum('bpo,bold->bpld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :, :i, :]        # 2-nd dim (197), contain cls-token
+            Ev = P_[:, :, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        # return
+        return p_return, loss, x_block
+
 
 class PmoPrompt(CodaPromptCond):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):

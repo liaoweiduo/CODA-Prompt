@@ -563,7 +563,29 @@ class PMOPrompt(Prompt):
             maximization = True if self.mask_mode == 'maskout' else False
 
             if mo_matrix is not None:       # None when n_obj <= 0 or any target only has 1 image
+
+                '''log'''
+                for obj_idx in range(mo_matrix.shape[0]):
+                    for pop_idx in range(mo_matrix.shape[1]):
+                        self.epoch_log['mo']['Tag'].append('loss')
+                        self.epoch_log['mo']['Pop_id'].append(pop_idx)
+                        self.epoch_log['mo']['Obj_id'].append(obj_idx)
+                        self.epoch_log['mo']['Epoch_id'].append(self.epoch)
+                        self.epoch_log['mo']['Inner_id'].append(0)
+                        self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
+
                 mo_matrix = normalize_to_simplex(mo_matrix)
+
+                '''log after norm: if delete, also remove log writer in trainer.py'''
+                for obj_idx in range(mo_matrix.shape[0]):
+                    for pop_idx in range(mo_matrix.shape[1]):
+                        self.epoch_log['mo']['Tag'].append('norm_loss')
+                        self.epoch_log['mo']['Pop_id'].append(pop_idx)
+                        self.epoch_log['mo']['Obj_id'].append(obj_idx)
+                        self.epoch_log['mo']['Epoch_id'].append(self.epoch)
+                        self.epoch_log['mo']['Inner_id'].append(0)
+                        self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
+
                 ref = 1  # dynamic 1.5*max for minimization or 1 for reverse
                 weights = cal_hv_weights(mo_matrix, ref, reverse=maximization)
 
@@ -825,7 +847,7 @@ class PMOPrompt(Prompt):
         else:
             old_objs = list(range(self.n_obj_avail * self.task_count))
             new_objs = list(range(self.n_obj_avail * self.task_count, self.n_obj_avail * (self.task_count + 1)))
-        target_objs = new_objs + old_objs if use_old_prompts else new_objs
+        target_objs = old_objs + new_objs if use_old_prompts else new_objs
 
         # n_obj = self.n_obj
 
@@ -858,23 +880,13 @@ class PMOPrompt(Prompt):
                 label_logits = logits[labels == label]          # [n_img, n_prompt, 768]
                 # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
                 label_logits_anchor = torch.mean(label_logits, dim=0)       # [n_prompt, 768]
-                cos_sim = cos(label_logits_anchor, label_logits) + 1  # [n_img, n_prompt]
+                cos_sim = -cos(label_logits_anchor, label_logits) + 1  # [n_img, n_prompt]
                 # +1 to scope [-1, 1] -> [0, 2]
                 ncc_losses.append(torch.mean(cos_sim, dim=0))     # [n_prompt]
             ncc_losses = torch.stack(ncc_losses)        # [n_label(obj), n_prompt (new, old)]
 
         # '''group objectives [n_samples, pop] -> [n_obj, pop]'''
         # ncc_losses = torch.stack([torch.mean(ncc_losses[labels == label], dim=0) for label in nui_labels])
-
-        '''log'''
-        for obj_idx in range(ncc_losses.shape[0]):
-            for pop_idx in range(ncc_losses.shape[1]):
-                self.epoch_log['mo']['Tag'].append('loss')
-                self.epoch_log['mo']['Pop_id'].append(pop_idx)
-                self.epoch_log['mo']['Obj_id'].append(obj_idx)
-                self.epoch_log['mo']['Epoch_id'].append(self.epoch)
-                self.epoch_log['mo']['Inner_id'].append(0)
-                self.epoch_log['mo']['Value'].append(ncc_losses[obj_idx, pop_idx].item())
 
         return ncc_losses
 

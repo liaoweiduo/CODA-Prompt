@@ -279,6 +279,7 @@ class Trainer:
                 if len(epoch_log['mo']) > 0:
                     # debugger.write_mo(epoch_log['mo'], None, i=i, writer=writer, target='acc')
                     debugger.write_mo(epoch_log['mo'], None, i=i, writer=writer, target='loss')
+                    debugger.write_mo(epoch_log['mo'], None, i=i, writer=writer, target='norm_loss')
 
                     '''write hv acc/loss'''
                     # debugger.write_hv(epoch_log['mo'], i, ref=0, writer=writer, target='acc', norm=False)
