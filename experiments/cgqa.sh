@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0 1'   # '0 1 2 3'
+GPUID='0'   # '0 1 2 3'
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -84,7 +84,7 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPromptCond \
     --prompt_param 20 2 0.0 \
-    --log_dir ${OUTDIR}/coda-cond-ip-FPS20
+    --log_dir ${OUTDIR}/coda-cond-ipmd-FPS20
 
 # DualPrompt
 #
