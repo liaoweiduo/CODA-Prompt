@@ -544,8 +544,9 @@ class PMOPrompt(Prompt):
             # select n_obj groups
             selected_labels = np.sort(
                 np.random.choice(labels.cpu().numpy(), self.n_obj, replace=False)).astype(int)
-            selected_inputs = torch.cat([inputs[targets == label] for label in selected_labels])
-            selected_targets = torch.cat([targets[targets == label] for label in selected_labels])
+            # select mostly 3 imgs for each target
+            selected_inputs = torch.cat([inputs[targets == label][:3] for label in selected_labels])
+            selected_targets = torch.cat([targets[targets == label][:3] for label in selected_labels])
 
             self.optimizer.zero_grad()
             # for l in self.e_layers:
@@ -820,7 +821,7 @@ class PMOPrompt(Prompt):
 
         if samples is None:
             '''sampling by aux'''
-            num_sample_per_obj = 10
+            num_sample_per_obj = 3
             samples, labels = sampling(self.n_obj, min_samples=num_sample_per_obj)
             # dead while when n_obj > n_class_per_task
 
