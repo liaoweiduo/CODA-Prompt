@@ -83,8 +83,8 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPromptCond \
-    --prompt_param 100 2 0.0 \
-    --log_dir ${OUTDIR}/coda-cond-ip
+    --prompt_param 20 2 0.0 \
+    --log_dir ${OUTDIR}/coda-cond-ip-FPS20
 
 # DualPrompt
 #
