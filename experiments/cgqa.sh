@@ -29,7 +29,7 @@ mkdir -p $OUTDIR
 #    arg 7 = hv coeff, -1 to use LCQP
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-condipmd-full-min-use-pNone-bs32-e50-e2-lr1e-3-20-2-sumhv-norm-anchor-cossim-LCQP_kap-FPS20
+LOGNAME=pmo-condip-full-min-use-pNone-bs32-e50-e2-lr1e-3-20-2-sumhv-norm-anchor-cossim-LCQP_kap-FPS20
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 20 2 0.0 2 -10003 1 -1 \
