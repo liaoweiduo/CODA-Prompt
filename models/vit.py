@@ -83,12 +83,12 @@ class Attention(nn.Module):
                 # remove cls-token
                 pk = torch.sum(pk, dim=2)       # sum over l=4 prompt patches [b, 197, 786]
                 pv = torch.sum(pv, dim=2)
-                pk[:, 0] = 1    # for + use 0, for * use 1
-                pv[:, 0] = 1
+                pk[:, 0] = 0    # for + use 0, for * use 1
+                pv[:, 0] = 0
                 pk = pk.reshape(B, -1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
                 pv = pv.reshape(B, -1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
-                k = pk * k    # for + and *
-                v = pv * v
+                k = pk + k    # for + and *
+                v = pv + v
 
         # print(f'attn: after cat prompt: k, v: {k.shape, v.shape}')      # [2, 12, 201, 64]
 

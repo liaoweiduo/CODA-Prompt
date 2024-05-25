@@ -19,6 +19,7 @@ class CFSTDataset(data.Dataset):
         # process rest of args
         self.root = os.path.expanduser(root)
         # self.transform = transform      # no use
+        self.oracle_flag = lab
         self.train = train  # training set or test set
         self.validation = validation        # if val, load val set instead of test set
         self.seed = seed
@@ -159,7 +160,7 @@ class CGQA(CFSTDataset):
             load_set = 'train' if self.train else ('val' if self.validation else 'test')
         if self.mode == 'continual':
             self.benchmark = cgqa.continual_training_benchmark(
-                10, image_size=(224, 224), return_task_id=False,
+                1 if self.oracle_flag else 10, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
                 train_transform=cgqa.build_transform_for_vit(is_train=True),
                 eval_transform=cgqa.build_transform_for_vit(is_train=False),
@@ -187,7 +188,7 @@ class COBJ(CFSTDataset):
             load_set = 'train' if self.train else ('val' if self.validation else 'test')
         if self.mode == 'continual':
             self.benchmark = cobj.continual_training_benchmark(
-                3, image_size=(224, 224), return_task_id=False,
+                1 if self.oracle_flag else 3, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
                 train_transform=cobj.build_transform_for_vit(is_train=True),
                 eval_transform=cobj.build_transform_for_vit(is_train=False),

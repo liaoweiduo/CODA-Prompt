@@ -59,6 +59,7 @@ class Trainer:
             raise ValueError('Dataset not implemented!')
 
         # upper bound flag
+        self.upper_bound_flag = args.upper_bound_flag
         if args.upper_bound_flag:
             args.other_split_size = num_classes
             args.first_split_size = num_classes
@@ -99,12 +100,12 @@ class Trainer:
             resize_imnet = False
         train_transform = dataloaders.utils.get_transform(dataset=args.dataset, phase='train', aug=args.train_aug, resize_imnet=resize_imnet)
         test_transform  = dataloaders.utils.get_transform(dataset=args.dataset, phase='test', aug=args.train_aug, resize_imnet=resize_imnet)
-        self.train_dataset = Dataset(args.dataroot, train=True, lab = True, tasks=self.tasks,
+        self.train_dataset = Dataset(args.dataroot, train=True, lab = args.oracle_flag, tasks=self.tasks,
                             download_flag=True if (args.debug_mode == 0) else False, transform=train_transform,
                             seed=self.seed, rand_split=args.rand_split, validation=args.validation)
         if args.debug_mode == 1:
             self.train_dataset.debug_mode()     # use val datasets to avoid large train set loading
-        self.test_dataset  = Dataset(args.dataroot, train=False, tasks=self.tasks,
+        self.test_dataset  = Dataset(args.dataroot, train=False, lab = args.oracle_flag, tasks=self.tasks,
                                 download_flag=False, transform=test_transform, 
                                 seed=self.seed, rand_split=args.rand_split, validation=args.validation)
 
@@ -221,9 +222,10 @@ class Trainer:
                         self.learner.model.prompt.process_task_count()
 
             # learn
+            # test_loader does not use during training
             self.test_dataset.load_dataset(i, train=False)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
-            # no use during training
+
             model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
             if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
             avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, model_save_dir, test_loader)
