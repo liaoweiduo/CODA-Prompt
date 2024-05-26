@@ -154,7 +154,8 @@ def continual_training_benchmark(
                                              num_samples_each_label=num_samples_each_label,
                                              load_set=load_set)
     train_set, val_set, test_set = datasets['train'], datasets['val'], datasets['test']
-    label_set, map_tuple_label_to_int, map_int_label_to_tuple = label_info
+    (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info
+     ) = label_info
 
     '''generate class order for continual tasks'''
     num_classes = len(label_set)
@@ -332,7 +333,7 @@ def fewshot_testing_benchmark(
     datasets, label_info = _get_gqa_datasets(dataset_root, mode=mode, image_size=image_size,
                                              load_set=load_set)
     dataset = datasets['dataset']
-    label_set, map_tuple_label_to_int, map_int_label_to_tuple = label_info
+    label_set, map_tuple_label_to_int, map_int_label_to_tuple, _ = label_info
 
     '''generate fewshot tasks'''
     num_classes = len(label_set)
@@ -463,6 +464,10 @@ def _get_gqa_datasets(
     """
     img_folder_path = os.path.join(dataset_root, "CGQA", "GQA_100")
 
+    def preprocess_concept_to_integer(img_info, mapping_tuple_label_to_int_concepts):
+        for item in img_info:
+            item['concepts'] = [mapping_tuple_label_to_int_concepts[concept] for concept in item['comb']]
+
     def preprocess_label_to_integer(img_info, mapping_tuple_label_to_int):
         for item in img_info:
             item['image'] = f"{item['newImageName']}.jpg"
@@ -474,7 +479,7 @@ def _get_gqa_datasets(
         """generate train_list and test_list: list with img tuple (path, label)"""
         img_tuples = []
         for item in images:
-            instance_tuple = (item['image'], item['label'])     # , item['boundingBox']
+            instance_tuple = (item['image'], item['label'], item['concepts'], item['position'])     # , item['boundingBox']
             img_tuples.append(instance_tuple)
         return img_tuples
 
@@ -503,10 +508,20 @@ def _get_gqa_datasets(
         # {('building', 'sign'): 0, ('building', 'sky'): 1, ...}
         map_int_label_to_tuple = dict((idx + label_offset, item) for idx, item in enumerate(label_set))
         # {0: ('building', 'sign'), 1: ('building', 'sky'),...}
+        '''preprocess concepts to integers'''
+        concept_set = sorted(list(set([concept for item in val_img_info for concept in item['comb']])))
+        mapping_tuple_label_to_int_concepts = dict((item, idx) for idx, item in enumerate(concept_set))
+        # 21 concepts {'bench': 0, 'building': 1, 'car': 2, ...}
+        map_int_concepts_label_to_str = dict((idx, item) for idx, item in enumerate(concept_set))
+        # 21 concepts {0: 'bench', 1: 'building', 2: 'car', ...}
 
         preprocess_label_to_integer(train_img_info, map_tuple_label_to_int)
         preprocess_label_to_integer(val_img_info, map_tuple_label_to_int)
         preprocess_label_to_integer(test_img_info, map_tuple_label_to_int)
+
+        preprocess_concept_to_integer(train_img_info, mapping_tuple_label_to_int_concepts)
+        preprocess_concept_to_integer(val_img_info, mapping_tuple_label_to_int_concepts)
+        preprocess_concept_to_integer(test_img_info, mapping_tuple_label_to_int_concepts)
 
         '''if num_samples_each_label provided, sample images to balance each class for train set'''
         selected_train_images = []
@@ -566,7 +581,12 @@ def _get_gqa_datasets(
         )
 
         datasets = {'train': train_set, 'val': val_set, 'test': test_set}
-        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple)
+        meta_info = {
+            "concept_set": concept_set,
+            "mapping_tuple_label_to_int_concepts": mapping_tuple_label_to_int_concepts,
+            "map_int_concepts_label_to_str": map_int_concepts_label_to_str,
+            "train_list": train_list, "val_list": val_list, "test_list": test_list}
+        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
     elif mode in ['sys', 'pro', 'sub', 'non', 'noc', 'nons', 'syss']:
         json_name = {'sys': 'sys/sys_fewshot.json', 'pro': 'pro/pro_fewshot.json', 'sub': 'sub/sub_fewshot.json',
@@ -588,7 +608,8 @@ def _get_gqa_datasets(
         )
 
         datasets = {'dataset': dataset}
-        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple)
+        meta_info = {"img_list": img_list}
+        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
     else:
         raise Exception(f'Un-implemented mode "{mode}".')
@@ -682,7 +703,7 @@ class PathsDataset(torch.utils.data.Dataset):
 
         print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] DONE.')
 
-    def __getitem__(self, index):
+    def __getitem__(self, index, return_concepts=False):
         """
         Returns next element in the dataset given the current index.
 
@@ -694,8 +715,12 @@ class PathsDataset(torch.utils.data.Dataset):
         impath = img_description[0]
         target = img_description[1]
         bbox = None
-        if len(img_description) > 2:
+        concepts, position = None, None
+        if len(img_description) == 3:   # with bbox
             bbox = img_description[2]
+        elif len(img_description) == 4:
+            concepts = img_description[2]
+            position = img_description[3]
 
         if self.loaded:
             img = impath
@@ -716,7 +741,11 @@ class PathsDataset(torch.utils.data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return img, target
+        # If provide concepts and position,
+        if return_concepts:
+            return img, target, index, concepts, position
+        else:
+            return img, target, index
 
     def __len__(self):
         """
@@ -743,22 +772,25 @@ class Subset(torch.utils.data.dataset.Dataset):
 
         self.images = []
         self.targets = []
+        self.ori_idxs = []
         if self.load:
             # print('Load data in Subset:')
             # for index in tqdm(range(len(self._indices))):
             for index in range(len(self._indices)):
-                x, y = self.get_from_source(index)
+                x, y, ori_idx = self.get_from_source(index)
                 self.images.append(x)
                 self.targets.append(y)
+                self.ori_idxs.append(ori_idx)
             if type(self.images[0]) == torch.Tensor:
                 self.images = torch.stack(self.images)
             else:
                 self.images = torch.from_numpy(np.stack(self.images))
             self.targets = np.array(self.targets)
+            self.ori_idxs = np.array(self.ori_idxs)
 
     def __getitem__(self, index):
         if self.load:
-            return self.images[index], self.targets[index]
+            return self.images[index], self.targets[index], self.ori_idxs[index]
         else:
             return self.get_from_source(index)
 
@@ -766,11 +798,11 @@ class Subset(torch.utils.data.dataset.Dataset):
         return len(self._indices)
 
     def get_from_source(self, index):
-        x, y = self._subset[index]
+        x, y, ori_idx = self._subset[index]
         if self._transform is not None:
             x = self._transform(x)
         mapped_y = self._class_mapping[y]
-        return x, mapped_y
+        return x, mapped_y, ori_idx
 
     def get_task_label(self, index):
         if type(self._task_labels) is int:
@@ -792,9 +824,40 @@ __all__ = ["continual_training_benchmark", "fewshot_testing_benchmark"]
 
 
 if __name__ == '__main__':
-    datasets, label_info = _get_gqa_datasets(
-        '..//..//..//..//OneDrive - City University of Hong Kong - Student//datasets//CFST',
-        mode='continual', image_size=(224, 224), load_set='val')
+    # datasets, label_info = _get_gqa_datasets(
+    #     '..//..//..//..//OneDrive - City University of Hong Kong - Student//datasets//CFST',
+    #     mode='continual', image_size=(224, 224))        # , load_set='val'
+
+    benchmark = continual_training_benchmark(
+        10, image_size=(224, 224), return_task_id=False,
+        seed=0,
+        train_transform=build_transform_for_vit(is_train=True),
+        eval_transform=build_transform_for_vit(is_train=False),
+        dataset_root='..//..//..//..//OneDrive - City University of Hong Kong - Student//datasets//CFST',
+        memory_size=0,
+        # load_set='val',
+    )
+
+    sample = benchmark.val_datasets[0][10]
+    print(f'sample ori idx: {sample[2]}, label: {sample[1]}')
+    sample_from_val_list = benchmark.label_info[3]['val_list'][sample[2]]
+    print(f'sample_from_val_list {sample_from_val_list[0]}, label: {sample_from_val_list[1]}, '
+          f'concepts: {sample_from_val_list[2]}: '
+          f'{[benchmark.label_info[3]["map_int_concepts_label_to_str"][idxx] for idxx in sample_from_val_list[2]]}'
+          f'position: {sample_from_val_list[3]}'
+          f'')
+
+    import matplotlib.pyplot as plt
+    from PIL import Image
+
+    numpy_image = sample[0].permute(1, 2, 0).cpu().numpy()
+
+    # 缩放像素值到0到255范围
+    numpy_image = (numpy_image * 255).astype(np.uint8)
+
+    image = Image.fromarray(numpy_image, mode='RGB')
+    plt.imshow(image)
+    plt.show()
 
     # # save self.imgs and targets to root
     # data = {'imgs': [(torch.arange(2), 0), (torch.arange(2), 1)], 'targets': [0, 1]}

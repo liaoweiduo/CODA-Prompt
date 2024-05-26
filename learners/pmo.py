@@ -139,8 +139,14 @@ class PMOPrompt(Prompt):
                 for param_group in self.optimizer.param_groups:
                     self.log('LR:', param_group['lr'])
                 batch_timer.tic()
-                for i, (x, y, task) in enumerate(train_loader):
+                for i, sample in enumerate(train_loader):
                     self.batch_idx = i
+
+                    concepts = None
+                    if train_dataset.return_concepts:
+                        x, y, concepts, task = sample
+                    else:
+                        x, y, task = sample
 
                     # verify in train mode
                     self.model.train()
@@ -149,6 +155,7 @@ class PMOPrompt(Prompt):
                     if self.gpu:
                         x = x.cuda()
                         y = y.cuda()
+                        concepts = concepts.cuda()      # [bs, 2]
                         # task = task.cuda()
 
                     # # debug

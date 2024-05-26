@@ -13,7 +13,7 @@ class CFSTDataset(data.Dataset):
                  train=True, transform=None,
                  download_flag=False, lab=True, swap_dset = None,
                  tasks=None, seed=-1, rand_split=False, validation=False, kfolds=5,
-                 mode='continual',
+                 mode='continual', return_concepts=False,
                  ):
 
         # process rest of args
@@ -26,6 +26,7 @@ class CFSTDataset(data.Dataset):
         # self.tasks = tasks      # load specific true_classes; no use
         # self.download_flag = download_flag  # no use
         self.mode = mode        # [continual, sys, pro, sub, non, noc]
+        self.return_concepts = return_concepts
 
         # load dataset
         self.benchmark = None
@@ -39,6 +40,19 @@ class CFSTDataset(data.Dataset):
         else:
             self.target_datasets = self.benchmark.test_datasets
 
+        # for concepts
+        self.target_sample_info = None
+        if len(self.benchmark.label_info) == 4 and return_concepts:
+            if 'concept_set' in self.benchmark.label_info[3].keys():
+                if self.train:
+                    self.target_sample_info = self.benchmark.label_info[3]['train_list']
+                elif self.validation:
+                    self.target_sample_info = self.benchmark.label_info[3]['val_list']
+                else:
+                    self.target_sample_info = self.benchmark.label_info[3]['test_list']
+            else:
+                self.target_sample_info = self.benchmark.label_info[3]['img_list']
+
         # Pool
         self.memory = Pool(0, self.seed)   # memory size will change in update_coreset()
 
@@ -51,11 +65,17 @@ class CFSTDataset(data.Dataset):
 
     def __getitem__(self, index, simple = False):
         data = self.dataset[index]
-        if len(data) == 2:
-            img, target = data
+        if len(data) == 3:
+            img, target, ori_idx = data
             t = self.t
-        else:
-            img, target, t = data
+        else:       # img, target, ori_idx, task
+            img, target, ori_idx, t = data
+
+        # concept label
+        if self.target_sample_info is not None:
+            concepts, _, _ = self.get_concepts(ori_idx)
+            return img, target, torch.Tensor(concepts).long(), t
+
         return img, target, t
 
     def __len__(self):
@@ -144,6 +164,21 @@ class CFSTDataset(data.Dataset):
         ori_label = original_classes_in_exp[task_id][label_id]
         label_str = ori_label_2_str[ori_label]
         return label_str, [task_id, label_id]
+
+    def get_concepts(self, index, mode='label'):
+        """Obtain concepts [Option: 'label': list of concept labels; 'mask': img mask]"""
+        if self.target_sample_info is not None and mode in ['label', 'mask']:
+            map_int_concepts_label_to_str = self.benchmark.label_info[3]['map_int_concepts_label_to_str']
+            concepts = self.target_sample_info[index][2]    # e.g., [10, 15]
+            position = self.target_sample_info[index][3]    # e.g., [4, 3]
+            concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
+            if mode == 'label':
+                return concepts, position, concepts_str
+            elif mode == 'mask':
+                img_shape = self.benchmark.x_dim[1:]        # [3, 224, 224] -> [224, 224]
+
+
+        return None, None, None
 
     def load(self):
         """need to implement,

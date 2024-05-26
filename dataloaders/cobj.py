@@ -714,7 +714,7 @@ class PathsDataset(torch.utils.data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return img, target
+        return img, target, index
 
     def __len__(self):
         """
@@ -741,22 +741,25 @@ class Subset(torch.utils.data.dataset.Dataset):
 
         self.images = []
         self.targets = []
+        self.ori_idxs = []
         if self.load:
             # print('Load data in Subset:')
             # for index in tqdm(range(len(self._indices))):
             for index in range(len(self._indices)):
-                x, y = self.get_from_source(index)
+                x, y, ori_idx = self.get_from_source(index)
                 self.images.append(x)
                 self.targets.append(y)
+                self.ori_idxs.append(ori_idx)
             if type(self.images[0]) == torch.Tensor:
                 self.images = torch.stack(self.images)
             else:
                 self.images = torch.from_numpy(np.stack(self.images))
             self.targets = np.array(self.targets)
+            self.ori_idxs = np.array(self.ori_idxs)
 
     def __getitem__(self, index):
         if self.load:
-            return self.images[index], self.targets[index]
+            return self.images[index], self.targets[index], self.ori_idxs[index]
         else:
             return self.get_from_source(index)
 
@@ -764,11 +767,11 @@ class Subset(torch.utils.data.dataset.Dataset):
         return len(self._indices)
 
     def get_from_source(self, index):
-        x, y = self._subset[index]
+        x, y, ori_idx = self._subset[index]
         if self._transform is not None:
             x = self._transform(x)
         mapped_y = self._class_mapping[y]
-        return x, mapped_y
+        return x, mapped_y, ori_idx
 
     def get_task_label(self, index):
         if type(self._task_labels) is int:

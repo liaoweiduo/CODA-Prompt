@@ -303,6 +303,8 @@ class CodaPromptCond(CodaPrompt):
             # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
             aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
             # aq_k is alpha (cosine similarity) [bs, 197, ot]
+            # relu aq_k
+            aq_k = F.relu(aq_k, inplace=True)
 
             # (b x p x ot x 1 x 1) * [b x 1 x ot x l x d] = (b x p x l x d) -> prompt = b x ot x l x d
             P_ = torch.einsum('bpo,bold->bpld', aq_k, p)
