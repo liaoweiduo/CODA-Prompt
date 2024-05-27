@@ -261,8 +261,28 @@ class CODAPromptCond(Prompt):
         # loss on aq_k_list
         if concepts is not None:
             # concepts: [bs, 224, 224]
-            # logits, aq_k_list: [12*[bs, 197, ot]]
-            pass
+            # logits, aq_k_list: [12*[bs, 197, num_prompt]]
+            try:
+                model = self.model
+            except:
+                model = self.model.module
+            bce = nn.BCELoss()
+            patch_size = model.feat.patch_embed.patch_size      # (16, 16)
+            num_prompts = aq_k_list[0].shape[-1]
+
+            concept_labels = concepts.unfold(1,  *patch_size).unfold(2, *patch_size)
+            # [bs, n_H, n_W, patch_size, patch_size]
+            # max pooling: generally all elements in one patch have same mask value  # [bs, 196]
+            concept_labels = torch.max(torch.max(concept_labels, dim=-1)[0], dim=-1)[0].flatten(1)
+            concept_labels = F.one_hot(concept_labels, num_classes=num_prompts+1)[:, :, :num_prompts].float()
+            # blank's label is num_prompts, thus do not use all prompts
+            selection_loss = []
+            for aq_k in aq_k_list:
+                aq_k = aq_k[:, 1:, :]       # remove cls_token      [bs, 196, num_prompt]
+                selection_loss.append(bce(aq_k, concept_labels))
+            selection_loss = torch.mean(torch.stack(selection_loss))
+
+            total_loss = total_loss + selection_loss
 
         # step
         self.optimizer.zero_grad()
