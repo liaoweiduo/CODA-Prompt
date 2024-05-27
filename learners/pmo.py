@@ -22,7 +22,7 @@ from datetime import datetime
 from .default import NormalNN, weight_reset, accumulate_acc
 from .prompt import Prompt
 from utils.schedulers import CosineSchedule
-from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_weights, normalize_to_simplex
+from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_weights, normalize
 from models.losses import prototype_loss
 from mo_optimizers.functions_evaluation import fastNonDominatedSort
 import dataloaders
@@ -155,7 +155,8 @@ class PMOPrompt(Prompt):
                     if self.gpu:
                         x = x.cuda()
                         y = y.cuda()
-                        concepts = concepts.cuda()      # [bs, 2]
+                        if concepts is not None:
+                            concepts = concepts.cuda()      # [bs, 224, 224]
                         # task = task.cuda()
 
                     # # debug
@@ -410,7 +411,7 @@ class PMOPrompt(Prompt):
                 maximization = True if self.mask_mode == 'maskout' else False
                 if mo_matrix is not None:
                     # if maximization:
-                    normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
+                    normed_mo_matrix = normalize(mo_matrix, noise=True)
                     # else:
                     #     with torch.no_grad():
                     #         normed_mo_matrix = normalize_to_simplex(mo_matrix, noise=True)
@@ -496,10 +497,10 @@ class PMOPrompt(Prompt):
             last = self.model.last
 
         grads = {}
-        # params_to_opt = {key: param for key, param in prompt.named_parameters() if 'e_k_' in key or 'e_a_' in key}
-        params_to_opt = {key: param for key, param in prompt.named_parameters()}
+        params_to_opt = {key: param for key, param in prompt.named_parameters() if 'e_p_' in key}
+        # params_to_opt = {key: param for key, param in prompt.named_parameters()}
         params_for_ce = {key: param for key, param in last.named_parameters()}
-        # params_for_ce.update({key: param for key, param in prompt.named_parameters() if 'e_p_' in key})
+        params_for_ce.update({key: param for key, param in prompt.named_parameters() if 'e_k_' in key or 'e_a_' in key})
 
         for k, p in params_to_opt.items():  # use ce+hv
             grads[k] = {'shape': p.shape, 'grads': []}
@@ -582,7 +583,7 @@ class PMOPrompt(Prompt):
                         self.epoch_log['mo']['Inner_id'].append(0)
                         self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
 
-                mo_matrix = normalize_to_simplex(mo_matrix)
+                mo_matrix = normalize(mo_matrix)
 
                 '''log after norm: if delete, also remove log writer in trainer.py'''
                 for obj_idx in range(mo_matrix.shape[0]):

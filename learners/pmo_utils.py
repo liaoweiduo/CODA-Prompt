@@ -571,8 +571,8 @@ def cal_hv_weights(objs, ref=None, reverse=False):
     return weights
 
 
-def normalize_to_simplex(tensor, dim=0, noise=False):
-    # proj to simplex sum(f)=1
+def normalize(tensor, dim=0, p=1/2, noise=False):
+    # proj to simplex: p=1 sum(f)=1, sphere: p=2 sum(f^2)^(1/2)=1, concave-sphere: p=1/2 sum(f^(1/2))^2=1
     tensor = torch.clamp(tensor, min=1e-5)  # clamp negative value and too small value
 
     if noise:       # prevent the same point
@@ -580,8 +580,9 @@ def normalize_to_simplex(tensor, dim=0, noise=False):
         # noise = torch.rand_like(tensor) * 2e-9 - 1e-9     # [0, 1e-9]
         tensor = tensor + noise
 
-    sum_tensor = torch.sum(tensor, dim=dim, keepdim=True)
-    normalized_tensor = tensor / (sum_tensor + 1e-10)
+    normalized_tensor = F.normalize(tensor, dim=dim, p=p, eps=1e-10)
+    # sum_tensor = torch.sum(tensor ** p, dim=dim, keepdim=True) ** (1/p)
+    # normalized_tensor = tensor / (sum_tensor + 1e-10)
 
     return normalized_tensor
 

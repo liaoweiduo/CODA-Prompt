@@ -224,13 +224,22 @@ class VisionTransformer(nn.Module):
         # print(f'after cat cls_tokens shape: {x.shape}')     # [2, 197, 768]
 
         prompt_loss = torch.zeros((1,), requires_grad=True).cuda()
+        aq_k_list = []
         for i,blk in enumerate(self.blocks):
 
             if prompt is not None:
                 if train:
-                    p_list, loss, x = prompt.forward(q, i, x, train=True, task_id=task_id,
-                                                     **kwargs)
+                    output = prompt.forward(q, i, x, train=True, task_id=task_id,
+                                            **kwargs)
+                    aq_k = None
+                    if len(output) == 3:
+                        p_list, loss, x = output
+                    else:
+                        p_list, loss, x, aq_k = output
                     prompt_loss += loss
+
+                    if aq_k is not None:
+                        aq_k_list.append(aq_k)
                 else:
                     p_list, _, x = prompt.forward(q, i, x, train=False, task_id=task_id,
                                                   **kwargs)
@@ -253,7 +262,7 @@ class VisionTransformer(nn.Module):
 
         x = self.norm(x)
         
-        return x, prompt_loss
+        return x, prompt_loss, aq_k_list
 
     @torch.jit.ignore()
     def load_pretrained(self, checkpoint_path, prefix=''):

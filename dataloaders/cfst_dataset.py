@@ -44,6 +44,7 @@ class CFSTDataset(data.Dataset):
         self.target_sample_info = None
         if len(self.benchmark.label_info) == 4 and return_concepts:
             if 'concept_set' in self.benchmark.label_info[3].keys():
+                self.num_concepts = len(self.benchmark.label_info[3]['concept_set'])
                 if self.train:
                     self.target_sample_info = self.benchmark.label_info[3]['train_list']
                 elif self.validation:
@@ -74,7 +75,7 @@ class CFSTDataset(data.Dataset):
         # concept label
         if self.target_sample_info is not None:
             concepts, _, _ = self.get_concepts(ori_idx)
-            return img, target, torch.Tensor(concepts).long(), t
+            return img, target, concepts, t
 
         return img, target, t
 
@@ -165,7 +166,7 @@ class CFSTDataset(data.Dataset):
         label_str = ori_label_2_str[ori_label]
         return label_str, [task_id, label_id]
 
-    def get_concepts(self, index, mode='label'):
+    def get_concepts(self, index, mode='mask'):
         """Obtain concepts [Option: 'label': list of concept labels; 'mask': img mask]"""
         if self.target_sample_info is not None and mode in ['label', 'mask']:
             map_int_concepts_label_to_str = self.benchmark.label_info[3]['map_int_concepts_label_to_str']
@@ -173,10 +174,17 @@ class CFSTDataset(data.Dataset):
             position = self.target_sample_info[index][3]    # e.g., [4, 3]
             concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
             if mode == 'label':
-                return concepts, position, concepts_str
+                return torch.tensor(concepts), position, concepts_str
             elif mode == 'mask':
                 img_shape = self.benchmark.x_dim[1:]        # [3, 224, 224] -> [224, 224]
-
+                concepts = torch.tensor(concepts).long()
+                position = torch.tensor(position).long()
+                mask = torch.zeros(4).long()
+                mask[position-1] = concepts
+                mask[mask == 0] = self.num_concepts
+                mask = mask.reshape(2, 2).repeat_interleave(
+                    img_shape[0]//2, dim=0).repeat_interleave(img_shape[1]//2, dim=1)
+                return mask, position.numpy().tolist(), concepts_str
 
         return None, None, None
 

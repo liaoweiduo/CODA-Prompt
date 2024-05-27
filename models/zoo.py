@@ -244,7 +244,7 @@ class CodaPromptCond(CodaPrompt):
         # x_querry shape: [bs, 197, 768]
         return x_block
 
-    def forward(self, x_querry, l, x_block, train=False, task_id=None):
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, **kwargs):
         """Differences:
             cal Prompt for each patch
         """
@@ -254,6 +254,7 @@ class CodaPromptCond(CodaPrompt):
         task_id = self.task_count
         # if task_id is None:
         #     task_id = self.task_count
+        aq_k = None
 
         if l in self.e_layers:
             e_valid = True
@@ -330,6 +331,8 @@ class CodaPromptCond(CodaPrompt):
         else:
             p_return = None
 
+        if return_aqk:
+            return p_return, loss, x_block, aq_k
         # return
         return p_return, loss, x_block
 
@@ -677,27 +680,32 @@ class PmoPrompt(CodaPromptCond):
                 if type(hard_obj_idx) is int and hard_obj_idx == -1:
                     if s == 0:      # first task no conditioning
                         return None, 0, x_block     # p_return, loss, x_block
-                    K = torch.stack([K[:s] for _ in range(B)])
-                    A = torch.stack([A[:s] for _ in range(B)])
+                    # K = torch.stack([K[:s] for _ in range(B)])
+                    # A = torch.stack([A[:s] for _ in range(B)])
                     p = torch.stack([p[:s] for _ in range(B)])
                 else:
-                    K = torch.stack([K[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
-                    A = torch.stack([A[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+                    # K = torch.stack([K[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+                    # A = torch.stack([A[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
                     p = torch.stack([p[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+
+                aq_k = torch.ones((B, pp, ot), device=p.device)
+
             else:       # use all prompts
                 # K A -> [bs, 10->100, 768], p -> [bs, 10->100, 8, 768]
                 K = torch.stack([K for _ in range(B)])
                 A = torch.stack([A for _ in range(B)])
                 p = torch.stack([p for _ in range(B)])
 
-            # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
-            # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
-            a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
-            n_K = nn.functional.normalize(K, dim=-1)
-            q = nn.functional.normalize(a_querry, dim=-1)
-            # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
-            aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
-            # aq_k is alpha (cosine similarity) [bs, 197, ot]
+                # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
+                # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
+                a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
+                n_K = nn.functional.normalize(K, dim=-1)
+                q = nn.functional.normalize(a_querry, dim=-1)
+                # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
+                aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
+                # aq_k is alpha (cosine similarity) [bs, 197, ot]
+                # relu aq_k
+                aq_k = F.relu(aq_k, inplace=True)
 
             if debug_mode:
                 print(f'aq_k in layer{l}: {aq_k.shape} \n{aq_k[0, 0]}')
@@ -1095,7 +1103,7 @@ class ViTZoo(nn.Module):
 
     # pen: get penultimate features    
     def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False,
-                cond_x=None, **kwargs):
+                cond_x=None, return_aqk=False, **kwargs):
         # kwargs for prompt
         if task_id is None:
             task_id = self.task_id
@@ -1104,23 +1112,25 @@ class ViTZoo(nn.Module):
             if self.use_vit_emb:
                 with torch.no_grad():
                     if cond_x is not None:  # condition model
-                        q, _ = self.feat(cond_x)
+                        q, _, _ = self.feat(cond_x)
                     else:
-                        q, _ = self.feat(x)
+                        q, _, _ = self.feat(x)
                     q = q[:, 0, :]
             else:
                 q = None
-            out, prompt_loss = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id,
-                                         register_blk=register_blk,
-                                         **kwargs)
+            out, prompt_loss, aq_k_list = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id,
+                                                    register_blk=register_blk, return_aqk=return_aqk,
+                                                    **kwargs)
             out = out[:, 0, :]
         else:
-            out, _ = self.feat(x, register_blk=register_blk)
+            out, _, _ = self.feat(x, register_blk=register_blk)
             out = out[:, 0, :]
         out = out.view(out.size(0), -1)
         if not pen:
             out = self.last(out)
-        if self.prompt is not None and train:
+        if self.prompt is not None and train and return_aqk:
+            return out, prompt_loss, aq_k_list
+        elif self.prompt is not None and train:
             return out, prompt_loss
         else:
             return out

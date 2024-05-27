@@ -146,6 +146,131 @@ class CODAPromptCond(Prompt):
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda_cond',prompt_param=self.prompt_param, use_vit_emb=False)
         return model
 
+    def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
+
+        # try to load model
+        need_train = True
+        if not self.overwrite:
+            try:
+                self.load_model(model_save_dir)
+                need_train = False
+            except:
+                pass
+
+        # trains
+        if self.reset_optimizer:  # Reset optimizer before learning each task
+            self.log('Optimizer is reset!')
+            self.init_optimizer()
+        if need_train:
+
+            # data weighting
+            self.data_weighting(train_dataset)
+            losses = AverageMeter()
+            acc = AverageMeter()
+            batch_time = AverageMeter()
+            batch_timer = Timer()
+            for epoch in range(self.config['schedule'][-1]):
+                self.epoch = epoch
+
+                if epoch > 0: self.scheduler.step()
+                for param_group in self.optimizer.param_groups:
+                    self.log('LR:', param_group['lr'])
+                batch_timer.tic()
+                for i, sample in enumerate(train_loader):
+
+                    concepts = None
+                    if train_dataset.return_concepts:
+                        x, y, concepts, task = sample
+                    else:
+                        x, y, task = sample
+
+                    # verify in train mode
+                    self.model.train()
+
+                    # send data to gpu
+                    if self.gpu:
+                        x = x.cuda()
+                        y = y.cuda()
+                        if concepts is not None:
+                            concepts = concepts.cuda()  # [bs, 224, 224]
+
+                    # # debug
+                    # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                    # model update
+                    loss, output = self.update_model(x, y, concepts=concepts)
+
+                    # measure elapsed time
+                    batch_time.update(batch_timer.toc())
+                    batch_timer.tic()
+
+                    # measure accuracy and record loss
+                    y = y.detach()
+                    accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                    losses.update(loss, y.size(0))
+                    batch_timer.tic()
+
+                # eval update
+                self.log(
+                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
+                self.log(
+                    ' * Loss {loss.avg:.3f} | '
+                    'Train Acc {acc.avg:.3f} | '
+                    'Time {time.avg:.3f}*{i}'.format(
+                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
+
+                # reset
+                losses = AverageMeter()
+                acc = AverageMeter()
+
+        self.model.eval()
+
+        self.last_valid_out_dim = self.valid_out_dim
+        self.first_task = False
+
+        # Extend memory
+        self.task_count += 1
+        if self.memory_size > 0:
+            train_dataset.update_coreset(self.memory_size, np.arange(self.last_valid_out_dim))
+
+        try:
+            return batch_time.avg
+        except:
+            return None
+
+    def update_model(self, inputs, targets, concepts=None):
+        logits, prompt_loss, aq_k_list = self.model(inputs, train=True, return_aqk=True)
+        logits = logits[:,:self.valid_out_dim]
+
+        # # debug
+        # print(f'prompt_loss: {prompt_loss}')
+
+        # ce with heuristic
+        if self.memory_size == 0:       # replay-based will have old tasks which may cause inf loss
+            logits[:,:self.last_valid_out_dim] = -float('inf')
+            # logits[:,:self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+        dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
+        total_loss = self.criterion(logits, targets.long(), dw_cls)
+
+        # # debug
+        # print(f'classification loss: {total_loss}')
+
+        # ce loss
+        total_loss = total_loss + prompt_loss.sum()
+
+        # loss on aq_k_list
+        if concepts is not None:
+            # concepts: [bs, 224, 224]
+            # logits, aq_k_list: [12*[bs, 197, ot]]
+            pass
+
+        # step
+        self.optimizer.zero_grad()
+        total_loss.backward()
+        self.optimizer.step()
+
+        return total_loss.detach(), logits
+
 
 # CODA-Prompt with memory replay
 class CODAPromptR(Prompt):
@@ -208,7 +333,7 @@ class CODAPromptR(Prompt):
                 for param_group in self.optimizer.param_groups:
                     self.log('LR:', param_group['lr'])
                 batch_timer.tic()
-                for i, (x, y, task) in enumerate(train_loader):
+                for i, sample in enumerate(train_loader):
 
                     # verify in train mode
                     self.model.train()
