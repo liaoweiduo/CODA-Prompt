@@ -84,8 +84,8 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPromptCond \
     --prompt_param 21 2 0.0 \
-    --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/coda-cond-ip-FPS21-reluaqk-cheating-mtl
+    --log_dir ${OUTDIR}/coda-cond-ip-FPS21-reluaqk-cheating-s10
+#    --oracle_flag --upper_bound_flag \
 # -mtl
 
 # DualPrompt

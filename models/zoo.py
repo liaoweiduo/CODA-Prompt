@@ -406,7 +406,7 @@ class PmoPrompt(CodaPromptCond):
     def forward(self, x_querry, l, x_block, train=False, task_id=None,
                 hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
                 pre_learn=False,
-                debug_mode=False, **kwargs):
+                debug_mode=False, return_aqk=False, **kwargs):
         """Differences:
             Use hard_obj_idx and hard_l to locate mask for prompt.
             hard_obj_idx can be -1 to select all old prompts.
@@ -416,7 +416,7 @@ class PmoPrompt(CodaPromptCond):
         """
         return self.forward_patch_wise(x_querry, l, x_block, train, task_id,
                                        hard_obj_idx, hard_l, mask, mask_mode,
-                                       pre_learn, debug_mode, **kwargs)
+                                       pre_learn, debug_mode, return_aqk=return_aqk, **kwargs)
 
         x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 768]
         # e prompts
@@ -650,11 +650,12 @@ class PmoPrompt(CodaPromptCond):
     def forward_patch_wise(self, x_querry, l, x_block, train=False, task_id=None,
                            hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
                            pre_learn=False,
-                           debug_mode=False, **kwargs):
+                           debug_mode=False, return_aqk=False, **kwargs):
         """Differences:
             cal Prompt for each patch
             hard_obj_idx can be a list without -1, or scaler -1
         """
+        aq_k = None
         x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 197, 768]
         # e prompts
         e_valid = False
@@ -735,6 +736,8 @@ class PmoPrompt(CodaPromptCond):
         else:
             p_return = None
 
+        if return_aqk:
+            return p_return, loss, x_block, aq_k
         # return
         return p_return, loss, x_block
 

@@ -63,6 +63,8 @@ class CFSTDataset(data.Dataset):
 
     def debug_mode(self):
         self.target_datasets = self.benchmark.val_datasets
+        if len(self.benchmark.label_info) == 4 and self.return_concepts:
+            self.target_sample_info = self.benchmark.label_info[3]['val_list']
 
     def __getitem__(self, index, simple = False):
         data = self.dataset[index]

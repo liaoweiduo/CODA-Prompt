@@ -920,19 +920,29 @@ class Auxiliary:
 
         imgs = []
         targets = []
+        concepts = []
         for idx in selected:
             data = self.source[idx]
             imgs.append(data[0])
             targets.append(data[1])
+            if len(data) > 2:
+                concepts.append(data[2])
         imgs = torch.stack(imgs)
         targets = np.stack(targets)
+        if len(concepts) > 1:
+            concepts = torch.stack(concepts)
 
         if sort:
             sorted_indexs = np.argsort(targets)
             imgs = imgs[sorted_indexs]
             targets = targets[sorted_indexs]
+            if len(concepts) > 1:
+                concepts = concepts[sorted_indexs]
 
-        return imgs, torch.from_numpy(targets)
+        if len(concepts) > 1:
+            return imgs, torch.from_numpy(targets), concepts
+        else:
+            return imgs, torch.from_numpy(targets)
 
 
 if __name__ == '__main__':

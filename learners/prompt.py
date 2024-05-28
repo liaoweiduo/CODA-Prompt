@@ -279,7 +279,7 @@ class CODAPromptCond(Prompt):
             selection_loss = []
             for aq_k in aq_k_list:
                 aq_k = aq_k[:, 1:, :]       # remove cls_token      [bs, 196, num_prompt]
-                selection_loss.append(bce(aq_k, concept_labels))
+                selection_loss.append(bce(aq_k, concept_labels) * 10)       # amplify 10 times
             selection_loss = torch.mean(torch.stack(selection_loss))
 
             total_loss = total_loss + selection_loss
