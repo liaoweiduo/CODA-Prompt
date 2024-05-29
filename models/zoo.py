@@ -266,7 +266,7 @@ class CodaPromptCond(CodaPrompt):
         # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
         a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
         # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
-        aq_k = torch.einsum('bpod,bod->bpo', a_querry, K) / torch.sqrt(K.shape[-1])
+        aq_k = torch.einsum('bpod,bod->bpo', a_querry, K) * (K.shape[-1] ** -0.5)
         # aq_k is alpha (cosine similarity) [bs, 197, ot]
         # sigmoid aq_k
         aq_k = F.sigmoid(aq_k)
