@@ -266,7 +266,7 @@ class CODAPromptCond(Prompt):
                 model = self.model
             except:
                 model = self.model.module
-            bce = nn.BCELoss()
+            selection_criterion = nn.BCELoss(reduction='none')
             patch_size = model.feat.patch_embed.patch_size      # (16, 16)
             num_prompts = aq_k_list[0].shape[-1]
 
@@ -279,7 +279,9 @@ class CODAPromptCond(Prompt):
             selection_loss = []
             for aq_k in aq_k_list:
                 aq_k = aq_k[:, 1:, :]       # remove cls_token      [bs, 196, num_prompt]
-                selection_loss.append(bce(aq_k, concept_labels) * 10)       # amplify 10 times
+                selection_loss.append(selection_criterion(aq_k, concept_labels).mean())
+                # selection_loss.append(selection_criterion(aq_k, concept_labels).sum(dim=2).mean())
+                # patch-wise mean # amplify 10 times
             selection_loss = torch.mean(torch.stack(selection_loss))
 
             total_loss = total_loss + selection_loss

@@ -244,6 +244,35 @@ class CodaPromptCond(CodaPrompt):
         # x_querry shape: [bs, 197, 768]
         return x_block
 
+    def attn(self, x_querry, A, K):
+        return self.attn_normal(x_querry, A, K)
+        ## relu(cos(QK^T))
+        # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
+        # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
+        a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
+        n_K = nn.functional.normalize(K, dim=-1)
+        q = nn.functional.normalize(a_querry, dim=-1)
+        # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
+        aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
+        # aq_k is alpha (cosine similarity) [bs, 197, ot]
+        # relu aq_k
+        aq_k = F.relu(aq_k, inplace=True)
+
+        return aq_k
+
+    def attn_normal(self, x_querry, A, K):
+        ## sigmoid(QK^T/sqrt(d))
+        # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
+        # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
+        a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
+        # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
+        aq_k = torch.einsum('bpod,bod->bpo', a_querry, K) / torch.sqrt(K.shape[-1])
+        # aq_k is alpha (cosine similarity) [bs, 197, ot]
+        # sigmoid aq_k
+        aq_k = F.sigmoid(aq_k)
+
+        return aq_k
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, **kwargs):
         """Differences:
             cal Prompt for each patch
@@ -296,16 +325,7 @@ class CodaPromptCond(CodaPrompt):
             A = torch.stack([A for _ in range(B)])
             p = torch.stack([p for _ in range(B)])
 
-            # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
-            # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
-            a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
-            n_K = nn.functional.normalize(K, dim=-1)
-            q = nn.functional.normalize(a_querry, dim=-1)
-            # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
-            aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
-            # aq_k is alpha (cosine similarity) [bs, 197, ot]
-            # relu aq_k
-            aq_k = F.relu(aq_k, inplace=True)
+            aq_k = self.attn(x_querry, A, K)     # [bs, 197, pt]
 
             # (b x p x ot x 1 x 1) * [b x 1 x ot x l x d] = (b x p x l x d) -> prompt = b x ot x l x d
             P_ = torch.einsum('bpo,bold->bpld', aq_k, p)
@@ -697,16 +717,7 @@ class PmoPrompt(CodaPromptCond):
                 A = torch.stack([A for _ in range(B)])
                 p = torch.stack([p for _ in range(B)])
 
-                # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
-                # (b x p x 1 x d) * soft([b x 1 x ot x d]) = (b x p x ot x d) -> attention = b x ot x d
-                a_querry = torch.einsum('bpd,bod->bpod', x_querry, A)
-                n_K = nn.functional.normalize(K, dim=-1)
-                q = nn.functional.normalize(a_querry, dim=-1)
-                # sum((b x p x ot x d) - [b x 1 x ot x d]) = (b x p x ot) -> key = b x ot x d
-                aq_k = torch.einsum('bpod,bod->bpo', q, n_K)
-                # aq_k is alpha (cosine similarity) [bs, 197, ot]
-                # relu aq_k
-                aq_k = F.relu(aq_k, inplace=True)
+                aq_k = self.attn(x_querry, A, K)        # [bs, 197, pt]
 
             if debug_mode:
                 print(f'aq_k in layer{l}: {aq_k.shape} \n{aq_k[0, 0]}')
