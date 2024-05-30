@@ -98,7 +98,7 @@ class Trainer:
             resize_imnet = True
         else:
             resize_imnet = False
-        return_concepts = True
+        return_concepts = False
         train_transform = dataloaders.utils.get_transform(dataset=args.dataset, phase='train', aug=args.train_aug, resize_imnet=resize_imnet)
         test_transform  = dataloaders.utils.get_transform(dataset=args.dataset, phase='test', aug=args.train_aug, resize_imnet=resize_imnet)
         self.train_dataset = Dataset(args.dataroot, train=True, lab = args.oracle_flag, tasks=self.tasks,
