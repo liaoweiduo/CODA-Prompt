@@ -142,7 +142,7 @@ class CODAPromptCond(Prompt):
         super(CODAPromptCond, self).__init__(learner_config)
 
         self.use_concept_labels = True
-        self.num_prompts = self.prompt_param[1][0]
+        self.num_prompts = int(self.prompt_param[1][0])     # 21
 
     def create_model(self):
         cfg = self.config
