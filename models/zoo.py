@@ -273,7 +273,14 @@ class CodaPromptCond(CodaPrompt):
 
         return aq_k
 
-    def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, **kwargs):
+    def attn_concepts(self, x_querry, concepts):
+        ## generate aq_k with concepts
+        # concepts [bs, 197, num_prompts]
+        # aq_k [bs, 197, ot]        # ot number of concepts
+        aq_k = concepts
+        return aq_k
+
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, concepts=None, **kwargs):
         """Differences:
             cal Prompt for each patch
         """
@@ -325,7 +332,10 @@ class CodaPromptCond(CodaPrompt):
             A = torch.stack([A for _ in range(B)])
             p = torch.stack([p for _ in range(B)])
 
-            aq_k = self.attn(x_querry, A, K)     # [bs, 197, pt]
+            if concepts is None:
+                aq_k = self.attn(x_querry, A, K)     # [bs, 197, pt]
+            else:
+                aq_k = self.attn_concepts(x_querry, concepts)
 
             # (b x p x ot x 1 x 1) * [b x 1 x ot x l x d] = (b x p x l x d) -> prompt = b x ot x l x d
             P_ = torch.einsum('bpo,bold->bpld', aq_k, p)

@@ -178,7 +178,12 @@ class NormalNN(nn.Module):
 
         orig_mode = model.training
         model.eval()
-        for i, (input, target, task) in enumerate(dataloader):
+        for i, sample in enumerate(dataloader):
+            concepts = None
+            if len(sample) == 3:
+                (input, target, task) = sample
+            else:   # contain concepts
+                (input, target, concepts, task) = sample
 
             if self.debug_mode:
                 print(f'batch{i}: \nlen: {len(target)} target:{(target.min(), target.max())} task:{(task.min(), task.max())}')
@@ -186,6 +191,8 @@ class NormalNN(nn.Module):
                 with torch.no_grad():
                     input = input.cuda()
                     target = target.cuda()
+                    if concepts is not None:
+                        concepts = concepts.cuda()  # [bs, 224, 224]        # do not use
             if task_in is None:
                 # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
                 output = model.forward(input)[:, :self.valid_out_dim]

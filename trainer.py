@@ -98,18 +98,21 @@ class Trainer:
             resize_imnet = True
         else:
             resize_imnet = False
+        return_concepts = True
         train_transform = dataloaders.utils.get_transform(dataset=args.dataset, phase='train', aug=args.train_aug, resize_imnet=resize_imnet)
         test_transform  = dataloaders.utils.get_transform(dataset=args.dataset, phase='test', aug=args.train_aug, resize_imnet=resize_imnet)
         self.train_dataset = Dataset(args.dataroot, train=True, lab = args.oracle_flag, tasks=self.tasks,
                                      download_flag=True if (args.debug_mode == 0) else False, transform=train_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
-                                     return_concepts=True       # mute for normal
+                                     return_concepts=return_concepts       # mute for normal
                                      )
         if args.debug_mode == 1:
             self.train_dataset.debug_mode()     # use val datasets to avoid large train set loading
         self.test_dataset  = Dataset(args.dataroot, train=False, lab = args.oracle_flag, tasks=self.tasks,
-                                download_flag=False, transform=test_transform, 
-                                seed=self.seed, rand_split=args.rand_split, validation=args.validation)
+                                     download_flag=False, transform=test_transform,
+                                     seed=self.seed, rand_split=args.rand_split, validation=args.validation,
+                                     return_concepts=return_concepts,       # mute for normal
+                                     )
 
         # for oracle
         self.oracle_flag = args.oracle_flag

@@ -390,9 +390,10 @@ class Debugger:
             n_obj = len(set(t_df.Obj_id))
             objs = np.array([[[[
                 t_df[(t_df.Pop_id == pop_idx) & (t_df.Obj_id == obj_idx) & (
-                            t_df.Inner_id == inner_idx) & (t_df.Epoch_id == epoch_idx)].Value.mean()
+                            t_df.Inner_id == inner_idx) & (t_df.Epoch_id == epoch_idx)].Value.iloc[0]    # .mean()
                 for pop_idx in range(n_pop)] for obj_idx in range(n_obj)]
                 for inner_idx in range(n_inner)] for epoch_idx in range(n_epoch)])
+            # .mean() is average over epoch, thus, not correct mo. just visualize the first one in this epoch
             # [n_epoch, n_inner, n_obj, n_pop]
             objs = np.nan_to_num(objs)
 
