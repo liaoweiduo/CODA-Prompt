@@ -274,8 +274,8 @@ class CODAPromptCond(Prompt):
             selection_loss = []
             selection_criterion = nn.BCELoss(reduction='none')
             for aq_k in aq_k_list:
-                aq_k = aq_k[:, 1:, :]       # remove cls_token      [bs, 196, num_prompt]
-                selection_loss.append(selection_criterion(aq_k, concepts).mean())
+                # remove cls_token      [bs, 196, num_prompt]
+                selection_loss.append(selection_criterion(aq_k[:, 1:, :], concepts[:, 1:, :]).mean())
                 # selection_loss.append(selection_criterion(aq_k, concept_labels).sum(dim=2).mean())
                 # patch-wise mean # amplify 10 times
             selection_loss = torch.mean(torch.stack(selection_loss))
@@ -289,7 +289,7 @@ class CODAPromptCond(Prompt):
 
         return total_loss.detach(), logits
 
-    def process_concepts(self, concepts, num_prompts):
+    def process_concepts(self, concepts, num_prompts, add_zero_cls_token=True):
         # from [bs, 224, 224] -> [bs, 197, num_prompts]
         try:
             model = self.model.module
@@ -303,6 +303,10 @@ class CODAPromptCond(Prompt):
         concept_labels = torch.max(torch.max(concept_labels, dim=-1)[0], dim=-1)[0].flatten(1)
         concept_labels = F.one_hot(concept_labels, num_classes=num_prompts + 1)[:, :, :num_prompts].float()
         # blank's label is num_prompts, thus do not use all prompts
+
+        # add zero for cls-token
+        if add_zero_cls_token:
+            concept_labels = torch.cat([torch.zeros_like(concept_labels[:, :1, :]), concept_labels], dim=1)
 
         return concept_labels
 
