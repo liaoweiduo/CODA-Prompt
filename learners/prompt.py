@@ -144,6 +144,15 @@ class CODAPromptCond(Prompt):
         self.use_concept_labels = True
         self.num_prompts = int(self.prompt_param[1][0])     # 21
 
+        try:
+            prompt = self.model.module.prompt
+            last = self.model.module.last
+        except:
+            prompt = self.model.prompt
+            last = self.model.last
+        self.model_prompt = prompt
+        self.model_last = last
+
     def create_model(self):
         cfg = self.config
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda_cond',prompt_param=self.prompt_param, use_vit_emb=False)
@@ -203,7 +212,7 @@ class CODAPromptCond(Prompt):
                     # model update
                     if not self.use_concept_labels:
                         concepts = None
-                    loss, output = self.update_model(x, y, concepts=concepts)
+                    loss, output, selection_loss = self.update_model(x, y, concepts=concepts)
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -219,10 +228,11 @@ class CODAPromptCond(Prompt):
                 self.log(
                     'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
                 self.log(
-                    ' * Loss {loss.avg:.3f} | '
+                    ' * Loss {loss.avg:.3f} | S Loss {selection_loss:.3f} | '
                     'Train Acc {acc.avg:.3f} | '
                     'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
+                        loss=losses, selection_loss=selection_loss, acc=acc, time=batch_time,
+                        i=len(train_loader)))
 
                 # reset
                 losses = AverageMeter()
@@ -247,7 +257,7 @@ class CODAPromptCond(Prompt):
         if concepts is not None:
             # concepts: [bs, 224, 224] -> [bs, 197, 21]
             concepts = self.process_concepts(concepts, self.num_prompts)
-        logits, prompt_loss, aq_k_list = self.model(inputs, train=True, return_aqk=True, concepts=concepts)
+        logits, prompt_loss, aq_k_list = self.model(inputs, train=True, return_aqk=True)    # , concepts=concepts
         logits = logits[:,:self.valid_out_dim]
 
         # # debug
@@ -266,8 +276,16 @@ class CODAPromptCond(Prompt):
         # ce loss
         total_loss = total_loss + prompt_loss.sum()
 
-        # loss on aq_k_list
-        if concepts is not None and False:      # explicitly use concept as selection.
+        # obtain grad on prompts
+        self.optimizer.zero_grad()
+        total_loss.backward(retain_graph=True)
+        # remove grad on KA
+        for key, param in self.model_prompt.named_parameters():
+            if 'e_k_' in key or 'e_a_' in key:
+                param.grad = None
+
+        # loss on KA -> aq_k_list
+        if concepts is not None:      # explicitly use concept as selection.
             # logits, aq_k_list: [12*[bs, 197, num_prompt]]
             # num_prompts = aq_k_list[0].shape[-1]
 
@@ -279,15 +297,17 @@ class CODAPromptCond(Prompt):
                 # selection_loss.append(selection_criterion(aq_k, concept_labels).sum(dim=2).mean())
                 # patch-wise mean # amplify 10 times
             selection_loss = torch.mean(torch.stack(selection_loss))
-
-            total_loss = total_loss + selection_loss
+            selection_loss.backward()
 
         # step
-        self.optimizer.zero_grad()
-        total_loss.backward()
+        # self.optimizer.zero_grad()
+        # total_loss.backward()
         self.optimizer.step()
 
-        return total_loss.detach(), logits
+        if concepts is not None:
+            return total_loss.detach(), logits, selection_loss.detach()
+        else:
+            return total_loss.detach(), logits
 
     def process_concepts(self, concepts, num_prompts, add_zero_cls_token=True):
         # from [bs, 224, 224] -> [bs, 197, num_prompts]

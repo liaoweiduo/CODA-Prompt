@@ -169,13 +169,18 @@ class CFSTDataset(data.Dataset):
         return label_str, [task_id, label_id]
 
     def get_concepts(self, index, mode='mask'):
-        """Obtain concepts [Option: 'label': list of concept labels; 'mask': img mask]"""
+        """Obtain concepts [Option:
+        'label': list of concept labels [2] ;
+        'mask': img mask [224, 224] ]
+        """
         if self.target_sample_info is not None and mode in ['label', 'mask']:
             map_int_concepts_label_to_str = self.benchmark.label_info[3]['map_int_concepts_label_to_str']
             concepts = self.target_sample_info[index][2]    # e.g., [10, 15]
             position = self.target_sample_info[index][3]    # e.g., [4, 3]
             concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
             if mode == 'label':
+                hot = torch.zeros((len(concepts), self.num_concepts)).long()    # [2, 21]
+                # hot[]
                 return torch.tensor(concepts), position, concepts_str
             elif mode == 'mask':
                 img_shape = self.benchmark.x_dim[1:]        # [3, 224, 224] -> [224, 224]
@@ -207,8 +212,8 @@ class CGQA(CFSTDataset):
             self.benchmark = cgqa.continual_training_benchmark(
                 1 if self.oracle_flag else 10, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
-                train_transform=cgqa.build_transform_for_vit(is_train=True),
-                eval_transform=cgqa.build_transform_for_vit(is_train=False),
+                # train_transform=cgqa.build_transform_for_vit(is_train=True),
+                # eval_transform=cgqa.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,
                 load_set=load_set,
@@ -217,8 +222,8 @@ class CGQA(CFSTDataset):
             self.benchmark = cgqa.fewshot_testing_benchmark(
                 50, image_size=(224, 224), mode=self.mode, task_offset=10,
                 seed=self.seed,
-                train_transform=cgqa.build_transform_for_vit(is_train=True),
-                eval_transform=cgqa.build_transform_for_vit(is_train=False),
+                # train_transform=cgqa.build_transform_for_vit(is_train=True),
+                # eval_transform=cgqa.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 load_set=load_set,
             )
@@ -235,8 +240,8 @@ class COBJ(CFSTDataset):
             self.benchmark = cobj.continual_training_benchmark(
                 1 if self.oracle_flag else 3, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
-                train_transform=cobj.build_transform_for_vit(is_train=True),
-                eval_transform=cobj.build_transform_for_vit(is_train=False),
+                # train_transform=cobj.build_transform_for_vit(is_train=True),
+                # eval_transform=cobj.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,
                 load_set=load_set,
@@ -245,8 +250,8 @@ class COBJ(CFSTDataset):
             self.benchmark = cobj.fewshot_testing_benchmark(
                 50, image_size=(224, 224), mode=self.mode, task_offset=3,
                 seed=self.seed,
-                train_transform=cobj.build_transform_for_vit(is_train=True),
-                eval_transform=cobj.build_transform_for_vit(is_train=False),
+                # train_transform=cobj.build_transform_for_vit(is_train=True),
+                # eval_transform=cobj.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 load_set=load_set,
             )

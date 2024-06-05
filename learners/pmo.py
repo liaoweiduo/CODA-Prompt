@@ -20,7 +20,7 @@ import pandas as pd
 from datetime import datetime
 
 from .default import NormalNN, weight_reset, accumulate_acc
-from .prompt import Prompt
+from .prompt import Prompt, CODAPromptCond
 from utils.schedulers import CosineSchedule
 from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_weights, normalize
 from models.losses import prototype_loss
@@ -29,7 +29,7 @@ import dataloaders
 
 
 # Our PMO (Pool & Multi-Objective)
-class PMOPrompt(Prompt):
+class PMOPrompt(CODAPromptCond):
     def __init__(self, learner_config):
         super(PMOPrompt, self).__init__(learner_config)
         # self.pool_size = self.prompt_param[1][3]        # =0 if do not enable pool hv loss
@@ -808,7 +808,7 @@ class PMOPrompt(Prompt):
             """
             _dict = {}
             while len([_dict[_l] for _l in _dict.keys() if _dict[_l].shape[0] >= min_samples]) < n_obj:
-                ss, ls = self.aux.sampling(self.num_aux_sampling, sort=True)  # [100, 3, 224, 224]
+                ss, ls, _ = self.aux.sampling(self.num_aux_sampling, sort=True)  # [100, 3, 224, 224]
                 for label in sorted(set(ls)):
                     if label in _dict:
                         _dict[label] = torch.cat((_dict[label], ss[ls == label]))
