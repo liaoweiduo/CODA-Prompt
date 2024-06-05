@@ -225,13 +225,12 @@ def ortho_penalty(t):
 
 
 class CodaPromptCond(CodaPrompt):
-    """i-Prompt-based conditioning"""
+    """image-wise conditioning"""
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(CodaPromptCond, self).__init__(emb_d, n_tasks, prompt_param, key_dim=key_dim)
 
     def handle_x_querry(self, x_querry, x_block, l):
-        # x_block shape: [bs, 197, 768]
-        return self.handle_x_querry_single_x(x_querry, x_block, l)
+        return self.handle_x_querry_avg_x(x_querry, x_block, l)
 
     def handle_x_querry_avg_x(self, x_querry, x_block, l):
         # use x_block to drive x_querry
@@ -243,6 +242,132 @@ class CodaPromptCond(CodaPrompt):
     def handle_x_querry_single_x(self, x_querry, x_block, l):
         # x_querry shape: [bs, 197, 768]
         return x_block
+
+    def attn(self, x_querry, A, K):
+        return self.attn_normal(x_querry, A, K)
+        ## relu(cos(QK^T))
+        # b = bs, d = 768, k = 100, l=8, o=1 or s
+        # (b x 1 x d) * soft([1 x ot x d]) = (b x ot x d) -> attention = ot x d
+        a_querry = torch.einsum('bd,od->bod', x_querry, A)
+        n_K = nn.functional.normalize(K, dim=-1)
+        q = nn.functional.normalize(a_querry, dim=-1)
+        # sum((b x ot x d) - [1 x ot x d]) = (b x ot) -> key = b x d
+        aq_k = torch.einsum('bod,od->bo', q, n_K)
+        # aq_k is alpha (cosine similarity) [bs, ot]
+        # relu aq_k
+        aq_k = F.relu(aq_k, inplace=True)
+
+        return aq_k
+
+    def attn_normal(self, x_querry, A, K):
+        ## sigmoid(QK^T/sqrt(d))
+        # b = bs, d = 768, k = 100, l=8, o=1 or s
+        # (b x 1 x d) * soft([1 x ot x d]) = (b x ot x d) -> attention = ot x d
+        a_querry = torch.einsum('bd,od->bod', x_querry, A)
+        # sum((b x ot x d) - [1 x ot x d]) = (b x ot) -> key = ot x d
+        aq_k = torch.einsum('bod,od->bo', a_querry, K) * (K.shape[-1] ** -0.5)
+        # aq_k is alpha (cosine similarity) [bs, ot]
+        # sigmoid aq_k
+        aq_k = F.sigmoid(aq_k)
+
+        return aq_k
+
+    def attn_concepts(self, x_querry, concepts):
+        ## generate aq_k with concepts
+        # concepts [bs, num_prompts]
+        # aq_k [bs, ot]        # ot: number of concepts
+        aq_k = concepts
+        return aq_k
+
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, concepts=None, **kwargs):
+        """Differences:
+            cal Prompt for each patch
+        """
+        x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 768]
+        # e prompts
+        e_valid = False
+        task_id = self.task_count
+        # if task_id is None:
+        #     task_id = self.task_count
+        aq_k = None
+
+        if l in self.e_layers:
+            e_valid = True
+            B, C = x_querry.shape  # [bs, 768]
+
+            K = getattr(self, f'e_k_{l}')  # [100, 768]
+            A = getattr(self, f'e_a_{l}')  # [100, 768]
+            p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+
+            if self.FPS:  # use all prompts
+                s = 0
+                f = self.e_pool_size
+            else:
+                pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+                s = int(self.task_count * pt)  # 10 prompts for one task
+                f = int((self.task_count + 1) * pt)
+            # s = int(self.task_count * pt)  # 10 prompts for one task
+            # f = int((self.task_count + 1) * pt)
+
+            # freeze/control past tasks
+            if train:
+                if self.task_count > 0:
+                    K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
+                    A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
+                    p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
+                else:
+                    K = K[s:f]
+                    A = A[s:f]
+                    p = p[s:f]
+            else:
+                K = K[0:f]
+                A = A[0:f]
+                p = p[0:f]
+            # K [100, 768] A [100, 768] p [100, 8, 768]
+
+            if concepts is None:
+                aq_k = self.attn(x_querry, A, K)     # [bs, pt]
+            else:
+                aq_k = self.attn_concepts(x_querry, concepts)
+
+            # (b x ot x 1 x 1) * [1 x ot x l x d] = (b x l x d) -> prompt = ot x l x d
+            P_ = torch.einsum('bo,old->bld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :i, :]
+            Ev = P_[:, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        if return_aqk:
+            return p_return, loss, x_block, aq_k
+        # return
+        return p_return, loss, x_block
+
+
+class PatchPrompt(CodaPromptCond):
+    """i-Prompt-based patch-wise conditioning"""
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+        super(PatchPrompt, self).__init__(emb_d, n_tasks, prompt_param, key_dim=key_dim)
+
+    def handle_x_querry(self, x_querry, x_block, l):
+        # x_block shape: [bs, 197, 768]
+        return self.handle_x_querry_single_x(x_querry, x_block, l)
 
     def attn(self, x_querry, A, K):
         return self.attn_normal(x_querry, A, K)
@@ -271,13 +396,6 @@ class CodaPromptCond(CodaPrompt):
         # sigmoid aq_k
         aq_k = F.sigmoid(aq_k)
 
-        return aq_k
-
-    def attn_concepts(self, x_querry, concepts):
-        ## generate aq_k with concepts
-        # concepts [bs, 197, num_prompts]
-        # aq_k [bs, 197, ot]        # ot number of concepts
-        aq_k = concepts
         return aq_k
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, concepts=None, **kwargs):
@@ -367,7 +485,7 @@ class CodaPromptCond(CodaPrompt):
         return p_return, loss, x_block
 
 
-class PmoPrompt(CodaPromptCond):
+class PmoPrompt(PatchPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
@@ -1113,6 +1231,8 @@ class ViTZoo(nn.Module):
             self.prompt = CodaPromptR(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'coda_cond':
             self.prompt = CodaPromptCond(768, prompt_param[0], prompt_param[1])
+        elif self.prompt_flag == 'patch':
+            self.prompt = PatchPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'pmo':
             self.prompt = PmoPrompt(768, prompt_param[0], prompt_param[1])
         else:

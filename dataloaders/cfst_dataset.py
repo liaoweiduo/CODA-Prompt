@@ -168,9 +168,9 @@ class CFSTDataset(data.Dataset):
         label_str = ori_label_2_str[ori_label]
         return label_str, [task_id, label_id]
 
-    def get_concepts(self, index, mode='mask'):
+    def get_concepts(self, index, mode='label'):
         """Obtain concepts [Option:
-        'label': list of concept labels [2] ;
+        'label': concept labels [1, 2] # additional dim for dataloader;
         'mask': img mask [224, 224] ]
         """
         if self.target_sample_info is not None and mode in ['label', 'mask']:
@@ -179,9 +179,9 @@ class CFSTDataset(data.Dataset):
             position = self.target_sample_info[index][3]    # e.g., [4, 3]
             concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
             if mode == 'label':
-                hot = torch.zeros((len(concepts), self.num_concepts)).long()    # [2, 21]
-                # hot[]
-                return torch.tensor(concepts), position, concepts_str
+                concepts = torch.tensor(concepts).long()
+                concepts = concepts.reshape(1, concepts.size(0))    # [1, 2]
+                return concepts, position, concepts_str
             elif mode == 'mask':
                 img_shape = self.benchmark.x_dim[1:]        # [3, 224, 224] -> [224, 224]
                 concepts = torch.tensor(concepts).long()

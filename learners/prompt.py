@@ -142,6 +142,7 @@ class CODAPromptCond(Prompt):
         super(CODAPromptCond, self).__init__(learner_config)
 
         self.use_concept_labels = True
+        self.use_concept_labels_as_aqk = False
         self.num_prompts = int(self.prompt_param[1][0])     # 21
 
         try:
@@ -255,9 +256,10 @@ class CODAPromptCond(Prompt):
 
     def update_model(self, inputs, targets, concepts=None):
         if concepts is not None:
-            # concepts: [bs, 224, 224] -> [bs, 197, 21]
+            # concepts: [bs, 1, 2] -> multi-hot float [bs, 21]
             concepts = self.process_concepts(concepts, self.num_prompts)
-        logits, prompt_loss, aq_k_list = self.model(inputs, train=True, return_aqk=True)    # , concepts=concepts
+        logits, prompt_loss, aq_k_list = self.model(inputs, train=True, return_aqk=True,
+                                                    concepts=concepts if self.use_concept_labels_as_aqk else None)
         logits = logits[:,:self.valid_out_dim]
 
         # # debug
@@ -285,17 +287,18 @@ class CODAPromptCond(Prompt):
                 param.grad = None
 
         # loss on KA -> aq_k_list
-        if concepts is not None:      # explicitly use concept as selection.
+        selection_loss = None
+        if self.use_concept_labels:      # explicitly use concept as selection.
             # logits, aq_k_list: [12*[bs, 197, num_prompt]]
             # num_prompts = aq_k_list[0].shape[-1]
 
             selection_loss = []
             selection_criterion = nn.BCELoss(reduction='none')
             for aq_k in aq_k_list:
-                # remove cls_token      [bs, 196, num_prompt]
-                selection_loss.append(selection_criterion(aq_k[:, 1:, :], concepts[:, 1:, :]).mean())
-                # selection_loss.append(selection_criterion(aq_k, concept_labels).sum(dim=2).mean())
-                # patch-wise mean # amplify 10 times
+                # remove cls_token      [bs, num_prompt21]
+                selection_loss.append(selection_criterion(aq_k, concepts).mean())
+                # selection_loss.append(selection_criterion(aq_k, concepts).sum(dim=1).mean())
+                # sample-wise mean # amplify num_prompts times
             selection_loss = torch.mean(torch.stack(selection_loss))
             selection_loss.backward()
 
@@ -304,33 +307,21 @@ class CODAPromptCond(Prompt):
         # total_loss.backward()
         self.optimizer.step()
 
-        if concepts is not None:
+        if selection_loss is not None:
             return total_loss.detach(), logits, selection_loss.detach()
         else:
             return total_loss.detach(), logits
 
-    def process_concepts(self, concepts, num_prompts, add_zero_cls_token=True):
-        # from [bs, 224, 224] -> [bs, 197, num_prompts]
-        try:
-            model = self.model.module
-        except:
-            model = self.model
-        patch_size = model.feat.patch_embed.patch_size  # (16, 16)
-
-        concept_labels = concepts.unfold(1, *patch_size).unfold(2, *patch_size)
-        # [bs, n_H, n_W, patch_size, patch_size]
-        # max pooling: generally all elements in one patch have same mask value  # [bs, 196]
-        concept_labels = torch.max(torch.max(concept_labels, dim=-1)[0], dim=-1)[0].flatten(1)
-        concept_labels = F.one_hot(concept_labels, num_classes=num_prompts + 1)[:, :, :num_prompts].float()
-        # blank's label is num_prompts, thus do not use all prompts
-
-        # add zero for cls-token
-        if add_zero_cls_token:
-            concept_labels = torch.cat([torch.zeros_like(concept_labels[:, :1, :]), concept_labels], dim=1)
+    def process_concepts(self, concepts, num_prompts):
+        # from [bs, 1, 2] -> [bs, num_prompts]  multi-hot float
+        concepts = concepts[:, 1]       # [bs, 2]
+        concept_labels = F.one_hot(concepts, num_prompts)
+        concept_labels = torch.sum(concept_labels, dim=1).float()
 
         return concept_labels
 
     def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False):
+        """Different: if use concept for forwarding"""
         # pass task to forward if task-awareness
         if model is None:
             model = self.model
@@ -357,12 +348,14 @@ class CODAPromptCond(Prompt):
                     input = input.cuda()
                     target = target.cuda()
                     if concepts is not None:
-                        concepts = concepts.cuda()  # [bs, 224, 224]
+                        concepts = concepts.cuda()  # [bs, 1, 2]
             if concepts is not None:
-                concepts = self.process_concepts(concepts, self.num_prompts)
+                concepts = self.process_concepts(concepts, self.num_prompts)        # [bs, 21]
             if task_in is None:
                 # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
-                output = model.forward(input)[:, :self.valid_out_dim]       # , concepts=concepts
+                output = model.forward(input,
+                                       concepts=concepts if self.use_concept_labels_as_aqk else None
+                                       )[:, :self.valid_out_dim]
 
                 # if self.debug_mode:
                 #     print(f'batch{i}: \noutput:{output}')
@@ -380,11 +373,15 @@ class CODAPromptCond(Prompt):
                 if len(target) > 1:
                     if task_global:
                         # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
-                        output = model.forward(input)[:, :self.valid_out_dim]       # , concepts=concepts
+                        output = model.forward(input,
+                                               concepts=concepts if self.use_concept_labels_as_aqk else None
+                                               )[:, :self.valid_out_dim]
                         acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
                     else:
                         # output = model.forward(input, task_id=task[0].item())[:, task_in]
-                        output = model.forward(input)[:, task_in]       # , concepts=concepts
+                        output = model.forward(input,
+                                               concepts=concepts if self.use_concept_labels_as_aqk else None
+                                               )[:, task_in]
                         acc = accumulate_acc(output, target - task_in[0], task, acc, topk=(self.top_k,))
 
         model.train(orig_mode)
@@ -393,6 +390,96 @@ class CODAPromptCond(Prompt):
             self.log(' * Val Acc {acc.avg:.3f}, Total time {time:.2f}'
                      .format(acc=acc, time=batch_timer.toc()))
         return acc.avg
+
+
+class PATCHPrompt(CODAPromptCond):
+
+    def __init__(self, learner_config):
+        super(PATCHPrompt, self).__init__(learner_config)
+
+    def create_model(self):
+        cfg = self.config
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'patch',prompt_param=self.prompt_param, use_vit_emb=False)
+        return model
+
+    def update_model(self, inputs, targets, concepts=None):
+        if concepts is not None:
+            # concepts: [bs, 224, 224] -> [bs, 197, 21]
+            concepts = self.process_concepts(concepts, self.num_prompts)
+        logits, prompt_loss, aq_k_list = self.model(inputs, train=True, return_aqk=True,
+                                                    concepts=concepts if self.use_concept_labels_as_aqk else None)
+        logits = logits[:,:self.valid_out_dim]
+
+        # # debug
+        # print(f'prompt_loss: {prompt_loss}')
+
+        # ce with heuristic
+        if self.memory_size == 0:       # replay-based will have old tasks which may cause inf loss
+            logits[:,:self.last_valid_out_dim] = -float('inf')
+            # logits[:,:self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+        dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
+        total_loss = self.criterion(logits, targets.long(), dw_cls)
+
+        # # debug
+        # print(f'classification loss: {total_loss}')
+
+        # ce loss
+        total_loss = total_loss + prompt_loss.sum()
+
+        # obtain grad on prompts
+        self.optimizer.zero_grad()
+        total_loss.backward(retain_graph=True)
+        # remove grad on KA
+        for key, param in self.model_prompt.named_parameters():
+            if 'e_k_' in key or 'e_a_' in key:
+                param.grad = None
+
+        # loss on KA -> aq_k_list
+        selection_loss = None
+        if self.use_concept_labels:      # explicitly use concept as selection.
+            # logits, aq_k_list: [12*[bs, 197, num_prompt]]
+            # num_prompts = aq_k_list[0].shape[-1]
+
+            selection_loss = []
+            selection_criterion = nn.BCELoss(reduction='none')
+            for aq_k in aq_k_list:
+                # remove cls_token      [bs, 196, num_prompt]
+                selection_loss.append(selection_criterion(aq_k[:, 1:, :], concepts[:, 1:, :]).mean())
+                # selection_loss.append(selection_criterion(aq_k, concept_labels).sum(dim=2).mean())
+                # patch-wise mean # amplify 10 times
+            selection_loss = torch.mean(torch.stack(selection_loss))
+            selection_loss.backward()
+
+        # step
+        # self.optimizer.zero_grad()
+        # total_loss.backward()
+        self.optimizer.step()
+
+        if selection_loss is not None:
+            return total_loss.detach(), logits, selection_loss.detach()
+        else:
+            return total_loss.detach(), logits
+
+    def process_concepts(self, concepts, num_prompts, add_zero_cls_token=True):
+        # from [bs, 224, 224] -> [bs, 197, num_prompts]
+        try:
+            model = self.model.module
+        except:
+            model = self.model
+        patch_size = model.feat.patch_embed.patch_size  # (16, 16)
+
+        concept_labels = concepts.unfold(1, *patch_size).unfold(2, *patch_size)
+        # [bs, n_H, n_W, patch_size, patch_size]
+        # max pooling: generally all elements in one patch have same mask value  # [bs, 196]
+        concept_labels = torch.max(torch.max(concept_labels, dim=-1)[0], dim=-1)[0].flatten(1)
+        concept_labels = F.one_hot(concept_labels, num_classes=num_prompts + 1)[:, :, :num_prompts].float()
+        # blank's label is num_prompts, thus do not use all prompts
+
+        # add zero for cls-token
+        if add_zero_cls_token:
+            concept_labels = torch.cat([torch.zeros_like(concept_labels[:, :1, :]), concept_labels], dim=1)
+
+        return concept_labels
 
 
 # CODA-Prompt with memory replay
