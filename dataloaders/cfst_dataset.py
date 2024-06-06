@@ -168,7 +168,7 @@ class CFSTDataset(data.Dataset):
         label_str = ori_label_2_str[ori_label]
         return label_str, [task_id, label_id]
 
-    def get_concepts(self, index, mode='mask'):
+    def get_concepts(self, index, mode='label'):
         """Obtain concepts [Option:
         'label': concept labels [1, 2] # additional dim for dataloader;
         'mask': img mask [224, 224] ]

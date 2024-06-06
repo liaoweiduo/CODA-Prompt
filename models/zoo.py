@@ -279,6 +279,14 @@ class CodaPromptCond(CodaPrompt):
         aq_k = concepts
         return aq_k
 
+    def apply_threshold(self, aq_k, threshold=0.6):
+        ## threshold to {0, 1} and no grad
+        aq_k_01 = aq_k.detach().clone()
+        aq_k_01[aq_k_01 < threshold] = 0
+        aq_k_01[aq_k_01 >= threshold] = 1
+
+        return aq_k_01
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, concepts=None, **kwargs):
         """Differences:
             cal Prompt for each patch
@@ -330,8 +338,11 @@ class CodaPromptCond(CodaPrompt):
             else:
                 aq_k = self.attn_concepts(x_querry, concepts)
 
+            # aq_k remain origin
+            aq_k_01 = self.apply_threshold(aq_k)
+
             # (b x ot x 1 x 1) * [1 x ot x l x d] = (b x l x d) -> prompt = ot x l x d
-            P_ = torch.einsum('bo,old->bld', aq_k, p)
+            P_ = torch.einsum('bo,old->bld', aq_k_01, p)
 
             # select prompts
             i = int(self.e_p_length / 2)  # 8 / 2
@@ -397,14 +408,6 @@ class PatchPrompt(CodaPromptCond):
         aq_k = F.sigmoid(aq_k)
 
         return aq_k
-
-    def apply_threshold(self, aq_k, threshold=0.6):
-        ## threshold to {0, 1} and no grad
-        aq_k_01 = aq_k.detach().clone()
-        aq_k_01[aq_k_01 < threshold] = 0
-        aq_k_01[aq_k_01 >= threshold] = 1
-
-        return aq_k_01
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None, return_aqk=False, concepts=None, **kwargs):
         """Differences:
