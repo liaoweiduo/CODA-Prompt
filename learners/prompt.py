@@ -314,7 +314,7 @@ class CODAPromptCond(Prompt):
 
     def process_concepts(self, concepts, num_prompts):
         # from [bs, 1, 2] -> [bs, num_prompts]  multi-hot float
-        concepts = concepts[:, 1]       # [bs, 2]
+        concepts = concepts[:, 0]       # [bs, 2]
         concept_labels = F.one_hot(concepts, num_prompts)
         concept_labels = torch.sum(concept_labels, dim=1).float()
 
