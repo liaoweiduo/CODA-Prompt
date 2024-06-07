@@ -292,17 +292,17 @@ class CODAPromptCond(Prompt):
 
         # loss on KA -> aq_k_list
         selection_loss = None
-        if self.use_concept_labels:      # explicitly use concept as selection.
+        if self.use_concept_labels and not self.use_concept_labels_as_aqk:      # explicitly use concept as selection.
             # logits, aq_k_list: [12*[bs, num_prompt]]
             # num_prompts = aq_k_list[0].shape[-1]
 
             selection_loss = []
             selection_criterion = nn.BCELoss(reduction='none')
             for aq_k in aq_k_list:
-                selection_loss.append(selection_criterion(aq_k, concepts).mean())
-                # selection_loss.append(selection_criterion(aq_k, concepts).sum(dim=1).mean())
+                # selection_loss.append(selection_criterion(aq_k, concepts).mean())
+                selection_loss.append(selection_criterion(aq_k, concepts).sum(dim=-1).mean())
                 # sample-wise mean # amplify num_prompts times
-            selection_loss = torch.mean(torch.stack(selection_loss))
+            selection_loss = torch.sum(torch.stack(selection_loss))     # sum over layers
             selection_loss.backward()
 
         # step
