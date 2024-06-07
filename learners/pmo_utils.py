@@ -676,11 +676,12 @@ def cal_min_crowding_distance(objs):
     return min(cd)
 
 
-def draw_objs(objs, labels=None, ax=None, legend=False):
+def draw_objs(objs, labels=None, ax=None, legend=False, ax_labels=None):
     """
     Example fig: fig, ax = plt.subplots(1, 1, subplot_kw={'polar': True}, figsize=(10, 10))
     objs: numpy with shape [obj_size, pop_size] or [n_iter, obj_size, pop_size] with gradient color
     labels: list of labels: ['p0', 'p1', 'm0', 'm1'] or label str list for all pop
+    ax_labels: label for axes, None to mute, otherwise specify
     """
     fig = None
     n_iter = 1
@@ -754,8 +755,10 @@ def draw_objs(objs, labels=None, ax=None, legend=False):
             n_iter = len(objs)
             pop_size = None     # differ for different class(iter)
 
-        # ax_labels = np.array([r'$f_{}$'.format(i) for i in range(obj_size)])
-        ax_labels = np.array([None for i in range(obj_size)])
+        if ax_labels is None:
+            ax_labels = np.array([None for i in range(obj_size)])
+        elif type(ax_labels) is str and ax_labels == 'default':
+            ax_labels = np.array([r'$f_{}$'.format(i) for i in range(obj_size)])
         angles = np.linspace(0, 2 * np.pi, obj_size, endpoint=False)
         ax.set_thetagrids(angles * 180 / np.pi, ax_labels, fontsize=12)
         angles = np.concatenate([angles, [angles[0]]])

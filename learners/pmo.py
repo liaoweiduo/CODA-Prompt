@@ -788,9 +788,9 @@ class PMOPrompt(CODAPromptCond):
         return mo_matrix[:, subfront_indices == idx]
 
     def obtain_mo_matrix_pop_prompt(self, hard_l=None, use_old_prompts=False,
-                                    mask: Optional[Union[float, str]] = 0., mask_mode='maskout',
+                                    mask: Optional[Union[float, str]] = None, mask_mode='use',
                                     train=True,
-                                    samples=None, labels=None):
+                                    samples=None, labels=None, return_nui_labels=False):
         """Return mo_matrix: Torch tensor [obj, pop]
         Obj: samples; Pop: prompts
         If use old obj, then add 1 individual to use all old prompts
@@ -896,6 +896,9 @@ class PMOPrompt(CODAPromptCond):
 
         # '''group objectives [n_samples, pop] -> [n_obj, pop]'''
         # ncc_losses = torch.stack([torch.mean(ncc_losses[labels == label], dim=0) for label in nui_labels])
+
+        if return_nui_labels:
+            return ncc_losses, nui_labels
 
         return ncc_losses
 

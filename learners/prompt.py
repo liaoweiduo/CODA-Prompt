@@ -142,7 +142,7 @@ class CODAPromptCond(Prompt):
         super(CODAPromptCond, self).__init__(learner_config)
 
         self.use_concept_labels = True
-        self.use_concept_labels_as_aqk = False
+        self.use_concept_labels_as_aqk = True       # for cheating
         self.num_prompts = int(self.prompt_param[1][0])     # 21
 
         try:
@@ -239,6 +239,10 @@ class CODAPromptCond(Prompt):
                 losses = AverageMeter()
                 acc = AverageMeter()
 
+                # validation
+                if val_loader is not None:
+                    val_acc = self.validation(val_loader)
+
         self.model.eval()
 
         self.last_valid_out_dim = self.valid_out_dim
@@ -289,13 +293,12 @@ class CODAPromptCond(Prompt):
         # loss on KA -> aq_k_list
         selection_loss = None
         if self.use_concept_labels:      # explicitly use concept as selection.
-            # logits, aq_k_list: [12*[bs, 197, num_prompt]]
+            # logits, aq_k_list: [12*[bs, num_prompt]]
             # num_prompts = aq_k_list[0].shape[-1]
 
             selection_loss = []
             selection_criterion = nn.BCELoss(reduction='none')
             for aq_k in aq_k_list:
-                # remove cls_token      [bs, num_prompt21]
                 selection_loss.append(selection_criterion(aq_k, concepts).mean())
                 # selection_loss.append(selection_criterion(aq_k, concepts).sum(dim=1).mean())
                 # sample-wise mean # amplify num_prompts times
@@ -403,6 +406,7 @@ class PATCHPrompt(CODAPromptCond):
         return model
 
     def update_model(self, inputs, targets, concepts=None):
+        """Difference: selection loss becomes patch-wise"""
         if concepts is not None:
             # concepts: [bs, 224, 224] -> [bs, 197, 21]
             concepts = self.process_concepts(concepts, self.num_prompts)

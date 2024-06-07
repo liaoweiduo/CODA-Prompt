@@ -499,7 +499,7 @@ class PatchPrompt(CodaPromptCond):
         return p_return, loss, x_block
 
 
-class PmoPrompt(PatchPrompt):
+class PmoPrompt(CodaPromptCond):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
@@ -565,10 +565,39 @@ class PmoPrompt(PatchPrompt):
 
         return K, A, p, s, f
 
+    def attn(self, x_querry, A, K):
+        return self.attn_normal(x_querry, A, K)
+        ## relu(cos(QK^T))
+        # b = bs, p=197, d = 768, k = 100, l=8, o=1 or s
+        # (b x 1 x d) * soft([b x ot x d]) = (b x ot x d) -> attention = b x ot x d
+        a_querry = torch.einsum('bd,bod->bod', x_querry, A)
+        n_K = nn.functional.normalize(K, dim=-1)
+        q = nn.functional.normalize(a_querry, dim=-1)
+        # sum((b x ot x d) - [b x ot x d]) = (b x ot) -> key = b x ot x d
+        aq_k = torch.einsum('bod,bod->bo', q, n_K)
+        # aq_k is alpha (cosine similarity) [bs, ot]
+        # relu aq_k
+        aq_k = F.relu(aq_k, inplace=True)
+
+        return aq_k
+
+    def attn_normal(self, x_querry, A, K):
+        ## sigmoid(QK^T/sqrt(d))
+        # b = bs, d = 768, k = 100, l=8, o=1 or s
+        # (b x 1 x d) * soft([b x ot x d]) = (b x ot x d) -> attention = b x ot x d
+        a_querry = torch.einsum('bd,bod->bod', x_querry, A)
+        # sum((b x ot x d) - [b x ot x d]) = (b x ot) -> key = b x ot x d
+        aq_k = torch.einsum('bod,bod->bo', a_querry, K) * (K.shape[-1] ** -0.5)
+        # aq_k is alpha (cosine similarity) [bs, ot]
+        # sigmoid aq_k
+        aq_k = F.sigmoid(aq_k)
+
+        return aq_k
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None,
                 hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
                 pre_learn=False,
-                debug_mode=False, return_aqk=False, **kwargs):
+                debug_mode=False, return_aqk=False, concepts=None, **kwargs):
         """Differences:
             Use hard_obj_idx and hard_l to locate mask for prompt.
             hard_obj_idx can be -1 to select all old prompts.
@@ -576,9 +605,10 @@ class PmoPrompt(PatchPrompt):
             mask_mode: 'maskout' or 'use'
             pre_learn: True to only use ViT or old prompt
         """
-        return self.forward_patch_wise(x_querry, l, x_block, train, task_id,
+        return self.forward_image_wise(x_querry, l, x_block, train, task_id,
                                        hard_obj_idx, hard_l, mask, mask_mode,
-                                       pre_learn, debug_mode, return_aqk=return_aqk, **kwargs)
+                                       pre_learn, debug_mode, return_aqk=return_aqk, concepts=concepts,
+                                       **kwargs)
 
         x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 768]
         # e prompts
@@ -806,6 +836,96 @@ class PmoPrompt(PatchPrompt):
         else:
             p_return = None
 
+        if return_aqk:
+            return p_return, loss, x_block, aq_k
+        # return
+        return p_return, loss, x_block
+
+    def forward_image_wise(self, x_querry, l, x_block, train=False, task_id=None,
+                           hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
+                           pre_learn=False,
+                           debug_mode=False, return_aqk=False, concepts=None, **kwargs):
+        """Differences:
+            more efficient than forward; mask=None and mask_mode='use'. other patterns are not impl-ed.
+        """
+        aq_k = None
+        x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 768]
+        # e prompts
+        e_valid = False
+        task_id = self.task_count
+        # if task_id is None:
+        #     task_id = self.task_count
+
+        if pre_learn and (self.task_count == 0 or self.FPS):      # pre_learn and first task: use vit
+            return None, 0, x_block     # p_return, loss, x_block
+
+        if l in self.e_layers:
+            e_valid = True
+            B, C = x_querry.shape  # [bs, 768]
+            K, A, p, s, f = self.KAPselection(l, pre_learn, train)
+            # K [100, 768] A [100, 768] p [100, 8, 768]
+
+            # rearrange KAp, according to obj for each x
+            if hard_obj_idx is not None and (hard_l == l or hard_l is None):
+                assert ((type(hard_obj_idx) is int and hard_obj_idx == -1) or len(hard_obj_idx) == len(x_querry)
+                        ), f"hard_obj_idx: {hard_obj_idx}; x_querry: {x_querry.shape}"
+                ot = int(self.n_prompt_per_task / self.n_obj)  # number of prompts for one obj: 1
+                # K A -> [bs, ot, 768], p -> [bs, ot, 8, 768]
+                if type(hard_obj_idx) is int and hard_obj_idx == -1:
+                    if s == 0:      # first task no conditioning
+                        return None, 0, x_block     # p_return, loss, x_block
+                    p = torch.stack([p[:s] for _ in range(B)])
+                else:
+                    # K = torch.stack([K[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+                    # A = torch.stack([A[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+                    p = torch.stack([p[(idx * ot): ((idx+1) * ot)] for idx in hard_obj_idx])
+
+                aq_k = torch.ones((B, ot), device=p.device)
+
+            else:       # use all prompts
+                # K A -> [bs, 10->100, 768], p -> [bs, 10->100, 8, 768]
+                K = torch.stack([K for _ in range(B)])
+                A = torch.stack([A for _ in range(B)])
+                p = torch.stack([p for _ in range(B)])
+
+                if concepts is None:
+                    aq_k = self.attn(x_querry, A, K)  # [bs, pt]
+                else:
+                    aq_k = self.attn_concepts(x_querry, concepts)
+
+            if debug_mode:
+                print(f'aq_k in layer{l}: {aq_k.shape} \n{aq_k[0]}')
+                # print(f'p in layer{l}: {p.shape} \n{p[:, 0, 0]}')
+
+            # # aq_k remain origin
+            # aq_k_01 = self.apply_threshold(aq_k)
+
+            # (b x ot x 1 x 1) * [b x ot x l x d] = (b x l x d) -> prompt = b x ot x l x d
+            P_ = torch.einsum('bo,bold->bld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :i, :]
+            Ev = P_[:, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        if return_aqk:
+            return p_return, loss, x_block, aq_k
         # return
         return p_return, loss, x_block
 

@@ -212,8 +212,8 @@ class CGQA(CFSTDataset):
             self.benchmark = cgqa.continual_training_benchmark(
                 1 if self.oracle_flag else 10, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
-                # train_transform=cgqa.build_transform_for_vit(is_train=True),
-                # eval_transform=cgqa.build_transform_for_vit(is_train=False),
+                train_transform=cgqa.build_transform_for_vit(is_train=True),
+                eval_transform=cgqa.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,
                 load_set=load_set,
@@ -222,8 +222,8 @@ class CGQA(CFSTDataset):
             self.benchmark = cgqa.fewshot_testing_benchmark(
                 50, image_size=(224, 224), mode=self.mode, task_offset=10,
                 seed=self.seed,
-                # train_transform=cgqa.build_transform_for_vit(is_train=True),
-                # eval_transform=cgqa.build_transform_for_vit(is_train=False),
+                train_transform=cgqa.build_transform_for_vit(is_train=True),
+                eval_transform=cgqa.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 load_set=load_set,
             )
@@ -240,8 +240,8 @@ class COBJ(CFSTDataset):
             self.benchmark = cobj.continual_training_benchmark(
                 1 if self.oracle_flag else 3, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
-                # train_transform=cobj.build_transform_for_vit(is_train=True),
-                # eval_transform=cobj.build_transform_for_vit(is_train=False),
+                train_transform=cobj.build_transform_for_vit(is_train=True),
+                eval_transform=cobj.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,
                 load_set=load_set,
@@ -250,8 +250,8 @@ class COBJ(CFSTDataset):
             self.benchmark = cobj.fewshot_testing_benchmark(
                 50, image_size=(224, 224), mode=self.mode, task_offset=3,
                 seed=self.seed,
-                # train_transform=cobj.build_transform_for_vit(is_train=True),
-                # eval_transform=cobj.build_transform_for_vit(is_train=False),
+                train_transform=cobj.build_transform_for_vit(is_train=True),
+                eval_transform=cobj.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 load_set=load_set,
             )

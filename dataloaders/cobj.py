@@ -39,6 +39,7 @@ def _build_default_transform(image_size=(128, 228), is_train=True, normalize=Tru
     _train_transform = [
             transforms.Resize(image_size),  # allow reshape but not equal scaling
             transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
             transforms.ToTensor(),
     ]
     _eval_transform = [
