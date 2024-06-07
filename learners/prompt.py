@@ -232,7 +232,7 @@ class CODAPromptCond(Prompt):
                     ' * Loss {loss.avg:.3f} | S Loss {selection_loss:.3f} | '
                     'Train Acc {acc.avg:.3f} | '
                     'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, selection_loss=selection_loss, acc=acc, time=batch_time,
+                        loss=losses, selection_loss=selection_loss if selection_loss else 0, acc=acc, time=batch_time,
                         i=len(train_loader)))
 
                 # reset
@@ -313,7 +313,7 @@ class CODAPromptCond(Prompt):
         if selection_loss is not None:
             return total_loss.detach(), logits, selection_loss.detach()
         else:
-            return total_loss.detach(), logits
+            return total_loss.detach(), logits, selection_loss
 
     def process_concepts(self, concepts, num_prompts):
         # from [bs, 1, 2] -> [bs, num_prompts]  multi-hot float
@@ -462,7 +462,7 @@ class PATCHPrompt(CODAPromptCond):
         if selection_loss is not None:
             return total_loss.detach(), logits, selection_loss.detach()
         else:
-            return total_loss.detach(), logits
+            return total_loss.detach(), logits, selection_loss
 
     def process_concepts(self, concepts, num_prompts, add_zero_cls_token=True):
         # from [bs, 224, 224] -> [bs, 197, num_prompts]
