@@ -142,7 +142,7 @@ class CODAPromptCond(Prompt):
         super(CODAPromptCond, self).__init__(learner_config)
 
         self.use_concept_labels = True
-        self.use_concept_labels_as_aqk = True       # for cheating
+        self.use_concept_labels_as_aqk = False       # for cheating
         self.num_prompts = int(self.prompt_param[1][0])     # 21
 
         try:
