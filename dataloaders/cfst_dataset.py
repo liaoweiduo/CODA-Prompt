@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 import torch.utils.data as data
+from torch.nn import functional as F
 from datetime import datetime
 
 from learners.pmo_utils import Pool
@@ -176,15 +177,16 @@ class CFSTDataset(data.Dataset):
         if self.target_sample_info is not None and mode in ['label', 'mask']:
             map_int_concepts_label_to_str = self.benchmark.label_info[3]['map_int_concepts_label_to_str']
             concepts = self.target_sample_info[index][2]    # e.g., [10, 15]
-            position = self.target_sample_info[index][3]    # e.g., [4, 3]
             concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
             if mode == 'label':
                 concepts = torch.tensor(concepts).long()
-                concepts = concepts.reshape(1, concepts.size(0))    # [1, 2]
-                return concepts, position, concepts_str
+                concepts = self.process_concepts(concepts, self.num_concepts)
+                concepts = concepts.reshape(1, concepts.size(0))    # shape [1, 21]
+                return concepts, None, concepts_str
             elif mode == 'mask':
                 img_shape = self.benchmark.x_dim[1:]        # [3, 224, 224] -> [224, 224]
                 concepts = torch.tensor(concepts).long()
+                position = self.target_sample_info[index][3]    # e.g., [4, 3]
                 position = torch.tensor(position).long()
                 mask = torch.zeros(4).long()
                 mask[position-1] = concepts
@@ -194,6 +196,13 @@ class CFSTDataset(data.Dataset):
                 return mask, position.numpy().tolist(), concepts_str
 
         return None, None, None
+
+    def process_concepts(self, concepts, num_prompts):
+        # e.g, from [0, 1, 2] -> [num_prompts]  multi-hot float
+        concept_labels = F.one_hot(concepts, num_prompts)   # [n_c, num_prompts]
+        concept_labels = torch.sum(concept_labels, dim=0).float()   # [num_prompts]
+
+        return concept_labels
 
     def load(self):
         """need to implement,

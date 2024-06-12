@@ -156,7 +156,8 @@ def continual_training_benchmark(
                                                 num_samples_each_label=num_samples_each_label,
                                                 load_set=load_set)
     train_set, val_set, test_set = datasets['train'], datasets['val'], datasets['test']
-    label_set, map_tuple_label_to_int, map_int_label_to_tuple = label_info
+    (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info
+     ) = label_info
 
     '''generate class order for continual tasks'''
     num_classes = len(label_set)
@@ -334,7 +335,7 @@ def fewshot_testing_benchmark(
     datasets, label_info = _get_obj365_datasets(dataset_root, mode=mode, image_size=image_size,
                                                 load_set=load_set)
     dataset = datasets['dataset']
-    label_set, map_tuple_label_to_int, map_int_label_to_tuple = label_info
+    label_set, map_tuple_label_to_int, map_int_label_to_tuple, _ = label_info
 
     '''generate fewshot tasks'''
     num_classes = len(label_set)
@@ -465,6 +466,10 @@ def _get_obj365_datasets(
     """
     img_folder_path = os.path.join(dataset_root, "COBJ", "annotations")
 
+    def preprocess_concept_to_integer(img_info, mapping_tuple_label_to_int_concepts):
+        for item in img_info:
+            item['concepts'] = [mapping_tuple_label_to_int_concepts[concept] for concept in item['label']]
+
     def preprocess_label_to_integer(img_info, mapping_tuple_label_to_int, prefix=''):
         for item in img_info:
             item['image'] = f"{prefix}{item['imageId']}.jpg"
@@ -474,7 +479,7 @@ def _get_obj365_datasets(
         """generate train_list and test_list: list with img tuple (path, label)"""
         img_tuples = []
         for item in images:
-            instance_tuple = (item['image'], item['label'])     # , item['boundingBox']
+            instance_tuple = (item['image'], item['label'], item['concepts'])     # , item['boundingBox']
             img_tuples.append(instance_tuple)
         return img_tuples
 
@@ -503,6 +508,14 @@ def _get_obj365_datasets(
         # {('building', 'sign'): 0, ('building', 'sky'): 1, ...}
         map_int_label_to_tuple = dict((idx + label_offset, item) for idx, item in enumerate(label_set))
         # {0: ('building', 'sign'), 1: ('building', 'sky'),...}
+        '''preprocess concepts to integers'''
+        concept_set = sorted(list(set([concept for item in val_img_info for concept in item['label']])))
+        mapping_tuple_label_to_int_concepts = dict((item, idx) for idx, item in enumerate(concept_set))
+        map_int_concepts_label_to_str = dict((idx, item) for idx, item in enumerate(concept_set))
+
+        preprocess_concept_to_integer(train_img_info, mapping_tuple_label_to_int_concepts)
+        preprocess_concept_to_integer(val_img_info, mapping_tuple_label_to_int_concepts)
+        preprocess_concept_to_integer(test_img_info, mapping_tuple_label_to_int_concepts)
 
         preprocess_label_to_integer(train_img_info, map_tuple_label_to_int, prefix='continual/train/')
         preprocess_label_to_integer(val_img_info, map_tuple_label_to_int, prefix='continual/val/')
@@ -566,7 +579,12 @@ def _get_obj365_datasets(
         )
 
         datasets = {'train': train_set, 'val': val_set, 'test': test_set}
-        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple)
+        meta_info = {
+            "concept_set": concept_set,
+            "mapping_tuple_label_to_int_concepts": mapping_tuple_label_to_int_concepts,
+            "map_int_concepts_label_to_str": map_int_concepts_label_to_str,
+            "train_list": train_list, "val_list": val_list, "test_list": test_list}
+        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
     elif mode in ['sys', 'pro', 'non', 'noc']:   # no sub
         json_name = {'sys': 'O365_sys_fewshot_crop.json', 'pro': 'O365_pro_fewshot_crop.json',
@@ -681,7 +699,7 @@ class PathsDataset(torch.utils.data.Dataset):
 
         print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] DONE.')
 
-    def __getitem__(self, index):
+    def __getitem__(self, index, return_concepts=False):
         """
         Returns next element in the dataset given the current index.
 
@@ -692,9 +710,10 @@ class PathsDataset(torch.utils.data.Dataset):
         img_description = self.imgs[index]
         impath = img_description[0]
         target = img_description[1]
-        bbox = None
-        if len(img_description) > 2:
-            bbox = img_description[2]
+        bbox = None     # not include
+        concepts = None
+        if len(img_description) == 3:
+            concepts = img_description[2]
 
         if self.loaded:
             img = impath
@@ -715,7 +734,10 @@ class PathsDataset(torch.utils.data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return img, target, index
+        if return_concepts:
+            return img, target, index, concepts
+        else:
+            return img, target, index
 
     def __len__(self):
         """

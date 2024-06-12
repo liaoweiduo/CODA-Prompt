@@ -27,14 +27,14 @@ mkdir -p $OUTDIR
 #    arg 5 = mask: 0.0; -10000: randn; -10001: uniform; -10002: ortho; -10003: None
 #    arg 6 = mask_mode: 0: maskout or 1: use
 #    arg 7 = hv coeff
-LEARNERTYPE=pmo
-LEARNERNAME=PMOPrompt
-LOGNAME=pmo-full-min-use-pNone-bs32-e10-1-8-3-c1
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 0.0 3 -10003 1 1.0 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
+#LEARNERTYPE=pmo
+#LEARNERNAME=PMOPrompt
+#LOGNAME=pmo-full-min-use-pNone-bs32-e10-1-8-3-c1
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --prompt_param 100 8 0.0 3 -10003 1 1.0 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
 
 # CODA-P-Replay
 #
@@ -84,6 +84,22 @@ date
 #      --mode ${mode}
 #  date
 #done
+
+
+# CODA-P-COND
+#
+# prompt parameter args:
+#    arg 1 = prompt component pool size     20 for fixed prompt size
+#    arg 2 = prompt length
+#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
+#    --prompt_param 21 8 0.0 \
+#    --oracle_flag --upper_bound_flag \
+# -mtl
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPromptCond \
+    --prompt_param 20 8 0.0 \
+    --oracle_flag --upper_bound_flag \
+    --log_dir ${OUTDIR}/cobj-coda-cond-FPS20-normalattn-oracle-epoch10-cheating-mtl-1
 
 
 # DualPrompt

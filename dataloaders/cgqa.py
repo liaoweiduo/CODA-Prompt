@@ -480,7 +480,7 @@ def _get_gqa_datasets(
         """generate train_list and test_list: list with img tuple (path, label)"""
         img_tuples = []
         for item in images:
-            instance_tuple = (item['image'], item['label'], item['concepts'], item['position'])     # , item['boundingBox']
+            instance_tuple = (item['image'], item['label'], item['concepts'], item['position'])  # , item['boundingBox']
             img_tuples.append(instance_tuple)
         return img_tuples
 

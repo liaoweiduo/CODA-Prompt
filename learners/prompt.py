@@ -260,7 +260,7 @@ class CODAPromptCond(Prompt):
 
     def update_model(self, inputs, targets, concepts=None):
         if concepts is not None:
-            # concepts: [bs, 1, 2] -> multi-hot float [bs, 21]
+            # concepts: [bs, 1, 21] -> multi-hot float [bs, 21]
             concepts = self.process_concepts(concepts, self.num_prompts)
         logits, prompt_loss, aq_k_list = self.model(inputs, train=True, return_aqk=True,
                                                     concepts=concepts if self.use_concept_labels_as_aqk else None)
@@ -316,10 +316,13 @@ class CODAPromptCond(Prompt):
             return total_loss.detach(), logits, selection_loss
 
     def process_concepts(self, concepts, num_prompts):
-        # from [bs, 1, 2] -> [bs, num_prompts]  multi-hot float
-        concepts = concepts[:, 0]       # [bs, 2]
-        concept_labels = F.one_hot(concepts, num_prompts)
-        concept_labels = torch.sum(concept_labels, dim=1).float()
+        # # from [bs, 1, 2] -> [bs, num_prompts]  multi-hot float
+        # concepts = concepts[:, 0]       # [bs, 2]
+        # concept_labels = F.one_hot(concepts, num_prompts)
+        # concept_labels = torch.sum(concept_labels, dim=1).float()
+
+        # # from [bs, 1, num_prompts] -> [bs, num_prompts]  multi-hot float
+        concept_labels = concepts[:, 0]       # [bs, 21]
 
         return concept_labels
 
@@ -351,7 +354,7 @@ class CODAPromptCond(Prompt):
                     input = input.cuda()
                     target = target.cuda()
                     if concepts is not None:
-                        concepts = concepts.cuda()  # [bs, 1, 2]
+                        concepts = concepts.cuda()  # [bs, 1, 21]
             if concepts is not None:
                 concepts = self.process_concepts(concepts, self.num_prompts)        # [bs, 21]
             if task_in is None:
