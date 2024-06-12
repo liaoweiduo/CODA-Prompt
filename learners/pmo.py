@@ -789,11 +789,14 @@ class PMOPrompt(CODAPromptCond):
 
     def obtain_mo_matrix_pop_prompt(self, hard_l=None, use_old_prompts=False,
                                     mask: Optional[Union[float, str]] = None, mask_mode='use',
+                                    dis='cos',
                                     train=True,
-                                    samples=None, labels=None, return_nui_labels=False):
+                                    samples=None, labels=None, addition_concepts=None,
+                                    return_nui_labels=False):
         """Return mo_matrix: Torch tensor [obj, pop]
         Obj: samples; Pop: prompts
         If use old obj, then add 1 individual to use all old prompts
+        If addition_concepts is not None: [num, n_prompts], append and return [obj, pop+num]
         """
         if self.n_obj <= 0:
             return None
@@ -841,15 +844,16 @@ class PMOPrompt(CODAPromptCond):
         nui_labels = torch.unique(labels)
         # check if any label has only 1 sample
         check = True
+        flag = []
         for label in nui_labels:
             if len(labels[labels == label]) < 2:
                 check = False
+                flag.append(label.item())
         if not check:
+            print(f'mo: label ({flag}) has/have only 1 sample')
             return None
 
         '''forward all prompts get objectives [n_samples, pop], pop may with old prompt'''
-        ncc_losses = []
-
         if self.FPS:
             old_objs = []
             new_objs = list(range(self.n_obj_avail))
@@ -859,49 +863,135 @@ class PMOPrompt(CODAPromptCond):
         target_objs = old_objs + new_objs if use_old_prompts else new_objs
 
         # n_obj = self.n_obj
-
+        ncc_losses = None
         if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
             # rearrange samples labels and hard_obj_idx
-            samples = torch.stack([samples for _ in range(len(target_objs))],
-                                  dim=1).reshape(-1, *samples.shape[1:])
+            stack_samples = torch.stack([samples for _ in range(len(target_objs))],
+                                        dim=1).reshape(-1, *samples.shape[1:])
             # [bs * n_obj, 3, 224, 224]
             prompt_idxs = torch.as_tensor([obj for _ in range(n_samples) for obj in target_objs]).cuda()
             # int64 tensor [bs * n_obj] -> thus can be separated to diff devices
 
             if self.debug_mode:
-                print('mo samples', samples.shape)
+                print('mo samples', stack_samples.shape)
 
             # pen: penultimate features; train: same forward as batch training.
-            out = self.model(samples, pen=True, train=train,
+            out = self.model(stack_samples, pen=False, train=train,
                              hard_obj_idx=prompt_idxs, hard_l=hard_l,
                              mask=mask, mask_mode=mask_mode,
                              # register_blk=hard_l,
                              debug_mode=self.debug_mode)
-            logits = out[0] if train else out       # pen=True, logits is features: [bs*n_prompt, 768]
+            # pen=True, out is features: [bs*n_prompt, 768]
+            # pen=False, out is logits: [bs*n_prompt, 100]
+            out = out[0] if train else out
 
             ## pair-wise sim loss
-            logits = logits.reshape(n_samples, len(target_objs), logits.shape[-1])   # [bs, n_prompt, 768]
-            # logits = logits / torch.norm(logits, dim=2, keepdim=True)     # [bs, n_prompt, 768]
-            cos = nn.CosineSimilarity(dim=2, eps=1e-6)
-            # group according to labels
-            # objs = []
-            for label in nui_labels:
-                label_logits = logits[labels == label]          # [n_img, n_prompt, 768]
-                # for each group, cal cos sim = avg cos sim (avg(label_logits), label_logits)
-                label_logits_anchor = torch.mean(label_logits, dim=0)       # [n_prompt, 768]
-                cos_sim = -cos(label_logits_anchor, label_logits) + 1  # [n_img, n_prompt]
-                # +1 to scope [-1, 1] -> [0, 2]
-                ncc_losses.append(torch.mean(cos_sim, dim=0))     # [n_prompt]
-            ncc_losses = torch.stack(ncc_losses)        # [n_label(obj), n_prompt (new, old)]
+            out = out.reshape(n_samples, len(target_objs), out.shape[-1])   # [bs, n_prompt, 100]
 
-        # '''group objectives [n_samples, pop] -> [n_obj, pop]'''
-        # ncc_losses = torch.stack([torch.mean(ncc_losses[labels == label], dim=0) for label in nui_labels])
+            if addition_concepts is not None:       # [n_concepts, 21]
+                n_concepts = addition_concepts.size(0)
+                out = [out]
+                stack_samples = torch.stack([samples for _ in range(n_concepts)],
+                                            dim=1).reshape(-1, *samples.shape[1:])
+                # [bs*n_concepts, 100]
+                addition_concepts = torch.stack([addition_concepts for _ in range(n_samples)],
+                                                dim=0).reshape(-1, *addition_concepts.shape[1:])
+                # [bs*n_concepts, 21]
+
+                if self.debug_mode:
+                    print('addition concepts mo samples', stack_samples.shape)
+
+                out_ = self.model(stack_samples, pen=False, train=train,
+                                 hard_l=hard_l,
+                                 mask=mask, mask_mode=mask_mode,
+                                 concepts=addition_concepts,
+                                 # register_blk=hard_l,
+                                 debug_mode=self.debug_mode)
+                add_out = out_[0] if train else out_
+
+                ## pair-wise sim loss
+                add_out = add_out.reshape(n_samples, n_concepts, add_out.shape[-1])
+                # [bs, n_concepts, 768]
+                out.append(add_out)
+                out = torch.cat(out, dim=1)       # [bs, n_prompt + n_concepts, 100]
+
+            ncc_losses = self.obtain_loss(out, labels, mode='last')
 
         if return_nui_labels:
             return ncc_losses, nui_labels
 
         return ncc_losses
 
+    def obtain_loss(self, out, labels, mode='last'):
+        nui_labels = torch.unique(labels)
+        if mode == 'last':
+            # use ce loss
+            # out: [bs, n_prompt, 100]
+            logits = out
+            # broadcast labels
+            bs, pop, _ = logits.shape
+            logits = logits.view(-1, logits.size(-1))       # [bs*n_prompt, 100]
+            cat_labels = torch.stack([labels for _ in range(pop)], dim=1).view(-1)  # [bs*n_prompt]
+
+            logits = logits[:, :self.valid_out_dim]
+            # ce with heuristic
+            logits[:, :self.last_valid_out_dim] = -float('inf')
+            # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+            dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
+            objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
+            '''group objectives [n_samples, n_prompt] -> [n_label, n_prompt]'''
+            ncc_losses = torch.stack([torch.mean(objs[labels == label], dim=0) for label in nui_labels])
+        elif mode in ['cos', 'dot', 'l2']:
+            # use prototype loss
+            # out: [bs, 768]
+            features = out
+            # group according to labels
+            ncc_losses = []
+            grouped_features = []     # each group of samples can have different numbers, can not stack
+            anchors = []
+            for label in nui_labels:
+                label_features = features[labels == label]          # [n_img, n_prompt+, 768]
+                grouped_features.append(label_features)
+
+                # obtain anchor
+                anchor = torch.mean(label_features, dim=0)       # [n_prompt+, 768]
+                anchors.append(anchor)
+
+            anchors = torch.stack(anchors, dim=0)       # [n_labels, n_prompt+, 768]
+            anchors = anchors.unsqueeze(0)              # [1, n_label, n_prompt+, 768]
+
+            # loss
+            for idx, label in enumerate(nui_labels):
+                label_features = grouped_features[idx]          # [n_img, n_prompt+, 768]
+                label_features = label_features.unsqueeze(1)    # [n_img, 1, n_prompt+, 768]
+
+                if mode == 'cos':
+                    cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                    sim = cos(anchors, label_features)  # [n_img, n_label, n_prompt+]
+                    # [-1+1]
+                    # sim[idx] - sum(sim[others/{idx}])
+                    posi_sim = 1-sim[:, idx]
+                    nega_sim = torch.cat([sim[:, :idx], sim[:, idx+1:]], dim=1)
+                    nega_sim[nega_sim < 0] = 0      # max{nega_sim, 0}
+                    sim = posi_sim + torch.sum(nega_sim, dim=1)     # [n_img, n_prompt+]
+                    # option: or use ce loss on sim -> sim as logits
+                    ncc_losses.append(torch.mean(sim, dim=0))     # [n_prompt+]
+                # elif dis == 'dot':
+                #     dist = - (anchors * label_features).sum(-1)
+                #     ncc_losses.append(torch.mean(sim, dim=0))     # [n_prompt+]
+                # elif dis == 'l2':
+                #     d = nn.PairwiseDistance(p=2)
+                #     dist = d(anchors, label_features)     # [0, +inf]
+                #     ncc_losses.append(torch.mean(dist, dim=0))     # [n_prompt+]
+                else:
+                    raise Exception('Unknown distance {}'.format(mode))
+
+                ncc_losses = torch.stack(ncc_losses)        # [n_label(obj), n_prompt (new, old, add_concepts)]
+
+        else:
+            raise Exception(f'not implemented mode: {mode}')
+
+        return ncc_losses
 
 class Auxiliary:
     """Provide auxiliary samples for supporting evaluating prompts"""

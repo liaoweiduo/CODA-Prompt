@@ -339,10 +339,10 @@ class CodaPromptCond(CodaPrompt):
                 aq_k = self.attn_concepts(x_querry, concepts)
 
             # aq_k remain origin
-            aq_k_01 = self.apply_threshold(aq_k)
+            # aq_k_01 = self.apply_threshold(aq_k)
 
             # (b x ot x 1 x 1) * [1 x ot x l x d] = (b x l x d) -> prompt = ot x l x d
-            P_ = torch.einsum('bo,old->bld', aq_k_01, p)
+            P_ = torch.einsum('bo,old->bld', aq_k, p)
 
             # select prompts
             i = int(self.e_p_length / 2)  # 8 / 2
@@ -467,10 +467,10 @@ class PatchPrompt(CodaPromptCond):
                 aq_k = self.attn_concepts(x_querry, concepts)
 
             # aq_k remain origin
-            aq_k_01 = self.apply_threshold(aq_k)
+            # aq_k_01 = self.apply_threshold(aq_k)
 
             # (b x p x ot x 1 x 1) * [b x 1 x ot x l x d] = (b x p x l x d) -> prompt = b x ot x l x d
-            P_ = torch.einsum('bpo,bold->bpld', aq_k_01, p)
+            P_ = torch.einsum('bpo,bold->bpld', aq_k, p)
 
             # select prompts
             i = int(self.e_p_length / 2)  # 8 / 2
@@ -610,6 +610,10 @@ class PmoPrompt(CodaPromptCond):
                                        pre_learn, debug_mode, return_aqk=return_aqk, concepts=concepts,
                                        **kwargs)
 
+    def forward_ori(self, x_querry, l, x_block, train=False, task_id=None,
+                hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
+                pre_learn=False,
+                debug_mode=False, return_aqk=False, concepts=None, **kwargs):
         x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 768]
         # e prompts
         e_valid = False

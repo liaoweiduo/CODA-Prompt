@@ -102,7 +102,8 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPromptCond \
     --prompt_param 21 8 0.0 \
-    --log_dir ${OUTDIR}/coda-cond-FPS21-normalattn-oracle-epoch30
+    --oracle_flag --upper_bound_flag \
+    --log_dir ${OUTDIR}/coda-cond-FPS21-normalattn-oracle-epoch30-cheating-mtl-1
 
 # DualPrompt
 #
