@@ -84,7 +84,9 @@ class Prompt(NormalNN):
         else:
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
-        print('*****************************************')
+        print('******************* init optimizer **********************')
+        print(f'target: {target} len {len(params_to_opt)}')
+
         optimizer_arg = {'params':params_to_opt,
                          'lr':self.config['lr'],
                          'weight_decay':self.config['weight_decay']}
@@ -144,6 +146,7 @@ class CODAPromptCond(Prompt):
         self.use_concept_labels = True
         self.use_concept_labels_as_aqk = True       # for cheating
         self.num_prompts = int(self.prompt_param[1][0])     # 21
+        self.given_prompts = True       # for cheating
 
         try:
             prompt = self.model.module.prompt
@@ -157,6 +160,26 @@ class CODAPromptCond(Prompt):
     def create_model(self):
         cfg = self.config
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda_cond',prompt_param=self.prompt_param, use_vit_emb=False)
+        if self.given_prompts:
+            # load oracle prompts
+            model_name = 'coda-cond-FPS21-normalattn-oracle-epoch5-cheating-mtl-1'
+            filename = '/'.join(cfg['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
+            print(f'load prompts from {filename}')
+            state_dict = torch.load(filename + 'class.pth')
+            for key in list(state_dict.keys()):
+                # complete with/without module.
+                if 'module' in key:
+                    state_dict[key[7:]] = state_dict[key]
+                else:
+                    state_dict[f'module.{key}'] = state_dict[key]
+                # only remain with key 'e_p_'
+                if 'e_p_' not in key:
+                    del state_dict[key]
+                    del state_dict[f'module.{key}']
+            model.load_state_dict(state_dict, strict=False)
+            for key, param in state_dict.items():
+                print(f'{key}: {param.shape}')
+            self.log('=> Load Done')
         return model
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
@@ -173,7 +196,7 @@ class CODAPromptCond(Prompt):
         # trains
         if self.reset_optimizer:  # Reset optimizer before learning each task
             self.log('Optimizer is reset!')
-            self.init_optimizer()
+            self.init_optimizer(target='ka' if self.given_prompts else None)
         if need_train:
 
             # data weighting

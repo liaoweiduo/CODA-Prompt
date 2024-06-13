@@ -144,6 +144,7 @@ class Trainer:
             'prompt_param':[self.num_tasks,args.prompt_param],
             'mode': args.mode,
             'seed': self.seed,
+            'log_dir': args.log_dir,
         }
         # pmo settings
         if len(args.prompt_param) > 3:
