@@ -141,12 +141,12 @@ class CODAPrompt(Prompt):
 class CODAPromptCond(Prompt):
 
     def __init__(self, learner_config):
+        self.given_prompts = True       # for cheating before cal super
         super(CODAPromptCond, self).__init__(learner_config)
 
         self.use_concept_labels = True
         self.use_concept_labels_as_aqk = True       # for cheating
         self.num_prompts = int(self.prompt_param[1][0])     # 21
-        self.given_prompts = True       # for cheating
 
         try:
             prompt = self.model.module.prompt
