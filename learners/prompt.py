@@ -196,7 +196,8 @@ class CODAPromptCond(Prompt):
         # trains
         if self.reset_optimizer:  # Reset optimizer before learning each task
             self.log('Optimizer is reset!')
-            self.init_optimizer(target='ka' if self.given_prompts else None)
+            # self.init_optimizer(target='ka' if self.given_prompts else None)
+            self.init_optimizer()
         if need_train:
 
             # data weighting
