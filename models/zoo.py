@@ -26,14 +26,15 @@ class CodaPrompt(nn.Module):
         # prompt basic param
         self.e_pool_size = int(prompt_param[0])  # 100
         self.e_p_length = int(prompt_param[1])  # 8
-        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        # self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        self.e_layers = [0, 1, 2, 3, 4]
         # [] for no prompt.
 
         # strenth of ortho penalty
         self.ortho_mu = prompt_param[2]  # 0.0
 
         # trigger fixed prompt size (FPS)
-        self.FPS = True         # set to False to use origin coda-p
+        self.FPS = False         # set to False to use origin coda-p
 
         # e prompt init
         for e in self.e_layers:
@@ -228,6 +229,7 @@ class CodaPromptCond(CodaPrompt):
     """image-wise conditioning"""
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(CodaPromptCond, self).__init__(emb_d, n_tasks, prompt_param, key_dim=key_dim)
+        self.FPS = True
 
     def handle_x_querry(self, x_querry, x_block, l):
         return self.handle_x_querry_avg_x(x_querry, x_block, l)
