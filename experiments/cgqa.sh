@@ -73,7 +73,7 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 21 8 0.0 \
-    --log_dir ${OUTDIR}/coda-full-FPS-21-first30
+    --log_dir ${OUTDIR}/coda-full-FPS-21-epoch30-first30
 
 # PATCH-P
 #
