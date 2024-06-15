@@ -792,7 +792,9 @@ class PMOPrompt(CODAPromptCond):
                                     dis='cos',
                                     train=True,
                                     samples=None, labels=None, addition_concepts=None,
-                                    return_nui_labels=False):
+                                    return_nui_labels=False,
+                                    group_by_labels=True,
+                                    ):
         """Return mo_matrix: Torch tensor [obj, pop]
         Obj: samples; Pop: prompts
         If use old obj, then add 1 individual to use all old prompts
@@ -915,14 +917,14 @@ class PMOPrompt(CODAPromptCond):
                 out.append(add_out)
                 out = torch.cat(out, dim=1)       # [bs, n_prompt + n_concepts, 100]
 
-            ncc_losses = self.obtain_loss(out, labels, mode='last')
+            ncc_losses = self.obtain_loss(out, labels, mode='last', group_by_labels=group_by_labels)
 
         if return_nui_labels:
             return ncc_losses, nui_labels
 
         return ncc_losses
 
-    def obtain_loss(self, out, labels, mode='last'):
+    def obtain_loss(self, out, labels, mode='last', group_by_labels=True):
         nui_labels = torch.unique(labels)
         if mode == 'last':
             # use ce loss
@@ -939,8 +941,11 @@ class PMOPrompt(CODAPromptCond):
             # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
             dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
             objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
-            '''group objectives [n_samples, n_prompt] -> [n_label, n_prompt]'''
-            ncc_losses = torch.stack([torch.mean(objs[labels == label], dim=0) for label in nui_labels])
+            if group_by_labels:
+                '''group objectives [n_samples, n_prompt] -> [n_label, n_prompt]'''
+                ncc_losses = torch.stack([torch.mean(objs[labels == label], dim=0) for label in nui_labels])
+            else:
+                ncc_losses = objs
         elif mode in ['cos', 'dot', 'l2']:
             # use prototype loss
             # out: [bs, 768]

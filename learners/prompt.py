@@ -141,7 +141,7 @@ class CODAPrompt(Prompt):
 class CODAPromptCond(Prompt):
 
     def __init__(self, learner_config):
-        self.given_prompts = True       # for cheating before cal super
+        self.given_prompts = False       # for cheating before cal super
         super(CODAPromptCond, self).__init__(learner_config)
 
         self.use_concept_labels = True

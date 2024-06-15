@@ -1,5 +1,5 @@
 dataset: CGQA
-first_split_size: 10
+first_split_size: 30
 other_split_size: 10
 schedule:
 - 5

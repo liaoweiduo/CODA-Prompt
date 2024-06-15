@@ -14,7 +14,7 @@ class CFSTDataset(data.Dataset):
                  train=True, transform=None,
                  download_flag=False, lab=True, swap_dset = None,
                  tasks=None, seed=-1, rand_split=False, validation=False, kfolds=5,
-                 mode='continual', return_concepts=False,
+                 mode='continual', return_concepts=False, first_split_size=1,
                  ):
 
         # process rest of args
@@ -28,6 +28,7 @@ class CFSTDataset(data.Dataset):
         # self.download_flag = download_flag  # no use
         self.mode = mode        # [continual, sys, pro, sub, non, noc]
         self.return_concepts = return_concepts
+        self.first_split_size = first_split_size
 
         # load dataset
         self.benchmark = None
@@ -92,12 +93,16 @@ class CFSTDataset(data.Dataset):
         """set specific task
         train=True -> only load task t; False -> load task <=t.
         NOTE: train=False will be bug if in task-IL.
+        if first_split_size is not 1, rearrange task id
         """
-
+        if t == 0:       # first task
+            self.dataset = torch.utils.data.ConcatDataset(
+                [self.target_datasets[s] for s in range(self.first_split_size)])
+        exact_t = t + self.first_split_size - 1     # shift t
         if train:
-            self.dataset = self.target_datasets[t]
+            self.dataset = self.target_datasets[exact_t]
         else:
-            self.dataset = torch.utils.data.ConcatDataset([self.target_datasets[s] for s in range(t+1)])
+            self.dataset = torch.utils.data.ConcatDataset([self.target_datasets[s] for s in range(exact_t+1)])
         self.t = t
 
     def update_pool(self, pool_size, task_id=None, pool=None):
