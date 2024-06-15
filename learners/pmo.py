@@ -155,8 +155,8 @@ class PMOPrompt(CODAPromptCond):
                     if self.gpu:
                         x = x.cuda()
                         y = y.cuda()
-                        if concepts is not None:
-                            concepts = concepts.cuda()      # [bs, 224, 224]
+                        # if concepts is not None:
+                        #     concepts = concepts.cuda()      # [bs, 224, 224]
                         # task = task.cuda()
 
                     # # debug
@@ -485,6 +485,66 @@ class PMOPrompt(CODAPromptCond):
 
     def update_model_pop_prompt(self, inputs, targets, pre_learn=False):
         """Difference:
+        Forward all prompts and use min{ce loss} to backward
+        """
+        self.optimizer.zero_grad()
+        try:
+            prompt = self.model.module.prompt
+            last = self.model.module.last
+        except:
+            prompt = self.model.prompt
+            last = self.model.last
+
+        # forward all prompts
+        # for l in self.e_layers:
+        mo_matrix = self.obtain_mo_matrix_pop_prompt(
+            None, use_old_prompts=False if prompt.FPS else True,
+            mask=self.mask, mask_mode=self.mask_mode,
+            train=True,
+            samples=inputs,
+            labels=targets,
+            group_by_labels=False,
+        )  # [bs, 21]
+
+        if self.debug_mode:
+            print(f'mo_matrix {mo_matrix.shape}: {mo_matrix}')
+
+        '''log'''
+        for obj_idx in range(mo_matrix.shape[0]):
+            for pop_idx in range(mo_matrix.shape[1]):
+                self.epoch_log['mo']['Tag'].append('loss')
+                self.epoch_log['mo']['Pop_id'].append(pop_idx)
+                self.epoch_log['mo']['Obj_id'].append(obj_idx)
+                self.epoch_log['mo']['Epoch_id'].append(self.epoch)
+                self.epoch_log['mo']['Inner_id'].append(0)
+                self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
+
+        loss = torch.min(mo_matrix, dim=1)      # min{ce loss}  [bs]
+        loss = torch.mean(loss)
+
+        loss.backward()
+
+        if self.debug_mode:
+            print(f'loss: {loss.item()}')
+
+        self.epoch_log['scaler']['Tag'].append('loss/mo_loss')
+        self.epoch_log['scaler']['Idx'].append(self.epoch)
+        self.epoch_log['scaler']['Value'].append(loss.item())
+
+        # predict according to mean logits / voting
+        # obtain_mo_matrix_pop_prompt return logits of all [bs, 21] -> [bs, 21, 100]
+        #       total loss is cal by mean over prompts -> [bs, 100] -> loss
+        #
+        total_loss = 0
+        logits = 0
+
+        # step
+        self.optimizer.step()
+
+        return total_loss.detach(), logits
+
+    def update_model_pop_prompt_old(self, inputs, targets, pre_learn=False):
+        """Difference:
             Cal mo loss matrix and hv loss.
             backward one loss by one since hv loss is huge
         """
@@ -789,7 +849,7 @@ class PMOPrompt(CODAPromptCond):
 
     def obtain_mo_matrix_pop_prompt(self, hard_l=None, use_old_prompts=False,
                                     mask: Optional[Union[float, str]] = None, mask_mode='use',
-                                    dis='cos',
+                                    dis='cos', check=False,
                                     train=True,
                                     samples=None, labels=None, addition_concepts=None,
                                     return_nui_labels=False,
@@ -845,15 +905,16 @@ class PMOPrompt(CODAPromptCond):
         n_samples = samples.shape[0]
         nui_labels = torch.unique(labels)
         # check if any label has only 1 sample
-        check = True
-        flag = []
-        for label in nui_labels:
-            if len(labels[labels == label]) < 2:
-                check = False
-                flag.append(label.item())
-        if not check:
-            print(f'mo: label ({flag}) has/have only 1 sample')
-            return None
+        if check:
+            check = True
+            flag = []
+            for label in nui_labels:
+                if len(labels[labels == label]) < 2:
+                    check = False
+                    flag.append(label.item())
+            if not check:
+                print(f'mo: label ({flag}) has/have only 1 sample')
+                return None
 
         '''forward all prompts get objectives [n_samples, pop], pop may with old prompt'''
         if self.FPS:

@@ -280,6 +280,7 @@ class Trainer:
                 if len(epoch_log['scaler']) > 0:     # perform training
                     debugger.write_scaler(epoch_log['scaler'], key='loss/ce_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler'], key='loss/mo_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='val_acc', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='alpha', i=i, writer=writer, inner=True)
                     # debugger.write_scaler(epoch_log['scaler'], key='loss/et_loss', i=i, writer=writer, inner=True)

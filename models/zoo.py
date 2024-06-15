@@ -26,8 +26,8 @@ class CodaPrompt(nn.Module):
         # prompt basic param
         self.e_pool_size = int(prompt_param[0])  # 100
         self.e_p_length = int(prompt_param[1])  # 8
-        # self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-        self.e_layers = [0, 1, 2, 3, 4]
+        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        # self.e_layers = [0, 1, 2, 3, 4]
         # [] for no prompt.
 
         # strenth of ortho penalty
@@ -148,7 +148,7 @@ class CodaPrompt(nn.Module):
             raise ValueError('x_querry is None')
         return x_querry
 
-    def forward(self, x_querry, l, x_block, train=False, task_id=None):
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
         x_querry = self.handle_x_querry(x_querry, x_block, l)
         # e prompts
         e_valid = False
