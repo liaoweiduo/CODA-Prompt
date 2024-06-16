@@ -532,7 +532,7 @@ class PMOPrompt(CODAPromptCond):
         self.epoch_log['scaler']['Value'].append(loss.item())
 
         # predict according to mean logits / voting
-        # obtain_mo_matrix_pop_prompt return logits of all [bs, 21] -> [bs, 21, 100]
+        # : obtain_mo_matrix_pop_prompt return logits of all [bs, 21] -> [bs, 21, 100]
         #       total loss is cal by mean over prompts -> [bs, 100] -> loss
         #
         total_loss = 0

@@ -70,10 +70,10 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name CODAPrompt \
-    --prompt_param 100 8 0.0 \
-    --log_dir ${OUTDIR}/coda-epoch30-first30
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPrompt \
+#    --prompt_param 100 8 0.0 \
+#    --log_dir ${OUTDIR}/coda-epoch30-first30
 
 # PATCH-P
 #
@@ -99,10 +99,10 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    --prompt_param 21 8 0.0 \
 #    --oracle_flag --upper_bound_flag \
 # -mtl
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPromptCond \
-#    --prompt_param 21 8 0.0 \
-#    --log_dir ${OUTDIR}/coda-cond-FPS21-normalattn-oracle-epoch5-cheating-2
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPromptCond \
+    --prompt_param 21 8 0.0 \
+    --log_dir ${OUTDIR}/coda-cond-FPS21-normalattn-oracle-epoch5-cheating-first30
 
 # DualPrompt
 #
