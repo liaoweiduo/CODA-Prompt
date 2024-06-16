@@ -394,11 +394,11 @@ class CODAPromptCond(Prompt):
             else:
                 mask = target >= task_in[0]
                 mask_ind = mask.nonzero().view(-1)
-                input, target = input[mask_ind], target[mask_ind]
+                input, target, concepts = input[mask_ind], target[mask_ind], concepts[mask_ind]
 
                 mask = target < task_in[-1]
                 mask_ind = mask.nonzero().view(-1)
-                input, target = input[mask_ind], target[mask_ind]
+                input, target, concepts = input[mask_ind], target[mask_ind], concepts[mask_ind]
 
                 if len(target) > 1:
                     if task_global:

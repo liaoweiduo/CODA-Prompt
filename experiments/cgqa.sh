@@ -27,14 +27,14 @@ mkdir -p $OUTDIR
 #    arg 5 = mask: 0.0; -10000: randn; -10001: uniform; -10002: ortho; -10003: None
 #    arg 6 = mask_mode: 0: maskout or 1: use
 #    arg 7 = hv coeff, -1 to use LCQP
-#LEARNERTYPE=pmo
-#LEARNERNAME=PMOPrompt
-#LOGNAME=pmo-condip-full-bs32-e50-el2-lr1e-3-21-2-sumhv-norm-anchor-cossim-LCQP_kap-FPS20-reluaqk
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 21 2 0.0 2 -10003 1 -1 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#date
+LEARNERTYPE=pmo
+LEARNERNAME=PMOPrompt
+LOGNAME=pmo-f4m-epoch30-first30
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+    --prompt_param 21 2 0.0 2 -10003 1 -1 \
+    --log_dir ${OUTDIR}/${LOGNAME}
+date
 
 # CODA-P-Replay
 #
@@ -99,10 +99,10 @@ mkdir -p $OUTDIR
 #    --prompt_param 21 8 0.0 \
 #    --oracle_flag --upper_bound_flag \
 # -mtl
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name CODAPromptCond \
-    --prompt_param 21 8 0.0 \
-    --log_dir ${OUTDIR}/coda-cond-FPS21-normalattn-oracle-epoch5-cheating-first30
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPromptCond \
+#    --prompt_param 21 8 0.0 \
+#    --log_dir ${OUTDIR}/coda-cond-FPS21-normalattn-oracle-epoch5-cheating-first30
 
 # DualPrompt
 #
