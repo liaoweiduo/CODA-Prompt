@@ -1090,42 +1090,13 @@ class PMOPrompt(CODAPromptCond):
             #             concepts = concepts.cuda()  # [bs, 1, 21]
             # if concepts is not None:
             #     concepts = self.process_concepts(concepts, self.num_prompts)        # [bs, 21]
-            if task_in is None:
-                # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
-                # output = model.forward(input,
-                #                        concepts=concepts if self.use_concept_labels_as_aqk else None
-                #                        )[:, :self.valid_out_dim]
+            with torch.no_grad():
+                if task_in is None:
+                    # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
+                    # output = model.forward(input,
+                    #                        concepts=concepts if self.use_concept_labels_as_aqk else None
+                    #                        )[:, :self.valid_out_dim]
 
-                # forward all prompts
-                _, logits = self.obtain_mo_matrix_pop_prompt(
-                    None,
-                    mask=self.mask, mask_mode=self.mask_mode,
-                    train=False,
-                    samples=input,
-                    labels=target,
-                    group_by_labels=False,
-                    return_logits=True,
-                )  # [bs, 21]
-                # logits: [bs, 21, 100]
-
-                # predict according to mean logits / voting
-                # mean logits: [bs, 21, 100] -> [bs, 100]
-                output = torch.mean(logits, dim=1)  # [bs, 100]
-
-                # if self.debug_mode:
-                #     print(f'batch{i}: \noutput:{output}')
-
-                acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
-            else:
-                mask = target >= task_in[0]
-                mask_ind = mask.nonzero().view(-1)
-                input, target = input[mask_ind], target[mask_ind]
-
-                mask = target < task_in[-1]
-                mask_ind = mask.nonzero().view(-1)
-                input, target = input[mask_ind], target[mask_ind]
-
-                if len(target) > 1:
                     # forward all prompts
                     _, logits = self.obtain_mo_matrix_pop_prompt(
                         None,
@@ -1142,14 +1113,44 @@ class PMOPrompt(CODAPromptCond):
                     # mean logits: [bs, 21, 100] -> [bs, 100]
                     output = torch.mean(logits, dim=1)  # [bs, 100]
 
-                    if task_global:
-                        # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
-                        output = output[:, :self.valid_out_dim]
-                        acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
-                    else:
-                        # output = model.forward(input, task_id=task[0].item())[:, task_in]
-                        output = output[:, task_in]
-                        acc = accumulate_acc(output, target - task_in[0], task, acc, topk=(self.top_k,))
+                    # if self.debug_mode:
+                    #     print(f'batch{i}: \noutput:{output}')
+
+                    acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
+                else:
+                    mask = target >= task_in[0]
+                    mask_ind = mask.nonzero().view(-1)
+                    input, target = input[mask_ind], target[mask_ind]
+
+                    mask = target < task_in[-1]
+                    mask_ind = mask.nonzero().view(-1)
+                    input, target = input[mask_ind], target[mask_ind]
+
+                    if len(target) > 1:
+                        # forward all prompts
+                        _, logits = self.obtain_mo_matrix_pop_prompt(
+                            None,
+                            mask=self.mask, mask_mode=self.mask_mode,
+                            train=False,
+                            samples=input,
+                            labels=target,
+                            group_by_labels=False,
+                            return_logits=True,
+                        )  # [bs, 21]
+                        # logits: [bs, 21, 100]
+
+                        # predict according to mean logits / voting
+                        # mean logits: [bs, 21, 100] -> [bs, 100]
+                        output = torch.mean(logits, dim=1)  # [bs, 100]
+
+                        if task_global:
+                            # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
+                            output = output[:, :self.valid_out_dim]
+                            acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
+                        else:
+                            # output = model.forward(input, task_id=task[0].item())[:, task_in]
+                            output = output[:, task_in]
+                            acc = accumulate_acc(output, target - task_in[0], task, acc, topk=(self.top_k,))
 
         model.train(orig_mode)
 
