@@ -521,7 +521,7 @@ class PMOPrompt(CODAPromptCond):
                 self.epoch_log['mo']['Inner_id'].append(0)
                 self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
 
-        loss = torch.min(mo_matrix, dim=1)      # min{ce loss}  [bs]
+        loss = torch.min(mo_matrix, dim=1)[0]      # min{ce loss}  [bs]
         loss = torch.mean(loss)
 
         loss.backward()
@@ -803,9 +803,6 @@ class PMOPrompt(CODAPromptCond):
 
                 # add noise on objs
                 if add_noise:
-                    # objs_max = torch.max(objs).detach()
-                    # objs_min = torch.min(objs).detach()
-                    # noise = (objs_max - objs_min) / len(objs)*2    # scope of noise
                     noise = 1e-9
                     noise = torch.from_numpy(np.random.rand(*objs.shape)).float().to(objs.device) * noise * 2 - noise
                     # noise = torch.randn_like(objs) * noise * 2 - noise
