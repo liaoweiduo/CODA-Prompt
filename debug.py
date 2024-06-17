@@ -396,6 +396,8 @@ class Debugger:
             # .mean() is average over epoch, thus, not correct mo. just visualize the first one in this epoch
             # [n_epoch, n_inner, n_obj, n_pop]
             objs = np.nan_to_num(objs)
+            if len(objs.shape) != 2:        # no log
+                return
 
             '''log objs figure along epoch for last inner step'''
             if n_obj == 2:

@@ -11,7 +11,212 @@ import numpy as np
 import copy
 
 
-# Our method!
+class SlotPrompt(nn.Module):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=64):
+        super().__init__()
+        self.task_count = 0
+        self.emb_d = emb_d          # emb for prompt
+        self.key_d = key_dim        # emb for slot
+        self.n_tasks = n_tasks
+
+        # prompt basic param
+        self.e_pool_size = int(prompt_param[0])  # 100
+        self.e_p_length = int(prompt_param[1])  # 8
+        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        # self.e_layers = [0, 1, 2, 3, 4]
+        # [] for no prompt.
+
+        # strenth of ortho penalty
+        self.ortho_mu = prompt_param[2]  # 0.0
+
+        # trigger fixed prompt size (FPS)
+        self.FPS = False         # set to False to use origin coda-p
+
+        # e prompt init
+        for e in self.e_layers:
+            # for model saving/loading simplicity, we init the full paramaters here
+            # however, please note that we reinit the new components at each task
+            # in the "spirit of continual learning", as we don't know how many tasks
+            # we will encounter at the start of the task sequence
+            #
+            # in the original paper, we used ortho init at the start - this modification is more
+            # fair in the spirit of continual learning and has little affect on performance
+            e_l = self.e_p_length
+            p = tensor_prompt(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
+            k = tensor_prompt(self.e_pool_size, self.key_d)  # [100, 768]
+            a = tensor_prompt(self.e_pool_size, self.key_d)
+            p = self.gram_schmidt(p)
+            k = self.gram_schmidt(k)
+            a = self.gram_schmidt(a)
+            setattr(self, f'e_p_{e}', p)
+            setattr(self, f'e_k_{e}', k)
+            setattr(self, f'e_a_{e}', a)
+
+    def process_task_count(self):
+        self.task_count += 1
+
+        if not self.FPS:
+            # in the spirit of continual learning, we will reinit the new components
+            # for the new task with Gram Schmidt
+            #
+            # in the original paper, we used ortho init at the start - this modification is more
+            # fair in the spirit of continual learning and has little affect on performance
+            #
+            # code for this function is modified from:
+            # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
+            for e in self.e_layers:
+                K = getattr(self, f'e_k_{e}')
+                A = getattr(self, f'e_a_{e}')
+                P = getattr(self, f'e_p_{e}')
+                k = self.gram_schmidt(K)
+                a = self.gram_schmidt(A)
+                p = self.gram_schmidt(P)
+                setattr(self, f'e_p_{e}', p)
+                setattr(self, f'e_k_{e}', k)
+                setattr(self, f'e_a_{e}', a)
+
+    # code for this function is modified from:
+    # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
+    def gram_schmidt(self, vv):  # 施密特正交化
+
+        def projection(u, v):
+            denominator = (u * u).sum()
+
+            if denominator < 1e-8:
+                return None
+            else:
+                return (v * u).sum() / denominator * u
+
+        # check if the tensor is 3D and flatten the last two dimensions if necessary
+        is_3d = len(vv.shape) == 3
+        if is_3d:
+            shape_2d = copy.deepcopy(vv.shape)
+            vv = vv.view(vv.shape[0], -1)
+
+        # swap rows and columns
+        vv = vv.T
+
+        # process matrix size
+        nk = vv.size(1)
+        uu = torch.zeros_like(vv, device=vv.device)
+
+        # get starting point
+        if self.FPS:        # use all prompts
+            s = 0
+            f = self.e_pool_size
+        else:
+            pt = int(self.e_pool_size / (self.n_tasks))
+            s = int(self.task_count * pt)
+            f = int((self.task_count + 1) * pt)
+        if s > 0:
+            uu[:, 0:s] = vv[:, 0:s].clone()
+        for k in range(s, f):
+            redo = True
+            while redo:
+                redo = False
+                vk = torch.randn_like(vv[:, k]).to(vv.device)
+                uk = 0
+                for j in range(0, k):
+                    if not redo:
+                        uj = uu[:, j].clone()
+                        proj = projection(uj, vk)
+                        if proj is None:
+                            redo = True
+                            print('restarting!!!')
+                        else:
+                            uk = uk + proj
+                if not redo: uu[:, k] = vk - uk
+        for k in range(s, f):
+            uk = uu[:, k].clone()
+            uu[:, k] = uk / (uk.norm())
+
+        # undo swapping of rows and columns
+        uu = uu.T
+
+        # return from 2D
+        if is_3d:
+            uu = uu.view(shape_2d)
+
+        return torch.nn.Parameter(uu)
+
+    def handle_x_querry(self, x_querry, x_block, l):
+        if x_querry is None:
+            raise ValueError('x_querry is None')
+        return x_querry
+
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
+        x_querry = self.handle_x_querry(x_querry, x_block, l)
+        # e prompts
+        e_valid = False
+        if l in self.e_layers:
+            e_valid = True
+            B, C = x_querry.shape  # [bs, 768]
+
+            K = getattr(self, f'e_k_{l}')  # [100, 768]
+            A = getattr(self, f'e_a_{l}')  # [100, 768]
+            p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+            if self.FPS:        # use all prompts
+                s = 0
+                f = self.e_pool_size
+            else:
+                pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+                s = int(self.task_count * pt)  # 10 prompts for one task
+                f = int((self.task_count + 1) * pt)
+
+            # freeze/control past tasks
+            if train:
+                if self.task_count > 0:
+                    K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
+                    A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
+                    p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
+                else:
+                    K = K[s:f]
+                    A = A[s:f]
+                    p = p[s:f]
+            else:
+                K = K[0:f]
+                A = A[0:f]
+                p = p[0:f]
+
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+
+            # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
+
+            # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
+            P_ = torch.einsum('bk,kld->bld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :i, :]
+            Ev = P_[:, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        # return
+        return p_return, loss, x_block
+
+
 class CodaPrompt(nn.Module):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         """Difference:
