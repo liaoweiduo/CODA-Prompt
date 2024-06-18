@@ -83,7 +83,7 @@ class Slot(nn.Module):
             slots = []
             for slot_idx in range(self.n_slots):
                 # 1 for sequence len
-                slots.append(self.gru(updates[:, slot_idx:slot_idx+1],                          # [b, 1, d]
+                slots.append(self.gru(updates[:, slot_idx:slot_idx+1].contiguous(),                          # [b, 1, d]
                                       slots_prev[:, slot_idx].reshape(1, bs, self.key_d)        # [1, b, d]
                                       )[0]   # out: [b, 1, d]
                              )
