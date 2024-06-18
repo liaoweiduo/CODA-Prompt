@@ -142,7 +142,7 @@ class ViTDecoder(nn.Module):
         # get last layer
         self.flag = flag
         self.task_id = None
-        self.pen_dim = params[1][1]     # change emb dim from 768 to pen dim
+        self.pen_dim = int(params[1][1])     # change emb dim from 768 to pen dim
 
         # get feature encoder
         zoo_model = None
