@@ -83,9 +83,9 @@ class Slot(nn.Module):
             slots = []
             for slot_idx in range(self.n_slots):
                 # 1 for sequence len
-                slots.append(self.gru(updates[:, slot_idx].unsqueeze(1),            # [b, 1, d]
-                                      slots_prev[:, slot_idx].unsqueeze(0)          # [1, b, d]
-                                      )[0]                                          # out: [b, 1, d]
+                slots.append(self.gru(updates[:, slot_idx:slot_idx+1],                          # [b, 1, d]
+                                      slots_prev[:, slot_idx].reshape(1, *slots_prev.shape)     # [1, b, d]
+                                      )[0]   # out: [b, 1, d]
                              )
             slots = torch.cat(slots, dim=1)       # [b, k, d]
 
