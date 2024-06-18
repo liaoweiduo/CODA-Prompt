@@ -54,7 +54,8 @@ class Slot(nn.Module):
 
         # init
         features = self.ln_input(features)
-        slots = torch.randn(bs, self.n_slots, self.key_d) * self.sigma + self.mu        # [bs, k, 64]
+        slots = torch.randn(bs, self.n_slots, self.key_d, device=self.sigma.device) * self.sigma + self.mu
+        # [bs, k, 64]
 
         # iter
         for t in range(self.n_iter):
