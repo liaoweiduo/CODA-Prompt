@@ -213,8 +213,10 @@ class ViTDecoder(nn.Module):
             out = cls_token
             if not pen:
                 out = self.last(out)            # [bs, 100]
-
-        return out, cls_token
+        if train:
+            return out, cls_token
+        else:
+            return out
 
 
 def vit_decoder_imnet(out_dim, block_division=None, prompt_flag='None', prompt_param=None, **kwargs):
