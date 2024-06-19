@@ -25,10 +25,9 @@ mkdir -p $OUTDIR
 #    --oracle_flag --upper_bound_flag \
 LEARNERTYPE=decoder
 LEARNERNAME=SLOT
-LOGNAME=slot-mtl-lr4e-4
+LOGNAME=slot-lr4e-4
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 5 21 \
-    --oracle_flag --upper_bound_flag \
     --log_dir ${OUTDIR}/${LOGNAME}
 date

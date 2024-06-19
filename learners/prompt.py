@@ -321,7 +321,7 @@ class CODAPromptCond(Prompt):
             # num_prompts = aq_k_list[0].shape[-1]
 
             selection_loss = []
-            selection_criterion = nn.BCELoss(reduction='none')
+            selection_criterion = nn.BCELoss(reduction='none')  # should be huber loss 0.5(x-y)^2 for regression
             for aq_k in aq_k_list:
                 # selection_loss.append(selection_criterion(aq_k, concepts).mean())
                 selection_loss.append(selection_criterion(aq_k, concepts).sum(dim=-1).mean())

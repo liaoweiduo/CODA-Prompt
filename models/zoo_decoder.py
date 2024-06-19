@@ -81,14 +81,10 @@ class Slot(nn.Module):
             updates = torch.einsum('bnk,bnd->bkd', attn, v)
 
             ## slots = GRU(state=slots_prev[b,k,d], inputs=updates[b,k,d])  (for each slot)
-            slots = []
-            for slot_idx in range(self.n_slots):
-                # 1 for sequence len
-                slots.append(self.gru(updates[:, slot_idx:slot_idx+1],                          # [b, 1, d]
-                                      slots_prev[:, slot_idx].view(1, bs, self.key_d).contiguous()        # [1, b, d]
-                                      )[0]   # out: [b, 1, d]
-                             )
-            slots = torch.cat(slots, dim=1)       # [b, k, d]
+            slots = self.gru(updates.view(-1, 1, self.key_d).contiguous(),       # [b*k, 1, d]
+                             slots_prev.view(1, -1, self.key_d).contiguous()            # [1, b*k, d]
+                             )[0]        # out: [b*k, 1, d]
+            slots = slots.view(bs, self.n_slots, self.key_d)        # [b, k, d]
 
             ## slots += MLP(LayerNorm(slots))
             slots = slots + self.mlp(self.ln_output(slots))
