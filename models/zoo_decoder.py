@@ -35,6 +35,7 @@ class Slot(nn.Module):
         self.q = nn.Linear(key_dim, key_dim, bias=False)
         self.v = nn.Linear(emb_d, key_dim, bias=False)
         self.gru = nn.GRU(self.key_d, self.gru_d, batch_first=True)
+        # self.gru = nn.GRUCell(self.key_d, self.gru_d)
         self.mlp = nn.Sequential(
             nn.Linear(self.key_d, self.key_d, bias=True),
             nn.ReLU(inplace=True),
@@ -83,8 +84,8 @@ class Slot(nn.Module):
             slots = []
             for slot_idx in range(self.n_slots):
                 # 1 for sequence len
-                slots.append(self.gru(updates[:, slot_idx:slot_idx+1].contiguous(),                          # [b, 1, d]
-                                      slots_prev[:, slot_idx].reshape(1, bs, self.key_d)        # [1, b, d]
+                slots.append(self.gru(updates[:, slot_idx:slot_idx+1],                          # [b, 1, d]
+                                      slots_prev[:, slot_idx].view(1, bs, self.key_d).contiguous()        # [1, b, d]
                                       )[0]   # out: [b, 1, d]
                              )
             slots = torch.cat(slots, dim=1)       # [b, k, d]
