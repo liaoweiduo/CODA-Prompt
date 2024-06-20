@@ -535,7 +535,7 @@ class PMOPrompt(CODAPromptCond):
 
         # predict according to logits on all objs
         # logits: [bs, 21, 100] -> [bs, 100] => mean, max
-        mean_logits = torch.max(logits, dim=1)      # [bs, 100]
+        mean_logits = torch.max(logits, dim=1)[0]      # [bs, 100]
 
         # step
         self.optimizer.step()
