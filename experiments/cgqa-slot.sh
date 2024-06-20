@@ -24,7 +24,7 @@ mkdir -p $OUTDIR
 #    arg 2 = pen dim size
 #    --oracle_flag --upper_bound_flag \
 LEARNERTYPE=decoder
-LEARNERNAME=SLOT
+LEARNERNAME=SLOTDecoder
 LOGNAME=slot-lr4e-4
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \

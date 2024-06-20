@@ -533,9 +533,9 @@ class PMOPrompt(CODAPromptCond):
         self.epoch_log['scaler']['Idx'].append(self.epoch)
         self.epoch_log['scaler']['Value'].append(loss.item())
 
-        # predict according to mean logits / voting
-        # mean logits: [bs, 21, 100] -> [bs, 100]
-        mean_logits = torch.mean(logits, dim=1)      # [bs, 100]
+        # predict according to logits on all objs
+        # logits: [bs, 21, 100] -> [bs, 100] => mean, max
+        mean_logits = torch.max(logits, dim=1)      # [bs, 100]
 
         # step
         self.optimizer.step()

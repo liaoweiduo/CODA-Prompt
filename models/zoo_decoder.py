@@ -11,7 +11,7 @@ import numpy as np
 import copy
 
 
-class Slot(nn.Module):
+class SlotDecoder(nn.Module):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=64):
         super().__init__()
         self.task_count = 0
@@ -163,7 +163,7 @@ class ViTDecoder(nn.Module):
 
         # create decoder module
         if self.flag == 'slot':
-            self.decoder = Slot(768, params[0], params[1], key_dim=64)
+            self.decoder = SlotDecoder(768, params[0], params[1], key_dim=64)
         else:
             self.decoder = None
 

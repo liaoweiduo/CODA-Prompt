@@ -246,10 +246,10 @@ class Decoder(NormalNN):
         return self
 
 
-class SLOT(Decoder):
+class SLOTDecoder(Decoder):
 
     def __init__(self, learner_config):
-        super(SLOT, self).__init__(learner_config)
+        super(SLOTDecoder, self).__init__(learner_config)
 
     def create_model(self):
         cfg = self.config
