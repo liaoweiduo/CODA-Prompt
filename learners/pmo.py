@@ -77,6 +77,9 @@ class PMOPrompt(CODAPromptCond):
         self.n_obj_avail = prompt.n_obj
         self.FPS = prompt.FPS
 
+        # cls statistics
+        self.cls_stats = {}
+
         # log
         self.epoch_log = dict()
         self.init_train_log()
@@ -104,7 +107,7 @@ class PMOPrompt(CODAPromptCond):
         Save batch_idx
         See nvidia-smi.
         """
-        # return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
+        return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
 
         self.init_train_log()
 
@@ -216,11 +219,11 @@ class PMOPrompt(CODAPromptCond):
             return None
 
     def learn_batch_diff_stage(self, train_loader, train_dataset, model_save_dir, val_loader=None):
-        """iteratively learn"""
+        """after train cal statistics"""
         self.init_train_log()
 
         self.train_dataset = train_dataset
-        self.aux.update_source(train_dataset)       # aux samples from the current task
+        # self.aux.update_source(train_dataset)       # aux samples from the current task
 
         # try to load model
         need_train = True
@@ -236,32 +239,28 @@ class PMOPrompt(CODAPromptCond):
             self.log('Optimizer is reset!')
             self.init_optimizer()
 
+        acc = AverageMeter()
         if need_train:
             # data weighting
             self.data_weighting(train_dataset)
             losses = AverageMeter()
-            acc = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
-
-            # pre_learn_epochs = 5
-            iter_epochs = 5
-            phase = 'p'        # phase start from 'ka' and p-ka loop
             for epoch in range(self.config['schedule'][-1]):
                 self.epoch = epoch
 
-                if epoch % iter_epochs == 0:
-                    # update lr
-                    self.config['lr'] = self.optimizer.param_groups[0]['lr']
-                    phase = 'p' if phase == 'ka' else 'ka'
-                    self.log(f'epoch: {epoch}: Optimizer is reset for {phase}')
-                    self.init_optimizer(target=phase, schedule=[s-epoch for s in self.schedule])
-
+                if epoch > 0: self.scheduler.step()
                 for param_group in self.optimizer.param_groups:
                     self.log('LR:', param_group['lr'])
                 batch_timer.tic()
-                for i, (x, y, task) in enumerate(train_loader):
+                for i, sample in enumerate(train_loader):
                     self.batch_idx = i
+
+                    concepts = None
+                    if train_dataset.return_concepts:
+                        x, y, concepts, task = sample
+                    else:
+                        x, y, task = sample
 
                     # verify in train mode
                     self.model.train()
@@ -270,14 +269,15 @@ class PMOPrompt(CODAPromptCond):
                     if self.gpu:
                         x = x.cuda()
                         y = y.cuda()
+                        # if concepts is not None:
+                        #     concepts = concepts.cuda()      # [bs, 224, 224]
                         # task = task.cuda()
 
                     # # debug
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    # loss, output = self.update_model(x, y, pre_learn=True if epoch < pre_learn_epochs else False)
-                    loss, output = self.update_model(x, y)
+                    loss, output = self.update_model_pop_prompt(x, y)      # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -285,7 +285,7 @@ class PMOPrompt(CODAPromptCond):
 
                     # measure accuracy and record loss
                     y = y.detach()
-                    accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                    # accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                     losses.update(loss, y.size(0))
                     batch_timer.tic()
 
@@ -294,27 +294,27 @@ class PMOPrompt(CODAPromptCond):
                     'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
                 self.log(
                     ' * Loss {loss.avg:.3f} | '
-                    'Train Acc {acc.avg:.3f} | '
                     'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
+                        loss=losses, time=batch_time, i=len(train_loader)))
 
                 if self.epoch % 10 == 0:
                     '''nvidia-smi'''
-                    print(os.system('nvidia-smi'))
-
-                self.scheduler.step()
+                    self.log(os.system('nvidia-smi'))
 
                 # reset
                 losses = AverageMeter()
                 acc = AverageMeter()
 
-                # validation
-                if val_loader is not None:
-                    val_acc = self.validation(val_loader)
-                    # log
-                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                    self.epoch_log['scaler']['Idx'].append(self.epoch)
-                    self.epoch_log['scaler']['Value'].append(val_acc)
+            # collect class statistics
+            self.collect_statistics(train_loader, train_dataset)
+
+            # validation
+            if val_loader is not None:
+                val_acc = self.validation(val_loader)
+                # log
+                self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 
@@ -535,12 +535,12 @@ class PMOPrompt(CODAPromptCond):
 
         # predict according to logits on all objs
         # logits: [bs, 21, 100] -> [bs, 100] => mean, max
-        mean_logits = torch.max(logits, dim=1)[0]      # [bs, 100]
+        logits = torch.max(logits, dim=1)[0]      # [bs, 100]
 
         # step
         self.optimizer.step()
 
-        return loss.detach(), mean_logits
+        return loss.detach(), logits
 
     def update_model_pop_prompt_old(self, inputs, targets, pre_learn=False):
         """Difference:
@@ -1060,7 +1060,7 @@ class PMOPrompt(CODAPromptCond):
         return ncc_losses
 
     def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False):
-        """Different: forward mo and use ensemble for logits"""
+        """Different: forward mo and use cls statistics for logits"""
         # pass task to forward if task-awareness
         if model is None:
             model = self.model
@@ -1109,9 +1109,10 @@ class PMOPrompt(CODAPromptCond):
                     )  # [bs, 21]
                     # logits: [bs, 21, 100]
 
-                    # predict according to mean logits / voting
+                    # predict
                     # mean logits: [bs, 21, 100] -> [bs, 100]
-                    output = torch.mean(logits, dim=1)  # [bs, 100]
+                    # output = torch.max(logits, dim=1)[0]  # [bs, 100]
+                    output = self.predict_mo(logits)        # [bs, n_cls]
 
                     # if self.debug_mode:
                     #     print(f'batch{i}: \noutput:{output}')
@@ -1139,9 +1140,10 @@ class PMOPrompt(CODAPromptCond):
                         )  # [bs, 21]
                         # logits: [bs, 21, 100]
 
-                        # predict according to mean logits / voting
+                        # predict
                         # mean logits: [bs, 21, 100] -> [bs, 100]
-                        output = torch.mean(logits, dim=1)  # [bs, 100]
+                        # output = torch.max(logits, dim=1)[0]  # [bs, 100]
+                        output = self.predict_mo(logits)        # [bs, n_cls]
 
                         if task_global:
                             # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
@@ -1158,6 +1160,86 @@ class PMOPrompt(CODAPromptCond):
             self.log(' * Val Acc {acc.avg:.3f}, Total time {time:.2f}'
                      .format(acc=acc, time=batch_timer.toc()))
         return acc.avg
+
+    def collect_statistics(self, train_loader, train_dataset, model=None, verbal=True):
+        if model is None:
+            model = self.model
+
+        try:
+            prompt = model.module.prompt
+        except:
+            prompt = model.prompt
+
+        # This function doesn't distinguish tasks.
+        batch_timer = Timer()
+        batch_timer.tic()
+
+        orig_mode = model.training
+        model.eval()
+        batch_timer.tic()
+        for i, sample in enumerate(train_loader):
+            concepts = None
+            if train_dataset.return_concepts:
+                x, y, concepts, task = sample
+            else:
+                x, y, task = sample
+
+            # send data to gpu
+            if self.gpu:
+                x = x.cuda()
+                y = y.cuda()
+                # if concepts is not None:
+                #     concepts = concepts.cuda()      # [bs, 224, 224]
+                # task = task.cuda()
+
+            # # debug
+            # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+            with torch.no_grad():
+                _, logits = self.obtain_mo_matrix_pop_prompt(
+                    None, use_old_prompts=False if prompt.FPS else True,
+                    mask=self.mask, mask_mode=self.mask_mode,
+                    samples=x,
+                    labels=y,
+                    group_by_labels=False,
+                    return_logits=True,
+                )
+                # logits: [bs, 21, 100]
+
+            # calculate softmax-ed variance
+            vars = torch.softmax(torch.var(logits, dim=-1), dim=-1)   # [bs, 21]
+
+            # accumulate aligning label
+            for var, label in zip(vars, y):
+                label = label.item()
+                if label in self.cls_stats.keys():
+                    self.cls_stats[label] = (self.cls_stats[label]*self.cls_stats[f'n_{label}'] + var
+                                             ) / (self.cls_stats[f'n_{label}'] + 1)
+                    self.cls_stats[f'n_{label}'] += 1
+                else:
+                    self.cls_stats[label] = var
+                    self.cls_stats[f'n_{label}'] = 1
+
+        model.train(orig_mode)
+
+        if verbal:
+            self.log(' * Collect statistics: Total time {time:.2f}'
+                     .format(time=batch_timer.toc()))
+
+    def predict_mo(self, mo_logits):
+        """mo_logits: [bs, 21, 100] -> [bs, 21]. neg-kl"""
+
+        # calculate softmax-ed variance
+        mo_logits = torch.softmax(torch.var(mo_logits, dim=-1), dim=-1)  # [bs, 21]
+
+        n_cls = len(self.cls_stats) // 2        # pattern and n_img
+        target = torch.stack([self.cls_stats[idx] for idx in range(n_cls)], dim=0)      # [n_cls, 21]
+
+        logits = -F.kl_div(mo_logits.unsqueeze(1).log(),
+                           target.unsqueeze(0), reduction='none').mean(-1)    # [bs, n_cls]
+
+        logits = torch.softmax(logits, dim=-1)      # [bs, n_cls]
+
+        return logits
 
 
 class Auxiliary:
