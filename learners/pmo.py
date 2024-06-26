@@ -499,16 +499,16 @@ class PMOPrompt(CODAPromptCond):
 
         # forward all prompts
         # for l in self.e_layers:
-        mo_matrix, logits = self.obtain_mo_matrix_pop_prompt(
+        mo_matrix, features = self.obtain_mo_matrix_pop_prompt(
             None, use_old_prompts=False if prompt.FPS else True,
             mask=self.mask, mask_mode=self.mask_mode,
             train=True,
             samples=inputs,
             labels=targets,
             group_by_labels=False,
-            return_logits=True,
+            return_features=True,
         )  # [bs, 21]
-        # logits: [bs, 21, 100]
+        # features: [bs, 21, 768]
 
         if self.debug_mode:
             print(f'mo_matrix {mo_matrix.shape}: {mo_matrix}')
@@ -538,9 +538,11 @@ class PMOPrompt(CODAPromptCond):
         self.epoch_log['scaler']['Idx'].append(self.epoch)
         self.epoch_log['scaler']['Value'].append(loss.item())
 
-        # predict according to logits on all objs
-        # logits: [bs, 21, 100] -> [bs, 100] => mean, max
-        logits = torch.max(logits, dim=1)[0]      # [bs, 100]
+        # # predict according to logits on all objs
+        # # logits: [bs, 21, 100] -> [bs, 100] => mean, max
+        # logits = torch.max(logits, dim=1)[0]      # [bs, 100]
+        # fake logits
+        logits = torch.max(features[:, :, :100], dim=1)[0]
 
         # step
         self.optimizer.step()
@@ -855,7 +857,7 @@ class PMOPrompt(CODAPromptCond):
                                     samples=None, labels=None, addition_concepts=None,
                                     return_nui_labels=False,
                                     group_by_labels=True,
-                                    return_logits=False
+                                    return_features=False
                                     ):
         """Return mo_matrix: Torch tensor [obj, pop]
         Obj: samples; Pop: prompts
@@ -930,6 +932,7 @@ class PMOPrompt(CODAPromptCond):
         # n_obj = self.n_obj
         ncc_losses = None
         out = None
+        features = None
         if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
             # rearrange samples labels and hard_obj_idx
             stack_samples = torch.stack([samples for _ in range(len(target_objs))],
@@ -942,21 +945,23 @@ class PMOPrompt(CODAPromptCond):
                 print('mo samples', stack_samples.shape)
 
             # pen: penultimate features; train: same forward as batch training.
-            out = self.model(stack_samples, pen=False, train=train,
-                             hard_obj_idx=prompt_idxs, hard_l=hard_l,
-                             mask=mask, mask_mode=mask_mode,
-                             # register_blk=hard_l,
-                             debug_mode=self.debug_mode)
-            # pen=True, out is features: [bs*n_prompt, 768]
-            # pen=False, out is logits: [bs*n_prompt, 100]
-            out = out[0] if train else out
+            out, features = self.model(
+                stack_samples, pen=True, train=train,
+                hard_obj_idx=prompt_idxs, hard_l=hard_l,
+                mask=mask, mask_mode=mask_mode,
+                # register_blk=hard_l,
+                debug_mode=self.debug_mode)
+            # features: [bs*n_prompt, 768]
+            # out is logits: [bs*n_prompt, 100]
 
             ## pair-wise sim loss
             out = out.reshape(n_samples, len(target_objs), out.shape[-1])   # [bs, n_prompt, 100]
+            features = features.reshape(n_samples, len(target_objs), features.shape[-1])   # [bs, n_prompt, 768]
 
             if addition_concepts is not None:       # [n_concepts, 21]
                 n_concepts = addition_concepts.size(0)
                 out = [out]
+                features = [features]
                 stack_samples = torch.stack([samples for _ in range(n_concepts)],
                                             dim=1).reshape(-1, *samples.shape[1:])
                 # [bs*n_concepts, 100]
@@ -967,26 +972,29 @@ class PMOPrompt(CODAPromptCond):
                 if self.debug_mode:
                     print('addition concepts mo samples', stack_samples.shape)
 
-                out_ = self.model(stack_samples, pen=False, train=train,
-                                 hard_l=hard_l,
-                                 mask=mask, mask_mode=mask_mode,
-                                 concepts=addition_concepts,
-                                 # register_blk=hard_l,
-                                 debug_mode=self.debug_mode)
-                add_out = out_[0] if train else out_
+                out_, features_ = self.model(
+                    stack_samples, pen=True, train=train,
+                    hard_l=hard_l,
+                    mask=mask, mask_mode=mask_mode,
+                    concepts=addition_concepts,
+                    # register_blk=hard_l,
+                    debug_mode=self.debug_mode)
 
                 ## pair-wise sim loss
-                add_out = add_out.reshape(n_samples, n_concepts, add_out.shape[-1])
+                out_ = out_.reshape(n_samples, n_concepts, out_.shape[-1])
+                features_ = features_.reshape(n_samples, n_concepts, features_.shape[-1])
                 # [bs, n_concepts, 768]
-                out.append(add_out)
+                out.append(out_)
+                features.append(features_)
                 out = torch.cat(out, dim=1)       # [bs, n_prompt + n_concepts, 100]
+                features = torch.cat(features, dim=1)       # [bs, n_prompt + n_concepts, 768]
 
             ncc_losses = self.obtain_loss(out, labels, mode='last', group_by_labels=group_by_labels)
 
         if return_nui_labels:
             return ncc_losses, nui_labels
-        if return_logits:
-            return ncc_losses, out
+        if return_features:
+            return ncc_losses, features
 
         return ncc_losses
 
@@ -1103,21 +1111,19 @@ class PMOPrompt(CODAPromptCond):
                     #                        )[:, :self.valid_out_dim]
 
                     # forward all prompts
-                    _, logits = self.obtain_mo_matrix_pop_prompt(
+                    _, features = self.obtain_mo_matrix_pop_prompt(
                         None,
                         mask=self.mask, mask_mode=self.mask_mode,
                         train=False,
                         samples=input,
                         labels=target,
                         group_by_labels=False,
-                        return_logits=True,
+                        return_features=True,
                     )  # [bs, 21]
-                    # logits: [bs, 21, 100]
 
                     # predict
-                    # mean logits: [bs, 21, 100] -> [bs, 100]
-                    # output = torch.max(logits, dim=1)[0]  # [bs, 100]
-                    output = self.predict_mo(logits)        # [bs, n_cls]
+                    # [bs, 21, 768] -> [bs, 100]
+                    output = self.predict_mo(features)        # [bs, n_cls]
 
                     # if self.debug_mode:
                     #     print(f'batch{i}: \noutput:{output}')
@@ -1134,21 +1140,19 @@ class PMOPrompt(CODAPromptCond):
 
                     if len(target) > 1:
                         # forward all prompts
-                        _, logits = self.obtain_mo_matrix_pop_prompt(
+                        _, features = self.obtain_mo_matrix_pop_prompt(
                             None,
                             mask=self.mask, mask_mode=self.mask_mode,
                             train=False,
                             samples=input,
                             labels=target,
                             group_by_labels=False,
-                            return_logits=True,
+                            return_features=True,
                         )  # [bs, 21]
-                        # logits: [bs, 21, 100]
 
                         # predict
-                        # mean logits: [bs, 21, 100] -> [bs, 100]
-                        # output = torch.max(logits, dim=1)[0]  # [bs, 100]
-                        output = self.predict_mo(logits)        # [bs, n_cls]
+                        # [bs, 21, 768] -> [bs, 100]
+                        output = self.predict_mo(features)        # [bs, n_cls]
 
                         if task_global:
                             # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
@@ -1200,29 +1204,32 @@ class PMOPrompt(CODAPromptCond):
             # # debug
             # print(f'x shape: {x.shape}, y: {y}, task: {task}')
             with torch.no_grad():
-                _, logits = self.obtain_mo_matrix_pop_prompt(
+                _, features = self.obtain_mo_matrix_pop_prompt(
                     None, use_old_prompts=False if prompt.FPS else True,
                     mask=self.mask, mask_mode=self.mask_mode,
                     samples=x,
                     labels=y,
                     group_by_labels=False,
-                    return_logits=True,
+                    return_features=True,
                 )
-                # logits: [bs, 21, 100]
+                # features: [bs, 21, 768]
 
-            # calculate softmax-ed variance
-            vars = torch.softmax(torch.var(logits, dim=-1), dim=-1)   # [bs, 21]
+            # vars = torch.softmax(torch.var(features, dim=-1), dim=-1)   # [bs, 21]
 
-            # accumulate aligning label
-            for var, label in zip(vars, y):
+            # accumulate aligning label   [21, 768]
+            uni_y = torch.unique(y)
+            for label in uni_y:
+                label_features = features[y == label]
+                l = label_features.shape[0]
                 label = label.item()
                 if label in self.cls_stats.keys():
-                    self.cls_stats[label] = (self.cls_stats[label]*self.cls_stats[f'n_{label}'] + var
-                                             ) / (self.cls_stats[f'n_{label}'] + 1)
-                    self.cls_stats[f'n_{label}'] += 1
+                    self.cls_stats[label] = (self.cls_stats[label]*self.cls_stats[f'n_{label}'] +
+                                             torch.sum(label_features, dim=0)
+                                             ) / (self.cls_stats[f'n_{label}'] + l)
+                    self.cls_stats[f'n_{label}'] += l
                 else:
-                    self.cls_stats[label] = var
-                    self.cls_stats[f'n_{label}'] = 1
+                    self.cls_stats[label] = torch.sum(label_features, dim=0)
+                    self.cls_stats[f'n_{label}'] = l
 
         model.train(orig_mode)
 
@@ -1237,14 +1244,15 @@ class PMOPrompt(CODAPromptCond):
             pickle.dump(self.cls_stats, f)
         print('=> Save Done')
 
-    def predict_mo(self, mo_logits):
-        """mo_logits: [bs, 21, 100] -> [bs, 21]. neg-kl"""
+    def predict_mo(self, mo_features):
+        """mo_features: [bs, 21, 768] -> [bs, 21]. neg-kl"""
 
         # calculate softmax-ed variance
-        mo_logits = torch.softmax(torch.var(mo_logits, dim=-1), dim=-1)  # [bs, 21]
+        mo_logits = torch.softmax(torch.var(mo_features, dim=-1), dim=-1)  # [bs, 21]
 
         n_cls = len(self.cls_stats) // 2        # pattern and n_img
-        target = torch.stack([self.cls_stats[idx] for idx in range(n_cls)], dim=0)      # [n_cls, 21]
+        target = torch.stack([torch.softmax(torch.var(self.cls_stats[idx], dim=-1), dim=-1)
+                              for idx in range(n_cls)], dim=0)      # [n_cls, 21]
 
         logits = -F.kl_div(mo_logits.unsqueeze(1).log(),
                            target.unsqueeze(0), reduction='none').mean(-1)    # [bs, n_cls]

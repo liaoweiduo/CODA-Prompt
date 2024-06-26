@@ -1411,9 +1411,15 @@ class ViTZoo(nn.Module):
             out, _, _ = self.feat(x, register_blk=register_blk)
             out = out[:, 0, :]
         out = out.view(out.size(0), -1)
-        if not pen:
+        if pen:
+            features = out
             out = self.last(out)
-        if self.prompt is not None and train and return_aqk:
+        else:
+            features = out
+
+        if pen:
+            return out, features
+        elif self.prompt is not None and train and return_aqk:
             return out, prompt_loss, aq_k_list
         elif self.prompt is not None and train:
             return out, prompt_loss
