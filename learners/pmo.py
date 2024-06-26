@@ -129,9 +129,9 @@ class PMOPrompt(CODAPromptCond):
             self.log('Optimizer is reset!')
             self.init_optimizer()
 
+        # data weighting
+        self.data_weighting(train_dataset)
         if need_train:
-            # data weighting
-            self.data_weighting(train_dataset)
             losses = AverageMeter()
             acc = AverageMeter()
             batch_time = AverageMeter()
@@ -240,10 +240,10 @@ class PMOPrompt(CODAPromptCond):
             self.log('Optimizer is reset!')
             self.init_optimizer()
 
+        # data weighting
+        self.data_weighting(train_dataset)
         acc = AverageMeter()
         if need_train:
-            # data weighting
-            self.data_weighting(train_dataset)
             losses = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
