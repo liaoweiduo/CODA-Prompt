@@ -30,7 +30,7 @@ mkdir -p $OUTDIR
 #    --oracle_flag --upper_bound_flag \
 LEARNERTYPE=pmo
 LEARNERNAME=PMOPrompt
-LOGNAME=pmo-f4m-epoch30-first30-min2
+LOGNAME=pmo-f4m-epoch30-first30-1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 21 2 0.0 2 -10003 1 -1 \
