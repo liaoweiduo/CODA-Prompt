@@ -2,6 +2,7 @@ from __future__ import print_function
 import sys
 import math
 from typing import Optional, Union
+import pickle
 
 import torch
 import torch.nn as nn
@@ -246,7 +247,8 @@ class PMOPrompt(CODAPromptCond):
             losses = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
-            for epoch in range(self.config['schedule'][-1]):
+            n_epoch = self.config['schedule'][-1] if train_dataset.t == 0 else 5
+            for epoch in range(n_epoch):
                 self.epoch = epoch
 
                 if epoch > 0: self.scheduler.step()
@@ -308,13 +310,13 @@ class PMOPrompt(CODAPromptCond):
             # collect class statistics
             self.collect_statistics(train_loader, train_dataset)
 
-            # validation
-            if val_loader is not None:
-                val_acc = self.validation(val_loader)
-                # log
-                self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                self.epoch_log['scaler']['Idx'].append(self.epoch)
-                self.epoch_log['scaler']['Value'].append(val_acc)
+            # # validation
+            # if val_loader is not None:
+            #     val_acc = self.validation(val_loader)
+            #     # log
+            #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
+            #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+            #     self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 
@@ -521,7 +523,10 @@ class PMOPrompt(CODAPromptCond):
                 self.epoch_log['mo']['Inner_id'].append(0)
                 self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
 
-        loss = torch.min(mo_matrix, dim=1)[0]      # min{ce loss}  [bs]
+        # # min {ce loss}
+        # loss = torch.min(mo_matrix, dim=1)[0]      # [bs]
+        # min-2 {ce loss}
+        loss = torch.mean(torch.sort(mo_matrix, dim=1)[0][:, :2], dim=1)        # [bs]
         loss = torch.mean(loss)
 
         loss.backward()
@@ -1224,6 +1229,13 @@ class PMOPrompt(CODAPromptCond):
         if verbal:
             self.log(' * Collect statistics: Total time {time:.2f}'
                      .format(time=batch_timer.toc()))
+
+        # save statistics
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
+        print('=> Saving statistics to:', stats_path)
+        with open(stats_path, 'wb') as f:
+            pickle.dump(self.cls_stats, f)
+        print('=> Save Done')
 
     def predict_mo(self, mo_logits):
         """mo_logits: [bs, 21, 100] -> [bs, 21]. neg-kl"""
