@@ -1013,8 +1013,9 @@ class PMOPrompt(CODAPromptCond):
             # ce with heuristic
             logits[:, :self.last_valid_out_dim] = -float('inf')
             # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
-            dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
-            objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
+            # dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
+            # objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
+            objs = (self.criterion_fn(logits, cat_labels.long())).view(bs, pop)  # [bs, n_prompt]
             if group_by_labels:
                 '''group objectives [n_samples, n_prompt] -> [n_label, n_prompt]'''
                 ncc_losses = torch.stack([torch.mean(objs[labels == label], dim=0) for label in nui_labels])
@@ -1248,12 +1249,12 @@ class PMOPrompt(CODAPromptCond):
             pickle.dump(self.cls_stats, f)
         print('=> Save Done')
 
-    def load_statistics(self):
+    def load_statistics(self, verbose=False):
         stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
-        print('=> Load statistics from:', stats_path)
+        if verbose:
+            print('=> Load statistics from:', stats_path)
         with open(stats_path, 'rb') as f:
             self.cls_stats = pickle.load(f)
-        print('=> Load Done')
 
     def predict_mo(self, mo_features):
         """mo_features: [bs, 21, 768] -> [bs, 21]. neg-kl"""
