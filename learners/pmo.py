@@ -1085,6 +1085,10 @@ class PMOPrompt(CODAPromptCond):
 
         orig_mode = model.training
         model.eval()
+
+        # load statistics for evaluating
+        self.load_statistics()
+
         for i, sample in enumerate(dataloader):
             concepts = None
             if len(sample) == 3:
@@ -1123,7 +1127,7 @@ class PMOPrompt(CODAPromptCond):
 
                     # predict
                     # [bs, 21, 768] -> [bs, 100]
-                    output = self.predict_mo(features)        # [bs, n_cls]
+                    output = self.predict_mo(features)[:, :self.valid_out_dim]        # [bs, n_cls]
 
                     # if self.debug_mode:
                     #     print(f'batch{i}: \noutput:{output}')
