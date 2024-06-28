@@ -307,16 +307,16 @@ class PMOPrompt(CODAPromptCond):
                 losses = AverageMeter()
                 acc = AverageMeter()
 
-        # collect class statistics
-        self.collect_statistics(train_loader, train_dataset)
+            # collect class statistics
+            self.collect_statistics(train_loader, train_dataset)
 
-        # # validation
-        # if val_loader is not None:
-        #     val_acc = self.validation(val_loader)
-        #     # log
-        #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
-        #     self.epoch_log['scaler']['Idx'].append(self.epoch)
-        #     self.epoch_log['scaler']['Value'].append(val_acc)
+            # # validation
+            # if val_loader is not None:
+            #     val_acc = self.validation(val_loader)
+            #     # log
+            #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
+            #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+            #     self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 
@@ -1244,20 +1244,38 @@ class PMOPrompt(CODAPromptCond):
             pickle.dump(self.cls_stats, f)
         print('=> Save Done')
 
+    def load_statistics(self):
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
+        print('=> Load statistics from:', stats_path)
+        with open(stats_path, 'rb') as f:
+            self.cls_stats = pickle.load(f)
+        print('=> Load Done')
+
     def predict_mo(self, mo_features):
         """mo_features: [bs, 21, 768] -> [bs, 21]. neg-kl"""
 
-        # calculate softmax-ed variance
-        mo_logits = torch.softmax(torch.var(mo_features, dim=-1), dim=-1)  # [bs, 21]
+        # # calculate softmax-ed variance
+        # mo_logits = torch.softmax(torch.var(mo_features, dim=-1), dim=-1)  # [bs, 21]
+        #
+        # n_cls = len(self.cls_stats) // 2        # pattern and n_img
+        # target = torch.stack([torch.softmax(torch.var(self.cls_stats[idx], dim=-1), dim=-1)
+        #                       for idx in range(n_cls)], dim=0)      # [n_cls, 21]
+        #
+        # logits = -F.kl_div(mo_logits.unsqueeze(1).log(),
+        #                    target.unsqueeze(0), reduction='none').mean(-1)    # [bs, n_cls]
+        #
+        # logits = torch.softmax(logits, dim=-1)      # [bs, n_cls]
 
-        n_cls = len(self.cls_stats) // 2        # pattern and n_img
-        target = torch.stack([torch.softmax(torch.var(self.cls_stats[idx], dim=-1), dim=-1)
-                              for idx in range(n_cls)], dim=0)      # [n_cls, 21]
+        # calculate softmax-ed cos-sim
+        norm_features = nn.functional.normalize(mo_features, dim=-1)
 
-        logits = -F.kl_div(mo_logits.unsqueeze(1).log(),
-                           target.unsqueeze(0), reduction='none').mean(-1)    # [bs, n_cls]
+        n_cls = len(self.cls_stats) // 2  # pattern and n_img
+        target = torch.stack([self.cls_stats[idx]
+                              for idx in range(n_cls)], dim=0)  # [n_cls, 21, 768]
+        norm_target = nn.functional.normalize(target, dim=-1)
 
-        logits = torch.softmax(logits, dim=-1)      # [bs, n_cls]
+        # cosine sim
+        logits = torch.einsum('bpd,cpd->bc', norm_features, norm_target)  # [bs, n_cls]
 
         return logits
 
