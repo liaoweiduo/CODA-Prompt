@@ -30,9 +30,9 @@ import dataloaders
 
 
 # Our PMO (Pool & Multi-Objective)
-class PMOPrompt(CODAPromptCond):
+class SLOTPrompt(CODAPromptCond):
     def __init__(self, learner_config):
-        super(PMOPrompt, self).__init__(learner_config)
+        super(SLOTPrompt, self).__init__(learner_config)
         # self.pool_size = self.prompt_param[1][3]        # =0 if do not enable pool hv loss
         # self.pool = Pool(self.pool_size, self.seed)
 
@@ -96,9 +96,9 @@ class PMOPrompt(CODAPromptCond):
         self.epoch_log['mo'] = pd.DataFrame(self.epoch_log['mo'])
         self.epoch_log['scaler'] = pd.DataFrame(self.epoch_log['scaler'])
 
-    def create_model(self, use_vit_emb=False, use_vit_fea=False):
+    def create_model(self, use_vit_emb=True, use_vit_fea=True):
         cfg = self.config
-        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'pmo',prompt_param=self.prompt_param, use_vit_emb=use_vit_emb, use_vit_fea=use_vit_fea)
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=self.prompt_param, use_vit_emb=use_vit_emb, use_vit_fea=use_vit_fea)
         return model
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):

@@ -7,8 +7,136 @@ import torch.nn.init as init
 import torchvision.models as models
 from torch.autograd import Variable
 from .vit import VisionTransformer
+from .slot_attention import SlotAttention
 import numpy as np
 import copy
+
+
+class SlotPrompt(nn.Module):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+        super().__init__()
+        self.task_count = 0
+        self.emb_d = emb_d
+        self.key_d = key_dim
+        self.n_tasks = n_tasks
+
+        # slot pool
+        self.e_pool_size = int(prompt_param[0])  # 100
+        self.register_buffer('pool', torch.randn(self.e_pool_size, key_dim).float())
+
+        # prompt basic param
+        self.e_p_length = int(prompt_param[1])  # 8
+        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        # self.e_layers = [0, 1, 2, 3, 4]
+        # [] for no prompt.
+        # prompt mapping init
+        self.prompt_map_init(self.task_count)
+
+        # slot basic param
+        self.slot_attn = SlotAttention(emb_d, n_slots=int(prompt_param[2]))
+        # 5   number of slots
+
+        # trigger fixed prompt size (FPS)
+        self.FPS = True         # no use, consider update throughout all tasks.
+
+    def process_task_count(self):
+        self.task_count += 1
+        self.prompt_map_init(self.task_count)
+
+    def prompt_map_init(self, task_id):
+        for e in self.e_layers:
+            prompt_map = tensor_prompt(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
+            setattr(self, f's2p_{task_id}_{e}', prompt_map)       # [bs, 64] @ [64, 8, 768] -> [bs, 8, 768]
+
+    def handle_x_querry(self, x_querry, x_block, l):
+        if x_querry is None:
+            raise ValueError('x_querry is None')
+        if len(x_querry.shape) != 3:
+            raise Exception(f'x_querry has wrong shape: {x_querry.shape}')
+
+        # forward to obtain slots:
+        if x_querry.shape[-1] == self.emb_d:
+            slots = self.slot_attn(x_querry)
+        else:
+            slots = x_querry
+
+        return slots
+
+    def maintain_pool(self, slots):
+        # select s and f according to task id
+        if self.FPS:        # use all prompts
+            s = 0
+            f = self.e_pool_size
+        else:
+            pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+            s = int(self.task_count * pt)  # 10 slots for one task
+            f = int((self.task_count + 1) * pt)
+
+        # find the closest items in the pool
+        pool = self.pool  # [100, 64]
+
+
+
+        # determine the corresponding items based on a threshold
+        pass
+
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
+        slots = self.handle_x_querry(x_querry, x_block, l)   # querry is based on vit output
+        # e prompts
+        e_valid = False
+        if l in self.e_layers:
+            e_valid = True
+            B, K, C = slots.shape  # [bs, k5, h64]
+            prompt_map = getattr(self, f's2p_{self.task_count}_{l}')    # [h64, p8, d768]
+
+            if train:
+                # [bs, k5, h64] @ [h64, p8, d768] -> [bs, k5, p8, d768]
+                prompts = torch.einsum('bkh,hpd->bkpd', slots, prompt_map)  # [bs, k5, p8, d768]
+
+
+
+            self.maintain_pool(slots)
+
+
+
+
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+
+            # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
+
+            # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
+            P_ = torch.einsum('bk,kld->bld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :i, :]
+            Ev = P_[:, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        # return
+        return p_return, loss, x_block
 
 
 class CodaPrompt(nn.Module):
@@ -1330,7 +1458,8 @@ def tensor_prompt(a, b=None, c=None, ortho=False):
 
 
 class ViTZoo(nn.Module):
-    def __init__(self, num_classes=10, pt=False, prompt_flag=False, prompt_param=None, use_vit_emb=True):
+    def __init__(self, num_classes=10, pt=False, prompt_flag=False, prompt_param=None,
+                 use_vit_emb=True, use_vit_fea=False):
         super(ViTZoo, self).__init__()
 
         # get last layer
@@ -1338,6 +1467,7 @@ class ViTZoo(nn.Module):
         self.prompt_flag = prompt_flag
         self.task_id = None
         self.use_vit_emb = use_vit_emb
+        self.use_vit_fea = use_vit_fea
 
         # get feature encoder
         zoo_model = None
@@ -1376,6 +1506,8 @@ class ViTZoo(nn.Module):
             self.prompt = PatchPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'pmo':
             self.prompt = PmoPrompt(768, prompt_param[0], prompt_param[1])
+        elif self.prompt_flag == 'slot':
+            self.prompt = SlotPrompt(768, prompt_param[0], prompt_param[1])
         else:
             self.prompt = None
 
@@ -1400,7 +1532,8 @@ class ViTZoo(nn.Module):
                         q, _, _ = self.feat(cond_x)
                     else:
                         q, _, _ = self.feat(x)
-                    q = q[:, 0, :]
+                    if not self.use_vit_fea:
+                        q = q[:, 0, :]
             else:
                 q = None
             out, prompt_loss, aq_k_list = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id,
