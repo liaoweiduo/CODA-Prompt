@@ -193,14 +193,12 @@ class SLOTPrompt(Prompt):
     def update_model(self, inputs, targets):
         self.optimizer.zero_grad()
         try:
-            prompt = self.model.module.prompt
-            last = self.model.module.last
+            model = self.model.module
         except:
-            prompt = self.model.prompt
-            last = self.model.last
+            model = self.model
 
         # obtain slots
-        slots = self.model.obtain_q(inputs)     # [bs, k20, h64]
+        slots = model.obtain_q(inputs)     # [bs, k20, h64]
 
         # forward all slots and obtain loss matrix
         # for l in self.e_layers:
