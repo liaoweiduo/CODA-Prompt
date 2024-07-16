@@ -48,7 +48,7 @@ class PMOPrompt(CODAPromptCond):
         self.aux = Auxiliary()
 
         # mo
-        self.n_obj = int(self.config['n_obj'])
+        self.n_obj = int(self.config['prompt_param'][1][3])
         self.num_aux_sampling = int(self.config['num_aux_sampling'])
         self.mask = self.config['prompt_param'][1][4]               # constant float or randn or uniform or ortho
         self.mask_mode = int(self.config['prompt_param'][1][5])     # maskout or use
@@ -67,7 +67,7 @@ class PMOPrompt(CODAPromptCond):
         else:
             raise Exception(f'Unknown mask mode {self.mask_mode}')
         print(f'Mask info: {self.mask_mode}->{self.mask}')
-        self.hv_coeff = self.config['hv_coeff']     # -1 if use LCQP
+        self.hv_coeff = self.config['prompt_param'][1][6]     # -1 if use LCQP
 
         try:
             prompt = self.model.module.prompt

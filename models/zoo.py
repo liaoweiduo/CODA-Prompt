@@ -13,7 +13,7 @@ import copy
 
 
 class SlotPrompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=64):
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d
@@ -33,36 +33,38 @@ class SlotPrompt(nn.Module):
         self.prompt_map_init(self.task_count)
 
         # slot basic param
-        self.slot_attn = SlotAttention(emb_d, n_slots=int(prompt_param[2]))
-        # 5   number of slots
+        self.slot_attn = SlotAttention(emb_d, n_slots=int(prompt_param[2]), key_dim=key_dim)
+        # 20   number of slots for one extraction
 
         # trigger fixed prompt size (FPS)
         self.FPS = True         # no use, consider update throughout all tasks.
 
     def process_task_count(self):
         self.task_count += 1
-        self.prompt_map_init(self.task_count)
+        # self.prompt_map_init(self.task_count)
 
     def prompt_map_init(self, task_id):
         for e in self.e_layers:
             prompt_map = tensor_prompt(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
-            setattr(self, f's2p_{task_id}_{e}', prompt_map)       # [bs, 64] @ [64, 8, 768] -> [bs, 8, 768]
+            # setattr(self, f's2p_{task_id}_{e}', prompt_map)       # [bs, 64] @ [64, 8, 768] -> [bs, 8, 768]
+            setattr(self, f's2p_{e}', prompt_map)
 
-    def handle_x_querry(self, x_querry, x_block, l):
-        if x_querry is None:
-            raise ValueError('x_querry is None')
-        if len(x_querry.shape) != 3:
-            raise Exception(f'x_querry has wrong shape: {x_querry.shape}')
+    def handle_q(self, q):
+        # obtain slots
+        if q is None:
+            raise ValueError('q is None')
+        if len(q.shape) != 3:
+            raise Exception(f'q has wrong shape: {q.shape}')
 
         # forward to obtain slots:
-        if x_querry.shape[-1] == self.emb_d:
-            slots = self.slot_attn(x_querry)
-        else:
-            slots = x_querry
+        slots = self.slot_attn(q)
+
+        # TBD self.maintain_pool(slots)
 
         return slots
 
     def maintain_pool(self, slots):
+        # TBD
         # select s and f according to task id
         if self.FPS:        # use all prompts
             s = 0
@@ -80,54 +82,28 @@ class SlotPrompt(nn.Module):
         # determine the corresponding items based on a threshold
         pass
 
+    def handle_x_querry(self, x_querry, x_block, l):
+        if x_querry is None:
+            raise ValueError('x_querry is None')
+        elif len(x_querry.shape) != 2:
+            raise Exception(f'x_querry has wrong shape: {x_querry.shape}')
+        return x_querry
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
-        slots = self.handle_x_querry(x_querry, x_block, l)   # querry is based on vit output
+        slot = self.handle_x_querry(x_querry, x_block, l)
+        B, H = slot.shape  # [bs, h64]
         # e prompts
         e_valid = False
         if l in self.e_layers:
             e_valid = True
-            B, K, C = slots.shape  # [bs, k5, h64]
-            prompt_map = getattr(self, f's2p_{self.task_count}_{l}')    # [h64, p8, d768]
-
-            if train:
-                # [bs, k5, h64] @ [h64, p8, d768] -> [bs, k5, p8, d768]
-                prompts = torch.einsum('bkh,hpd->bkpd', slots, prompt_map)  # [bs, k5, p8, d768]
-
-
-
-            self.maintain_pool(slots)
-
-
-
-
-            # b = bs, d = 768, k = 100, l=8
-            # with attention and cosine sim
-            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
-            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
-            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-            n_K = nn.functional.normalize(K, dim=1)
-            q = nn.functional.normalize(a_querry, dim=2)
-            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
-
-            # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
-
-            # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
-            P_ = torch.einsum('bk,kld->bld', aq_k, p)
+            prompt_map = getattr(self, f's2p_{l}')    # [h64, p8, d768]
+            # [bs, h64] @ [h64, p8, d768] -> [bs, p8, d768]
+            prompts = torch.einsum('bh,hpd->bpd', slot, prompt_map)  # [bs, p8, d768]
 
             # select prompts
             i = int(self.e_p_length / 2)  # 8 / 2
-            Ek = P_[:, :i, :]
-            Ev = P_[:, i:, :]
-
-            # ortho penalty
-            if train and self.ortho_mu > 0:
-                loss = ortho_penalty(K) * self.ortho_mu
-                loss += ortho_penalty(A) * self.ortho_mu
-                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
-            else:
-                loss = 0
-        else:
-            loss = 0
+            Ek = prompts[:, :i, :]
+            Ev = prompts[:, i:, :]
 
         # combine prompts for prefix tuning
         if e_valid:
@@ -136,7 +112,7 @@ class SlotPrompt(nn.Module):
             p_return = None
 
         # return
-        return p_return, loss, x_block
+        return p_return, 0, x_block
 
 
 class CodaPrompt(nn.Module):
@@ -274,6 +250,9 @@ class CodaPrompt(nn.Module):
         if x_querry is None:
             raise ValueError('x_querry is None')
         return x_querry
+
+    def handle_q(self, q):
+        return q
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
         x_querry = self.handle_x_querry(x_querry, x_block, l)
@@ -1340,6 +1319,9 @@ class DualPrompt(nn.Module):
     def process_task_count(self):
         self.task_count += 1
 
+    def handle_q(self, q):
+        return q
+
     def forward(self, x_querry, l, x_block, train=False, task_id=None):
 
         # e prompts
@@ -1518,15 +1500,26 @@ class ViTZoo(nn.Module):
         for param in self.feat.parameters():
             param.requires_grad = False
 
+    def obtain_q(self, x, cond_x=None):
+        with torch.no_grad():
+            if cond_x is not None:  # condition model
+                q, _, _ = self.feat(cond_x)
+            else:
+                q, _, _ = self.feat(x)
+        q = q[:, 1:, :]     # only use patch semantic info
+        q = self.prompt.handle_q(q)  # only used for slot-p to cal slots
+
+        return q
+
     # pen: get penultimate features    
     def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False,
-                cond_x=None, return_aqk=False, **kwargs):
+                cond_x=None, return_aqk=False, q=None, **kwargs):
         # kwargs for prompt
         if task_id is None:
             task_id = self.task_id
 
         if self.prompt is not None:
-            if self.use_vit_emb:
+            if self.use_vit_emb and q is None:
                 with torch.no_grad():
                     if cond_x is not None:  # condition model
                         q, _, _ = self.feat(cond_x)
@@ -1534,8 +1527,7 @@ class ViTZoo(nn.Module):
                         q, _, _ = self.feat(x)
                     if not self.use_vit_fea:
                         q = q[:, 0, :]
-            else:
-                q = None
+
             out, prompt_loss, aq_k_list = self.feat(x, prompt=self.prompt, q=q, train=train, task_id=task_id,
                                                     register_blk=register_blk, return_aqk=return_aqk,
                                                     **kwargs)
@@ -1546,9 +1538,9 @@ class ViTZoo(nn.Module):
         out = out.view(out.size(0), -1)
         if pen:
             features = out
-            out = self.last(out)
         else:
-            features = out
+            features = None
+        out = self.last(out)
 
         if pen:
             return out, features

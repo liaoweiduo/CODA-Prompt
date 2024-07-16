@@ -22,20 +22,37 @@ mkdir -p $OUTDIR
 # prompt parameter args:
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
+#    arg 3 = num of slots extracted from one img
+#    arg 4 = num of slots considered to be opted
+#    --oracle_flag --upper_bound_flag \
+LEARNERTYPE=slotmo
+LEARNERNAME=SLOTPrompt
+LOGNAME=slot-f4m-t-lr1e_4
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+    --prompt_param 100 8 20 5 \
+    --log_dir ${OUTDIR}/${LOGNAME}
+date
+
+# PMO-Prompt
+#
+# prompt parameter args:
+#    arg 1 = prompt component pool size
+#    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    arg 4 = num of objectives: 2
 #    arg 5 = mask: 0.0; -10000: randn; -10001: uniform; -10002: ortho; -10003: None
 #    arg 6 = mask_mode: 0: maskout or 1: use
 #    arg 7 = hv coeff, -1 to use LCQP
 #    --oracle_flag --upper_bound_flag \
-LEARNERTYPE=pmo
-LEARNERNAME=PMOPrompt
-LOGNAME=pmo-f4m-epoch30-first30-min2
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 21 2 0.0 2 -10003 1 -1 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
+#LEARNERTYPE=pmo
+#LEARNERNAME=PMOPrompt
+#LOGNAME=pmo-f4m-epoch30-first30-min2
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --prompt_param 21 2 0.0 2 -10003 1 -1 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
 
 # CODA-P-Replay
 #
