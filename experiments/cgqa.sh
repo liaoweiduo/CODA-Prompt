@@ -17,7 +17,7 @@ OVERWRITE=0
 # process inputs
 mkdir -p $OUTDIR
 
-# PMO-Prompt
+# SLOT-Prompt
 #
 # prompt parameter args:
 #    arg 1 = prompt component pool size
