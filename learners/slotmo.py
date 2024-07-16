@@ -200,17 +200,17 @@ class SLOTPrompt(Prompt):
         # obtain slots
         slots = model.obtain_q(inputs)     # [bs, k20, h64]
 
-        # forward all slots and obtain loss matrix
+        # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
         # for l in self.e_layers:
-        mo_matrix, features = self.obtain_mo_matrix(
-            None, slots=slots,
-            train=True,
-            samples=inputs,
-            labels=targets,
-            group_by_labels=False,
-            return_features=True,
-        )  # [bs, 21]
-        # features: [bs, 21, 768]
+        with torch.no_grad():
+            mo_matrix, _ = self.obtain_mo_matrix(
+                None, slots=slots,
+                train=True,
+                samples=inputs,
+                labels=targets,
+                group_by_labels=False,
+                return_features=True,
+            )  # [bs, 20]
 
         if self.debug_mode:
             print(f'mo_matrix {mo_matrix.shape}')
@@ -225,10 +225,21 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['mo']['Inner_id'].append(0)
                 self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
 
-        # # min {ce loss}
-        # loss = torch.min(mo_matrix, dim=1)[0]      # [bs]
-        # min-k {ce loss}
-        loss = torch.mean(torch.sort(mo_matrix, dim=1)[0][:, :self.n_opt_slots], dim=1)        # [bs]
+        # select n_opt_slots minimal slots for each img
+        indexs = torch.sort(mo_matrix, dim=1)[1][:, :self.n_opt_slots]
+        slots = torch.stack([slots[idx, indexs[idx]] for idx in range(indexs.shape[0])])  # [bs, 5, h64]
+
+        mo_matrix, features = self.obtain_mo_matrix(
+            None, slots=slots,
+            train=True,
+            samples=inputs,
+            labels=targets,
+            group_by_labels=False,
+            return_features=True,
+        )  # [bs, 5]
+        # features: [bs, 5, 768]
+
+        loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
 
         loss.backward()
@@ -344,7 +355,7 @@ class SLOTPrompt(Prompt):
                 slots = torch.cat([slots, addition], dim=1)        # [bs, k20+num, h64]
 
             len_slots = slots.shape[1]
-            slots = slots.reshape(n_samples * len_slots, slots.shape[-1])  # [bs*k, h]
+            stack_slots = slots.reshape(n_samples * len_slots, slots.shape[-1])  # [bs*k, h]
 
             # rearrange samples labels and hard_obj_idx
             stack_samples = torch.stack([samples for _ in range(len_slots)],
@@ -352,11 +363,11 @@ class SLOTPrompt(Prompt):
             # [bs * n_slots, 3, 224, 224]
 
             if self.debug_mode:
-                print(n_samples, len_slots, '\nmo samples:', stack_samples.shape, 'slots:', slots.shape)
+                print(n_samples, len_slots, '\nmo samples:', stack_samples.shape, 'slots:', stack_slots.shape)
 
             # pen: penultimate features; train: same forward as batch training.
             out, features = self.model(
-                stack_samples, q=slots,
+                stack_samples, q=stack_slots,
                 pen=True, train=train,
                 # register_blk=hard_l,
                 debug_mode=self.debug_mode)
@@ -368,6 +379,7 @@ class SLOTPrompt(Prompt):
             features = features.reshape(n_samples, len_slots, features.shape[-1])   # [bs, n_slots, 768]
 
             ncc_losses = self.obtain_loss(out, labels, mode='last', group_by_labels=group_by_labels)
+            # [bs, n_slots]
 
         if return_nui_labels:
             return ncc_losses, nui_labels
@@ -450,6 +462,17 @@ class SLOTPrompt(Prompt):
             raise Exception(f'not implemented mode: {mode}')
 
         return ncc_losses
+
+    def process_concepts(self, concepts, num_prompts):
+        # # from [bs, 1, 2] -> [bs, num_prompts]  multi-hot float
+        # concepts = concepts[:, 0]       # [bs, 2]
+        # concept_labels = F.one_hot(concepts, num_prompts)
+        # concept_labels = torch.sum(concept_labels, dim=1).float()
+
+        # # from [bs, 1, num_prompts] -> [bs, num_prompts]  multi-hot float
+        concept_labels = concepts[:, 0]       # [bs, 21]
+
+        return concept_labels
 
     def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False):
         return 0

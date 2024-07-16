@@ -85,7 +85,7 @@ class Prompt(NormalNN):
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
         print('******************* init optimizer **********************')
-        print(f'target: {target} len {len(params_to_opt)}')
+        print(f'optimizer params: {"all" if target is None else target} len {len(params_to_opt)}')
 
         optimizer_arg = {'params':params_to_opt,
                          'lr':self.config['lr'],
