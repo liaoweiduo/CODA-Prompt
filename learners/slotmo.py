@@ -227,7 +227,9 @@ class SLOTPrompt(Prompt):
 
         # select n_opt_slots minimal slots for each img
         indexs = torch.sort(mo_matrix, dim=1)[1][:, :self.n_opt_slots]
-        slots = torch.stack([slots[idx, indexs[idx]] for idx in range(indexs.shape[0])])  # [bs, 5, h64]
+        indexs = torch.stack([indexs for _ in range(slots.shape[-1])], dim=-1)      # [bs, 5, 64]
+        slots = torch.gather(slots, dim=1, index=indexs)  # [bs, 5, h64]
+        # slots = torch.stack([slots[idx, indexs[idx]] for idx in range(indexs.shape[0])])  # [bs, 5, h64]
 
         mo_matrix, features = self.obtain_mo_matrix(
             None, slots=slots,
