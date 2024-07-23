@@ -37,6 +37,7 @@ class SLOTPrompt(Prompt):
         # self.pool = Pool(self.pool_size, self.seed)
 
         self.train_dataset = None
+        self.t = 0
         self.epoch = 0
 
         # load aux
@@ -56,6 +57,8 @@ class SLOTPrompt(Prompt):
             prompt = self.model.prompt
         self.e_layers = prompt.e_layers
         self.FPS = prompt.FPS
+        self.e_pool_size = prompt.e_pool_size       # 100
+        self.key_d = prompt.key_d                   # 64
 
         # cls statistics
         self.cls_stats = {}
@@ -80,10 +83,18 @@ class SLOTPrompt(Prompt):
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=self.prompt_param, use_vit_emb=False)
         return model
 
+    def load_model(self, filename, drop_last=False):
+        # random init pool
+        if self.pool is None:
+            self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
+
+        super().load_model(filename, drop_last=drop_last)
+
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
 
         self.train_dataset = train_dataset
+        self.t = train_dataset.t
         self.aux.update_source(train_dataset)       # aux samples from the current task
 
         # try to load model
@@ -107,7 +118,116 @@ class SLOTPrompt(Prompt):
             acc = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
-            for epoch in range(self.config['schedule'][-1]):
+
+            if self.t == 0:     # first task do phase I + II + III
+                # phase I: train slots attn
+                self.log('Phase I: train slot attn!')
+                for epoch in range(self.config['schedule'][-1]):
+                    self.epoch = epoch
+
+                    if epoch > 0: self.scheduler.step()
+                    for param_group in self.optimizer.param_groups:
+                        self.log('LR:', param_group['lr'])
+                    batch_timer.tic()
+                    for i, sample in enumerate(train_loader):
+                        self.batch_idx = i
+
+                        concepts = None
+                        if train_dataset.return_concepts:
+                            x, y, concepts, task = sample
+                        else:
+                            x, y, task = sample
+
+                        # verify in train mode
+                        self.model.train()
+
+                        # send data to gpu
+                        if self.gpu:
+                            x = x.cuda()
+                            y = y.cuda()
+                            # if concepts is not None:
+                            #     concepts = concepts.cuda()      # [bs, 224, 224]
+                            # task = task.cuda()
+
+                        # # debug
+                        # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                        # model update
+                        loss, output = self.update_model(x, y)      # , task
+
+                        # measure elapsed time
+                        batch_time.update(batch_timer.toc())
+                        batch_timer.tic()
+
+                        # measure accuracy and record loss
+                        y = y.detach()
+                        # accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                        losses.update(loss, y.size(0))
+                        batch_timer.tic()
+
+                    # eval update
+                    self.log(
+                        'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
+                    self.log(
+                        ' * Loss {loss.avg:.3f} | '
+                        'Time {time.avg:.3f}*{i}'.format(
+                            loss=losses, time=batch_time, i=len(train_loader)))
+                    # 'Train Acc {acc.avg:.3f} | '      , acc=acc
+
+                    if self.epoch % 10 == 0:
+                        '''nvidia-smi'''
+                        self.log(os.system('nvidia-smi'))
+
+                    # reset
+                    losses = AverageMeter()
+                    acc = AverageMeter()
+
+                    # # validation
+                    # if val_loader is not None:
+                    #     val_acc = self.validation(val_loader)
+                    #     # log
+                    #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                    #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    #     self.epoch_log['scaler']['Value'].append(val_acc)
+
+                # phase II: maintain pool
+                self.log('Phase II: maintain pool!')
+                batch_timer.tic()
+                for i, sample in enumerate(train_loader):
+                    concepts = None
+                    if train_dataset.return_concepts:
+                        x, y, concepts, task = sample
+                    else:
+                        x, y, task = sample
+
+                    # verify in train mode
+                    self.model.train()
+
+                    # send data to gpu
+                    if self.gpu:
+                        x = x.cuda()
+                        y = y.cuda()
+
+                    self.model.obtain_q(x, maintain_pool=True)
+
+                # measure elapsed time
+                t = batch_timer.toc()
+                batch_timer.tic()
+                self.log(
+                    ' * maintain pool | '
+                    'Time {t:.3f}'.format(t=t))
+
+            # phase III: use the closest slots in the pool and train slot2prompt mapping and classifier
+            if self.reset_optimizer:  # Reset optimizer before learning each task
+                self.log('Optimizer is reset!')
+                self.init_optimizer()
+
+            losses = AverageMeter()
+            acc = AverageMeter()
+            batch_time = AverageMeter()
+            batch_timer = Timer()
+
+            for epoch in range(5):       # self.config['schedule'][-1]
                 self.epoch = epoch
 
                 if epoch > 0: self.scheduler.step()
@@ -138,7 +258,7 @@ class SLOTPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output = self.update_model(x, y)      # , task
+                    loss, output = self.update_model(x, y, match_pool=True)  # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -190,7 +310,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets):
+    def update_model(self, inputs, targets, match_pool=False):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -198,19 +318,25 @@ class SLOTPrompt(Prompt):
             model = self.model
 
         # obtain slots
-        slots = model.obtain_q(inputs)     # [bs, k20, h64]
+        if match_pool:
+            # use pool's slots
+            with torch.no_grad():
+                slots = model.obtain_q(inputs)  # [bs, k20, h64]
+            slots = model.prompt.match_pool(slots)
+        else:
+            slots = model.obtain_q(inputs)  # [bs, k20, h64]
 
         # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
         # for l in self.e_layers:
-        with torch.no_grad():
-            mo_matrix, _ = self.obtain_mo_matrix(
-                None, slots=slots,
-                train=True,
-                samples=inputs,
-                labels=targets,
-                group_by_labels=False,
-                return_features=True,
-            )  # [bs, 20]
+        # with torch.no_grad():
+        mo_matrix, _ = self.obtain_mo_matrix(
+            None, slots=slots,
+            train=True,
+            samples=inputs,
+            labels=targets,
+            group_by_labels=False,
+            return_features=True,
+        )  # [bs, 20]
 
         if self.debug_mode:
             print(f'mo_matrix {mo_matrix.shape}')
@@ -225,22 +351,23 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['mo']['Inner_id'].append(0)
                 self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
 
-        # select n_opt_slots minimal slots for each img
-        indexs = torch.sort(mo_matrix, dim=1)[1][:, :self.n_opt_slots]
-        indexs = torch.stack([indexs for _ in range(slots.shape[-1])], dim=-1)      # [bs, 5, 64]
-        slots = torch.gather(slots, dim=1, index=indexs)  # [bs, 5, h64]
-        # slots = torch.stack([slots[idx, indexs[idx]] for idx in range(indexs.shape[0])])  # [bs, 5, h64]
+        # # select n_opt_slots minimal slots for each img
+        # indexs = torch.sort(mo_matrix, dim=1)[1][:, :self.n_opt_slots]
+        # indexs = torch.stack([indexs for _ in range(slots.shape[-1])], dim=-1)      # [bs, 5, 64]
+        # slots = torch.gather(slots, dim=1, index=indexs)  # [bs, 5, h64]
+        # # slots = torch.stack([slots[idx, indexs[idx]] for idx in range(indexs.shape[0])])  # [bs, 5, h64]
+        #
+        # mo_matrix, features = self.obtain_mo_matrix(
+        #     None, slots=slots,
+        #     train=True,
+        #     samples=inputs,
+        #     labels=targets,
+        #     group_by_labels=False,
+        #     return_features=True,
+        # )  # [bs, 5]
+        # # features: [bs, 5, 768]
 
-        mo_matrix, features = self.obtain_mo_matrix(
-            None, slots=slots,
-            train=True,
-            samples=inputs,
-            labels=targets,
-            group_by_labels=False,
-            return_features=True,
-        )  # [bs, 5]
-        # features: [bs, 5, 768]
-
+        mo_matrix = torch.sort(mo_matrix, dim=1)[0][:, :self.n_opt_slots]   # [bs, 5]
         loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
 

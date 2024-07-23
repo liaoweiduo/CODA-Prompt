@@ -11,7 +11,7 @@ from .slot_attention import SlotAttention
 import numpy as np
 import copy
 
-
+# Our Slot Prompt
 class SlotPrompt(nn.Module):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=64):
         super().__init__()
@@ -22,7 +22,8 @@ class SlotPrompt(nn.Module):
 
         # slot pool
         self.e_pool_size = int(prompt_param[0])  # 100
-        self.register_buffer('pool', torch.randn(self.e_pool_size, key_dim).float())
+        self.pool = None        # init as the first slot. shape [e_pool_size, key_d]
+        # self.register_buffer('pool', torch.randn(self.e_pool_size, key_dim).float())
 
         # prompt basic param
         self.e_p_length = int(prompt_param[1])  # 8
@@ -59,14 +60,15 @@ class SlotPrompt(nn.Module):
         # forward to obtain slots:
         slots = self.slot_attn(q)
 
-        # TBD self.maintain_pool(slots)
-
         return slots
 
+    @torch.no_grad()
     def maintain_pool(self, slots):
-        # TBD
+        alpha = 0.8     # mov-avg alpha
+
         # select s and f according to task id
         if self.FPS:        # use all prompts
+            pt = self.e_pool_size
             s = 0
             f = self.e_pool_size
         else:
@@ -74,13 +76,37 @@ class SlotPrompt(nn.Module):
             s = int(self.task_count * pt)  # 10 slots for one task
             f = int((self.task_count + 1) * pt)
 
-        # find the closest items in the pool
         pool = self.pool  # [100, 64]
+        # use slots to init pool items
+        if pool is None:
+            pool = slots.reshape(-1, slots.shape[-1])[:pt]          # [10, 64]
+            # pool = torch.stack([slots[0] for _ in range(f)])
+        elif pool.shape[0] == s:    # not first task
+            npool = slots.reshape(-1, slots.shape[-1])[:pt]         # [10, 64]
+            # npool = torch.stack([slots[0] for _ in range(pt)])
+            pool = torch.cat([pool, npool])
+        self.register_buffer('pool', pool)
 
+        # find the closest items in the pool
+        for sample_slots in slots:
+            for slot in sample_slots:
+                sim = -torch.norm(pool - slot, dim=-1)      # [20]
+                # sim = torch.softmax(sim, dim=-1)
+                index = torch.argmax(sim).item()
+                # print('assign to', index)
+                pool[index] = alpha * pool[index] + (1-alpha) * slot
 
+    @torch.no_grad()
+    def match_pool(self, slots):
+        # return the closest slots in the pool
+        bs, k, h = slots.shape
+        for bs_id in range(bs):
+            for k_id in range(k):
+                sim = -torch.norm(self.pool - slots[bs_id, k_id], dim=-1)  # [20]
+                index = torch.argmax(sim).item()
+                slots[bs_id, k_id] = self.pool[index]
 
-        # determine the corresponding items based on a threshold
-        pass
+        return slots
 
     def handle_x_querry(self, x_querry, x_block, l):
         if x_querry is None:
@@ -1500,7 +1526,7 @@ class ViTZoo(nn.Module):
         for param in self.feat.parameters():
             param.requires_grad = False
 
-    def obtain_q(self, x, cond_x=None):
+    def obtain_q(self, x, cond_x=None, maintain_pool=False):
         with torch.no_grad():
             if cond_x is not None:  # condition model
                 q, _, _ = self.feat(cond_x)
@@ -1508,6 +1534,9 @@ class ViTZoo(nn.Module):
                 q, _, _ = self.feat(x)
         q = q[:, 1:, :]     # only use patch semantic info
         q = self.prompt.handle_q(q)  # only used for slot-p to cal slots
+
+        if maintain_pool:
+            self.prompt.maintain_pool(q)
 
         return q
 
