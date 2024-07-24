@@ -208,7 +208,12 @@ class SLOTPrompt(Prompt):
                         x = x.cuda()
                         y = y.cuda()
 
-                    self.model.obtain_q(x, maintain_pool=True)
+                    try:
+                        model = self.model.module
+                    except:
+                        model = self.model
+
+                    model.obtain_q(x, maintain_pool=True)
 
                 # measure elapsed time
                 t = batch_timer.toc()
@@ -476,7 +481,11 @@ class SLOTPrompt(Prompt):
 
             if slots is None:
                 # obtain slots
-                slots = self.model.obtain_q(samples)  # [bs, k20, h64]
+                try:
+                    model = self.model.module
+                except:
+                    model = self.model
+                slots = model.obtain_q(samples)  # [bs, k20, h64]
 
             if addition is not None:
                 # add to slots
