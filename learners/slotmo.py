@@ -120,7 +120,7 @@ class SLOTPrompt(Prompt):
             batch_timer = Timer()
 
             if self.t == 0:     # first task do phase I + II + III
-                # phase I: train slots attn
+                '''phase I: train slots attn'''
                 self.log('Phase I: train slot attn!')
                 for epoch in range(self.config['schedule'][-1]):
                     self.epoch = epoch
@@ -190,7 +190,7 @@ class SLOTPrompt(Prompt):
                     #     self.epoch_log['scaler']['Idx'].append(self.epoch)
                     #     self.epoch_log['scaler']['Value'].append(val_acc)
 
-                # phase II: maintain pool
+                '''phase II: maintain pool'''
                 self.log('Phase II: maintain pool!')
                 batch_timer.tic()
                 for i, sample in enumerate(train_loader):
@@ -222,7 +222,7 @@ class SLOTPrompt(Prompt):
                     ' * maintain pool | '
                     'Time {t:.3f}'.format(t=t))
 
-            # phase III: use the closest slots in the pool and train slot2prompt mapping and classifier
+            '''phase III: use the closest slots in the pool and train slot2prompt mapping and classifier'''
             if self.reset_optimizer:  # Reset optimizer before learning each task
                 self.log('Optimizer is reset!')
                 self.init_optimizer()
@@ -232,7 +232,9 @@ class SLOTPrompt(Prompt):
             batch_time = AverageMeter()
             batch_timer = Timer()
 
-            for epoch in range(5):       # self.config['schedule'][-1]
+            # total = self.config['schedule'][-1]
+            total = 5
+            for epoch in range(total):       # self.config['schedule'][-1]
                 self.epoch = epoch
 
                 if epoch > 0: self.scheduler.step()
@@ -277,7 +279,7 @@ class SLOTPrompt(Prompt):
 
                 # eval update
                 self.log(
-                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
+                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=total))
                 self.log(
                     ' * Loss {loss.avg:.3f} | '
                     'Time {time.avg:.3f}*{i}'.format(
