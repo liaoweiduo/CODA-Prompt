@@ -22,8 +22,8 @@ class SlotPrompt(nn.Module):
 
         # slot pool
         self.e_pool_size = int(prompt_param[0])  # 100
-        self.pool = None        # init as the first slot. shape [e_pool_size, key_d]
-        # self.register_buffer('pool', torch.randn(self.e_pool_size, key_dim).float())
+        self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
+        self.pool_init_idx = 0
 
         # prompt basic param
         self.e_p_length = int(prompt_param[1])  # 8
@@ -63,7 +63,7 @@ class SlotPrompt(nn.Module):
         return slots
 
     @torch.no_grad()
-    def maintain_pool(self, slots):
+    def maintain_pool(self, slots, check_init=False):
         alpha = 0.8     # mov-avg alpha
 
         # select s and f according to task id
@@ -76,16 +76,13 @@ class SlotPrompt(nn.Module):
             s = int(self.task_count * pt)  # 10 slots for one task
             f = int((self.task_count + 1) * pt)
 
-        pool = self.pool  # [100, 64]
+        pool = self.pool[:f]  # [100, 64]
         # use slots to init pool items
-        if pool is None:
-            pool = slots.reshape(-1, slots.shape[-1])[:pt]          # [10, 64]
-            # pool = torch.stack([slots[0] for _ in range(f)])
-        elif pool.shape[0] == s:    # not first task
-            npool = slots.reshape(-1, slots.shape[-1])[:pt]         # [10, 64]
-            # npool = torch.stack([slots[0] for _ in range(pt)])
-            pool = torch.cat([pool, npool])
-        self.register_buffer('pool', pool)
+        if check_init:
+            if self.pool_init_idx < f:  # need to init
+                self.pool_init_idx = f
+                pool[s:f] = slots.reshape(-1, slots.shape[-1])[:pt]          # [10, 64]
+                # pool = torch.stack([slots[0] for _ in range(f)])
 
         # find the closest items in the pool
         for sample_slots in slots:
@@ -100,11 +97,23 @@ class SlotPrompt(nn.Module):
     def match_pool(self, slots):
         # return the closest slots in the pool
         bs, k, h = slots.shape
+
+        # select s and f according to task id
+        if self.FPS:        # use all prompts
+            pt = self.e_pool_size
+            s = 0
+            f = self.e_pool_size
+        else:
+            pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+            s = int(self.task_count * pt)  # 10 slots for one task
+            f = int((self.task_count + 1) * pt)
+
+        pool = self.pool[:f]  # [100, 64]
         for bs_id in range(bs):
             for k_id in range(k):
-                sim = -torch.norm(self.pool - slots[bs_id, k_id], dim=-1)  # [20]
+                sim = -torch.norm(pool - slots[bs_id, k_id], dim=-1)  # [20]
                 index = torch.argmax(sim).item()
-                slots[bs_id, k_id] = self.pool[index]
+                slots[bs_id, k_id] = pool[index]
 
         return slots
 
@@ -1536,7 +1545,7 @@ class ViTZoo(nn.Module):
         q = self.prompt.handle_q(q)  # only used for slot-p to cal slots
 
         if maintain_pool:
-            self.prompt.maintain_pool(q)
+            self.prompt.maintain_pool(q, check_init=True)
 
         return q
 
