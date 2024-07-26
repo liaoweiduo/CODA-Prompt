@@ -336,7 +336,7 @@ class SLOTPrompt(Prompt):
         # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
         # for l in self.e_layers:
         # with torch.no_grad():
-        mo_matrix, _ = self.obtain_mo_matrix(
+        mo_matrix, _, _ = self.obtain_mo_matrix(
             None, slots=slots,
             train=True,
             samples=inputs,
@@ -775,7 +775,7 @@ class SLOTPrompt(Prompt):
             # # debug
             # print(f'x shape: {x.shape}, y: {y}, task: {task}')
             with torch.no_grad():
-                _, features = self.obtain_mo_matrix_pop_prompt(
+                _, features, _ = self.obtain_mo_matrix_pop_prompt(
                     None, use_old_prompts=False if prompt.FPS else True,
                     mask=self.mask, mask_mode=self.mask_mode,
                     samples=x,
