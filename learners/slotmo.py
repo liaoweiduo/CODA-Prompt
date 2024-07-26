@@ -182,13 +182,13 @@ class SLOTPrompt(Prompt):
                     losses = AverageMeter()
                     acc = AverageMeter()
 
-                    # # validation
-                    # if val_loader is not None:
-                    #     val_acc = self.validation(val_loader)
-                    #     # log
-                    #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                    #     self.epoch_log['scaler']['Idx'].append(self.epoch)
-                    #     self.epoch_log['scaler']['Value'].append(val_acc)
+                    # validation
+                    if val_loader is not None:
+                        val_acc = self.validation(val_loader)
+                        # log
+                        self.epoch_log['scaler']['Tag'].append(f'val_acc_phase1')
+                        self.epoch_log['scaler']['Idx'].append(self.epoch)
+                        self.epoch_log['scaler']['Value'].append(val_acc)
 
                 '''phase II: maintain pool'''
                 self.log('Phase II: maintain pool!')
@@ -233,7 +233,7 @@ class SLOTPrompt(Prompt):
             batch_timer = Timer()
 
             # total = self.config['schedule'][-1]
-            total = 5
+            total = 10
             for epoch in range(total):       # self.config['schedule'][-1]
                 self.epoch = epoch
 
@@ -294,13 +294,13 @@ class SLOTPrompt(Prompt):
                 losses = AverageMeter()
                 acc = AverageMeter()
 
-                # # validation
-                # if val_loader is not None:
-                #     val_acc = self.validation(val_loader)
-                #     # log
-                #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                #     self.epoch_log['scaler']['Idx'].append(self.epoch)
-                #     self.epoch_log['scaler']['Value'].append(val_acc)
+                # validation
+                if val_loader is not None:
+                    val_acc = self.validation(val_loader)
+                    # log
+                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 
@@ -658,9 +658,13 @@ class SLOTPrompt(Prompt):
                     #                        concepts=concepts if self.use_concept_labels_as_aqk else None
                     #                        )[:, :self.valid_out_dim]
 
+                    # use pool's slots
+                    slots = model.obtain_q(input)  # [bs, k20, h64]
+                    slots = model.prompt.match_pool(slots)
+
                     # forward all prompts
                     _, _, out = self.obtain_mo_matrix(
-                        None,
+                        None, slots=slots,
                         train=False,
                         samples=input,
                         labels=target,
@@ -695,10 +699,14 @@ class SLOTPrompt(Prompt):
                     mask_ind = mask.nonzero().view(-1)
                     input, target = input[mask_ind], target[mask_ind]
 
+                    # use pool's slots
+                    slots = model.obtain_q(input)  # [bs, k20, h64]
+                    slots = model.prompt.match_pool(slots)
+
                     if len(target) > 1:
                         # forward all prompts
                         _, _, out = self.obtain_mo_matrix(
-                            None,
+                            None, slots=slots,
                             train=False,
                             samples=input,
                             labels=target,

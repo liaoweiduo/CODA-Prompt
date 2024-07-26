@@ -279,6 +279,7 @@ class Trainer:
                     debugger.write_scaler(epoch_log['scaler'], key='loss/ce_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='loss/mo_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler'], key='val_acc_phase1', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='val_acc', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='alpha', i=i, writer=writer, inner=True)
                     # debugger.write_scaler(epoch_log['scaler'], key='loss/et_loss', i=i, writer=writer, inner=True)
