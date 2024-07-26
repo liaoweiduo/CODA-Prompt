@@ -84,9 +84,9 @@ class SLOTPrompt(Prompt):
         return model
 
     def load_model(self, filename, drop_last=False):
-        # random init pool
-        if self.pool is None:
-            self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
+        # # random init pool
+        # if self.pool is None:
+        #     self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
 
         super().load_model(filename, drop_last=drop_last)
 
@@ -479,6 +479,7 @@ class SLOTPrompt(Prompt):
 
         ncc_losses = None
         features = None
+        out = None
         if hard_l is None or hard_l in self.e_layers:       # None for all layer to use specific prompt
 
             if slots is None:
@@ -524,7 +525,7 @@ class SLOTPrompt(Prompt):
         if return_nui_labels:
             return ncc_losses, nui_labels
         if return_features:
-            return ncc_losses, features
+            return ncc_losses, features, out
 
         return ncc_losses
 
@@ -615,7 +616,7 @@ class SLOTPrompt(Prompt):
         return concept_labels
 
     def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False):
-        return 0
+        # return 0
         # pass task to forward if task-awareness
         if model is None:
             model = self.model
@@ -658,18 +659,28 @@ class SLOTPrompt(Prompt):
                     #                        )[:, :self.valid_out_dim]
 
                     # forward all prompts
-                    _, features = self.obtain_mo_matrix(
+                    _, _, out = self.obtain_mo_matrix(
                         None,
                         train=False,
                         samples=input,
                         labels=target,
                         group_by_labels=False,
                         return_features=True,
-                    )  # [bs, 21]
+                    )
+                    # out: [bs, 20, 100]
 
-                    # predict
-                    # [bs, 21, 768] -> [bs, 100]
-                    output = self.predict_mo(features)[:, :self.valid_out_dim]        # [bs, n_cls]
+                    # # predict based on cls_stats
+                    # # [bs, 20, 768] -> [bs, 768]
+                    # output = self.predict_mo(features)[:, :self.valid_out_dim]        # [bs, n_cls]
+
+                    # voting [bs, 20, 100] -> [bs, 100]
+                    bs, n_slots, n_cls = out.shape
+                    out = torch.argmax(out, dim=-1)     # [bs, 20]
+                    output = torch.zeros(bs, n_cls).to(out.device)
+                    for cls_id in range(n_cls):
+                        output[:, cls_id] = torch.sum(out == cls_id, dim=-1)
+
+                    output = output[:, :self.valid_out_dim]        # [bs, n_cls]
 
                     # if self.debug_mode:
                     #     print(f'batch{i}: \noutput:{output}')
@@ -686,18 +697,25 @@ class SLOTPrompt(Prompt):
 
                     if len(target) > 1:
                         # forward all prompts
-                        _, features = self.obtain_mo_matrix(
+                        _, _, out = self.obtain_mo_matrix(
                             None,
                             train=False,
                             samples=input,
                             labels=target,
                             group_by_labels=False,
                             return_features=True,
-                        )  # [bs, 21]
+                        )
 
-                        # predict
-                        # [bs, 21, 768] -> [bs, 100]
-                        output = self.predict_mo(features)        # [bs, n_cls]
+                        # # predict
+                        # # [bs, 21, 768] -> [bs, 100]
+                        # output = self.predict_mo(features)        # [bs, n_cls]
+
+                        # voting [bs, 20, 100] -> [bs, 100]
+                        bs, n_slots, n_cls = out.shape
+                        out = torch.argmax(out, dim=-1)  # [bs, 20]
+                        output = torch.zeros(bs, n_cls).to(out.device)
+                        for cls_id in range(n_cls):
+                            output[:, cls_id] = torch.sum(out == cls_id, dim=-1)
 
                         if task_global:
                             # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
@@ -797,8 +815,7 @@ class SLOTPrompt(Prompt):
             self.cls_stats = pickle.load(f)
 
     def predict_mo(self, mo_features):
-        """mo_features: [bs, 21, 768] -> [bs, 21]. neg-kl"""
-
+        """predict based on cls_stats"""
         # # calculate softmax-ed variance
         # mo_logits = torch.softmax(torch.var(mo_features, dim=-1), dim=-1)  # [bs, 21]
         #

@@ -94,9 +94,10 @@ class SlotPrompt(nn.Module):
                 pool[index] = alpha * pool[index] + (1-alpha) * slot
 
     @torch.no_grad()
-    def match_pool(self, slots):
+    def match_pool(self, slots, return_index=False):
         # return the closest slots in the pool
         bs, k, h = slots.shape
+        indices = torch.zeros(bs, k).long().to(slots.device)
 
         # select s and f according to task id
         if self.FPS:        # use all prompts
@@ -114,7 +115,9 @@ class SlotPrompt(nn.Module):
                 sim = -torch.norm(pool - slots[bs_id, k_id], dim=-1)  # [20]
                 index = torch.argmax(sim).item()
                 slots[bs_id, k_id] = pool[index]
-
+                indices[bs_id, k_id] = index
+        if return_index:
+            return slots, indices
         return slots
 
     def handle_x_querry(self, x_querry, x_block, l):
