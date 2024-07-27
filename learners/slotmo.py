@@ -620,6 +620,10 @@ class SLOTPrompt(Prompt):
         # pass task to forward if task-awareness
         if model is None:
             model = self.model
+        try:
+            model_single = model.module
+        except:
+            model_single = model
 
         # This function doesn't distinguish tasks.
         batch_timer = Timer()
@@ -659,8 +663,8 @@ class SLOTPrompt(Prompt):
                     #                        )[:, :self.valid_out_dim]
 
                     # use pool's slots
-                    slots = model.obtain_q(input)  # [bs, k20, h64]
-                    slots = model.prompt.match_pool(slots)
+                    slots = model_single.obtain_q(input)  # [bs, k20, h64]
+                    slots = model_single.prompt.match_pool(slots)
 
                     # forward all prompts
                     _, _, out = self.obtain_mo_matrix(
@@ -700,8 +704,8 @@ class SLOTPrompt(Prompt):
                     input, target = input[mask_ind], target[mask_ind]
 
                     # use pool's slots
-                    slots = model.obtain_q(input)  # [bs, k20, h64]
-                    slots = model.prompt.match_pool(slots)
+                    slots = model_single.obtain_q(input)  # [bs, k20, h64]
+                    slots = model_single.prompt.match_pool(slots)
 
                     if len(target) > 1:
                         # forward all prompts
