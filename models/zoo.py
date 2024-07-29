@@ -20,47 +20,63 @@ class SlotPrompt(nn.Module):
         self.key_d = key_dim
         self.n_tasks = n_tasks
 
-        # slot pool
-        self.e_pool_size = int(prompt_param[0])  # 100
-        self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
-        self.pool_init_idx = 0
-
         # prompt basic param
         self.e_p_length = int(prompt_param[1])  # 8
         self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         # self.e_layers = [0, 1, 2, 3, 4]
         # [] for no prompt.
         # prompt mapping init
-        self.prompt_map_init(self.task_count)
+        # self.prompt_map_init(self.task_count)
 
         # slot basic param
-        self.slot_attn = SlotAttention(emb_d, n_slots=int(prompt_param[2]), key_dim=key_dim)
-        # 20   number of slots for one extraction
+        # self.e_pool_size = int(prompt_param[0])  # 100
+        # self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
+        # self.pool_init_idx = 0
+        self.n_slots = int(prompt_param[2])     # n_slots:10   number of slots for one extraction
+        self.slot_attn = torch.nn.ModuleList([
+            SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim,
+                          e_p_length=self.e_p_length, e_layers=self.e_layers)])
 
         # trigger fixed prompt size (FPS)
         self.FPS = True         # no use, consider update throughout all tasks.
 
     def process_task_count(self):
+        # freeze old slot attn
+        for param in self.slot_attn[-1].parameters():
+            param.requires_grad = False
+        # self.prompt_map_freeze(self.task_count)
+
         self.task_count += 1
+
+        new_attn = SlotAttention(self.emb_d, n_slots=self.n_slots, key_dim=self.key_d,
+                                 e_p_length=self.e_p_length, e_layers=self.e_layers)
+        new_attn.load_state_dict(self.slot_attn[-1].state_dict())     # init using last slot attn
+        self.slot_attn.append(new_attn)
         # self.prompt_map_init(self.task_count)
 
-    def prompt_map_init(self, task_id):
-        for e in self.e_layers:
-            prompt_map = tensor_prompt(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
-            # setattr(self, f's2p_{task_id}_{e}', prompt_map)       # [bs, 64] @ [64, 8, 768] -> [bs, 8, 768]
-            setattr(self, f's2p_{e}', prompt_map)
+    # def prompt_map_init(self, task_id):
+    #     for e in self.e_layers:
+    #         prompt_map = tensor_prompt(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
+    #         # setattr(self, f's2p_{task_id}_{e}', prompt_map)       # [bs, 64] @ [64, 8, 768] -> [bs, 8, 768]
+    #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
+
+    # def prompt_map_freeze(self, task_id):
+    #     for e in self.e_layers:
+    #         prompt_map = getattr(self, f's2p_{task_id}_{e}')
+    #         prompt_map.requires_grad = False
+    #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
 
     def handle_q(self, q):
-        # obtain slots
+        # obtain slot-prompts
         if q is None:
             raise ValueError('q is None')
         if len(q.shape) != 3:
             raise Exception(f'q has wrong shape: {q.shape}')
 
-        # forward to obtain slots:
-        slots = self.slot_attn(q)
+        # forward to obtain prompts:
+        prompts = torch.stack([attn(q) for attn in self.slot_attn], dim=1)   # [bs, t, k20, e12, p8, d768]
 
-        return slots
+        return prompts
 
     @torch.no_grad()
     def maintain_pool(self, slots, check_init=False):
@@ -123,21 +139,19 @@ class SlotPrompt(nn.Module):
     def handle_x_querry(self, x_querry, x_block, l):
         if x_querry is None:
             raise ValueError('x_querry is None')
-        elif len(x_querry.shape) != 2:
+        elif len(x_querry.shape) != 4:      # [bs*(t*k+add), e12, p8, d768]
             raise Exception(f'x_querry has wrong shape: {x_querry.shape}')
         return x_querry
 
-    def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
-        slot = self.handle_x_querry(x_querry, x_block, l)
-        B, H = slot.shape  # [bs, h64]
+    def forward(self, x_querry, l, x_block, tids, train=False, task_id=None, **kwargs):
+        prompts = self.handle_x_querry(x_querry, x_block, l)
+        # B, E, P, D = prompts.shape  # [bs, e12, p8, d768]
         # e prompts
         e_valid = False
         if l in self.e_layers:
+            li = self.e_layers.index(l)     # [index of layer in the layer list]
             e_valid = True
-            prompt_map = getattr(self, f's2p_{l}')    # [h64, p8, d768]
-            # [bs, h64] @ [h64, p8, d768] -> [bs, p8, d768]
-            prompts = torch.einsum('bh,hpd->bpd', slot, prompt_map)  # [bs, p8, d768]
-
+            prompts = prompts[:, li]        # [B, P, D]
             # select prompts
             i = int(self.e_p_length / 2)  # 8 / 2
             Ek = prompts[:, :i, :]
@@ -1463,7 +1477,7 @@ class L2P(DualPrompt):
 
 
 # note - ortho init has not been found to help l2p/dual prompt
-def tensor_prompt(a, b=None, c=None, ortho=False):
+def tensor_prompt(a, b=None, c=None, ortho=False) -> torch.nn.Parameter:
     if b is None:
         p = torch.nn.Parameter(torch.FloatTensor(a), requires_grad=True)
     elif c is None:
@@ -1545,7 +1559,7 @@ class ViTZoo(nn.Module):
             else:
                 q, _, _ = self.feat(x)
         q = q[:, 1:, :]     # only use patch semantic info
-        q = self.prompt.handle_q(q)  # only used for slot-p to cal slots
+        q = self.prompt.handle_q(q)  # only used for slot-p to cal slot-prompts
 
         if maintain_pool:
             self.prompt.maintain_pool(q, check_init=True)

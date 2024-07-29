@@ -12,8 +12,10 @@ import copy
 
 
 class SlotAttention(nn.Module):
-    def __init__(self, emb_d, n_slots, key_dim=64, n_iter=3):
+    def __init__(self, emb_d, n_slots, key_dim=64, n_iter=3, e_p_length=8, e_layers=None):
         super().__init__()
+        if e_layers is None:
+            e_layers = [0, 1, 2, 3, 4]
         self.emb_d = emb_d          # emb for representation
         self.key_d = key_dim        # emb for slot: Dslot
 
@@ -22,6 +24,8 @@ class SlotAttention(nn.Module):
         self.n_iter = n_iter     # T
         self.attn_epsilon = 1e-8
         self.gru_d = self.key_d
+        self.e_p_length = e_p_length
+        self.e_layers = e_layers
 
         # slot related modules
         self.ln_input = nn.LayerNorm(self.emb_d)
@@ -40,7 +44,11 @@ class SlotAttention(nn.Module):
             nn.Linear(self.key_d, self.key_d, bias=True)
         )
 
-    def forward(self, features):
+        prompt_map = init_tensor(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
+        # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
+        setattr(self, f's2p', prompt_map)
+
+    def forward(self, features, return_slots=False):
         # features [bs, 196, 768]
         bs = features.shape[0]
 
@@ -80,16 +88,29 @@ class SlotAttention(nn.Module):
             ## slots += MLP(LayerNorm(slots))
             slots = slots + self.mlp(self.ln_output(slots))
 
-        return slots
+        prompts = self.slot2prompt(slots)
+
+        if return_slots:
+            return prompts, slots
+        return prompts
+
+    def slot2prompt(self, slots):
+        prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
+        # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
+        prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
+
+        return prompts
 
 
-def init_tensor(a, b=None, c=None, ortho=False):
+def init_tensor(a, b=None, c=None, d=None, ortho=False):
     if b is None:
         p = torch.nn.Parameter(torch.FloatTensor(a), requires_grad=True)
     elif c is None:
         p = torch.nn.Parameter(torch.FloatTensor(a, b), requires_grad=True)
-    else:
+    elif d is None:
         p = torch.nn.Parameter(torch.FloatTensor(a, b, c), requires_grad=True)
+    else:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b, c, d), requires_grad=True)
     if ortho:
         nn.init.orthogonal_(p)
     else:
