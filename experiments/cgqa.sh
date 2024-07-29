@@ -27,7 +27,7 @@ mkdir -p $OUTDIR
 #    --oracle_flag --upper_bound_flag \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-LOGNAME=slot-f4m-lr1e_3-1
+LOGNAME=slot-f4m-lr1e_2-1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 10 10 \
