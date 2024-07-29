@@ -391,9 +391,9 @@ class SLOTPrompt(Prompt):
 
         # voting [bs, 20, 100] -> [bs, 100]
         bs, n_slots, n_cls = out.shape
-        out = out[:, :, self.valid_out_dim]
+        out = out[:, :, :self.valid_out_dim]
         # ce with heuristic
-        out[:, :, self.last_valid_out_dim] = -float('inf')
+        out[:, :, :self.last_valid_out_dim] = -float('inf')
         out = torch.argmax(out, dim=-1)  # [bs, 20]
         logits = torch.zeros(bs, n_cls).to(out.device)
         for cls_id in range(n_cls):
