@@ -674,16 +674,15 @@ class SLOTPrompt(Prompt):
                     #                        concepts=concepts if self.use_concept_labels_as_aqk else None
                     #                        )[:, :self.valid_out_dim]
 
-                    slots = model_single.obtain_q(input)  # [bs, t, k20, h64]
-
-                    bs, t, k, h = slots.shape
-                    slots = slots.reshape(bs, t * k, h)
+                    prompts = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                    bs, t, k, e, p, d = prompts.shape
+                    prompts = prompts.reshape(bs, t * k, e, p, d)
                     # slots = model_single.obtain_q(input)  # [bs, k20, h64]
                     # slots = model_single.prompt.match_pool(slots)
 
                     # forward all prompts
                     _, _, out = self.obtain_mo_matrix(
-                        None, slots=slots,
+                        None, prompts=prompts,
                         train=False,
                         samples=input,
                         labels=target,
@@ -722,15 +721,15 @@ class SLOTPrompt(Prompt):
                     mask_ind = mask.nonzero().view(-1)
                     input, target = input[mask_ind], target[mask_ind]
 
-                    slots = model_single.obtain_q(input)  # [bs, t, k20, h64]
-                    bs, t, k, h = slots.shape
-                    slots = slots.reshape(bs, t * k, h)
+                    prompts = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                    bs, t, k, e, p, d = prompts.shape
+                    prompts = prompts.reshape(bs, t * k, e, p, d)
                     # slots = model_single.prompt.match_pool(slots)
 
                     if len(target) > 1:
                         # forward all prompts
                         _, _, out = self.obtain_mo_matrix(
-                            None, slots=slots,
+                            None, prompts=prompts,
                             train=False,
                             samples=input,
                             labels=target,
