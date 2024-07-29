@@ -143,7 +143,7 @@ class SlotPrompt(nn.Module):
             raise Exception(f'x_querry has wrong shape: {x_querry.shape}')
         return x_querry
 
-    def forward(self, x_querry, l, x_block, tids, train=False, task_id=None, **kwargs):
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
         prompts = self.handle_x_querry(x_querry, x_block, l)
         # B, E, P, D = prompts.shape  # [bs, e12, p8, d768]
         # e prompts
