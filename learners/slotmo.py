@@ -57,7 +57,7 @@ class SLOTPrompt(Prompt):
             prompt = self.model.prompt
         self.e_layers = prompt.e_layers
         self.FPS = prompt.FPS
-        self.e_pool_size = prompt.e_pool_size       # 100
+        # self.e_pool_size = prompt.e_pool_size       # 100
         self.key_d = prompt.key_d                   # 64
 
         # cls statistics
