@@ -390,8 +390,8 @@ class SLOTPrompt(Prompt):
         self.epoch_log['scaler']['Value'].append(loss.item())
 
         # voting [bs, 20, 100] -> [bs, 100]
-        bs, n_slots, n_cls = out.shape
         out = out[:, :, :self.valid_out_dim]
+        bs, n_slots, n_cls = out.shape
         # ce with heuristic
         out[:, :, :self.last_valid_out_dim] = -float('inf')
         out = torch.argmax(out, dim=-1)  # [bs, 20]
@@ -428,6 +428,7 @@ class SLOTPrompt(Prompt):
         """Return mo_matrix: Torch tensor [obj, pop]
         Obj: samples; Pop: prompts
         If addition is not None: [num, h...], append and return [obj, pop+num]
+        If train is False, do not use -inf to mask past tasks' logits
         """
         if self.n_opt_slots <= 0:
             return None
@@ -531,7 +532,7 @@ class SLOTPrompt(Prompt):
             out = out.reshape(n_samples, len_p, out.shape[-1])   # [bs, n_slots, 100]
             features = features.reshape(n_samples, len_p, features.shape[-1])   # [bs, n_slots, 768]
 
-            ncc_losses = self.obtain_loss(out, labels, mode='last', group_by_labels=group_by_labels)
+            ncc_losses = self.obtain_loss(out, labels, mode='last', train=train, group_by_labels=group_by_labels)
             # [bs, n_slots]
 
         if return_nui_labels:
@@ -541,7 +542,7 @@ class SLOTPrompt(Prompt):
 
         return ncc_losses
 
-    def obtain_loss(self, out, labels, mode='last', group_by_labels=True):
+    def obtain_loss(self, out, labels, mode='last', train=False, group_by_labels=True):
         nui_labels = torch.unique(labels)
         if mode == 'last':
             # use ce loss
@@ -554,7 +555,8 @@ class SLOTPrompt(Prompt):
 
             logits = logits[:, :self.valid_out_dim]
             # ce with heuristic
-            logits[:, :self.last_valid_out_dim] = -float('inf')
+            if train:
+                logits[:, :self.last_valid_out_dim] = -float('inf')
             # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
             # dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
             # objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
@@ -693,7 +695,7 @@ class SLOTPrompt(Prompt):
                     out = out[:, :, :self.valid_out_dim]
 
                     if self.debug_mode and i == 0:
-                        print(f'out: {out[0]}')
+                        print(f'out: {out[0,0]}')
                         print(f'valid_out_dim: {self.valid_out_dim}')
                     # # predict based on cls_stats
                     # # [bs, 20, 768] -> [bs, 768]
