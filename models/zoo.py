@@ -49,7 +49,7 @@ class SlotPrompt(nn.Module):
         self.task_count += 1
 
         new_attn = SlotAttention(self.emb_d, n_slots=self.n_slots, key_dim=self.key_d,
-                                 e_p_length=self.e_p_length, e_layers=self.e_layers)
+                                 e_p_length=self.e_p_length, e_layers=self.e_layers).to(self.slot_attn[-1].device)
         new_attn.load_state_dict(self.slot_attn[-1].state_dict())     # init using last slot attn
         self.slot_attn.append(new_attn)
         # self.prompt_map_init(self.task_count)
