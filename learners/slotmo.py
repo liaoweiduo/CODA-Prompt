@@ -693,8 +693,8 @@ class SLOTPrompt(Prompt):
                     out = out[:, :, :self.valid_out_dim]
 
                     if self.debug_mode and i == 0:
-                        print(
-                            f'self.valid_out_dim: {self.valid_out_dim}')
+                        print(f'out: {out[0]}')
+                        print(f'valid_out_dim: {self.valid_out_dim}')
                     # # predict based on cls_stats
                     # # [bs, 20, 768] -> [bs, 768]
                     # output = self.predict_mo(features)[:, :self.valid_out_dim]        # [bs, n_cls]
