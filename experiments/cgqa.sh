@@ -25,14 +25,14 @@ mkdir -p $OUTDIR
 #    arg 3 = num of slots extracted from one img
 #    arg 4 = num of slots considered to be opted
 #    --oracle_flag --upper_bound_flag \
-#    -- debug_mode 1 \
+#    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
 LOGNAME=slot-f4m-lr1e_3-1
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 10 10 \
-    -- debug_mode 1 \
+    --debug_mode 1 \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 
