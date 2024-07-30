@@ -25,6 +25,7 @@ mkdir -p $OUTDIR
 #    arg 3 = num of slots extracted from one img
 #    arg 4 = num of slots considered to be opted
 #    --oracle_flag --upper_bound_flag \
+#    -- debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
 LOGNAME=slot-f4m-lr1e_3-1
