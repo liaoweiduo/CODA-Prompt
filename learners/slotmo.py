@@ -376,7 +376,7 @@ class SLOTPrompt(Prompt):
         # )  # [bs, 5]
         # # features: [bs, 5, 768]
 
-        mo_matrix = torch.sort(mo_matrix, dim=1)[0][:, :self.n_opt_slots]   # [bs, 5]
+        mo_matrix = torch.sort(mo_matrix, dim=1)[0]   # [bs, 5]  [:, :self.n_opt_slots]
         loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
 
