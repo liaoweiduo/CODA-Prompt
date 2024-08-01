@@ -173,21 +173,21 @@ class SLOTPrompt(Prompt):
                     'Time {time.avg:.3f}*{i}'.format(
                         loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
 
-                if self.epoch % 10 == 0:
-                    '''nvidia-smi'''
-                    self.log(os.system('nvidia-smi'))
-
                 # reset
                 losses = AverageMeter()
                 acc = AverageMeter()
 
                 # validation
                 if val_loader is not None:
-                    val_acc = self.validation(val_loader)
+                    val_acc = self.validation(val_loader, during_train=True)
                     # log
                     self.epoch_log['scaler']['Tag'].append(f'val_acc')
                     self.epoch_log['scaler']['Idx'].append(self.epoch)
                     self.epoch_log['scaler']['Value'].append(val_acc)
+
+                if self.epoch % 10 == 0:
+                    '''nvidia-smi'''
+                    self.log(os.system('nvidia-smi'))
 
             # '''phase II: maintain pool'''
             # self.log('Phase II: maintain pool!')
@@ -376,7 +376,11 @@ class SLOTPrompt(Prompt):
         # )  # [bs, 5]
         # # features: [bs, 5, 768]
 
-        mo_matrix = torch.sort(mo_matrix, dim=1)[0]   # [bs, 5]  [:, :self.n_opt_slots]
+        if self.epoch < self.config['schedule'][-1] / 3:        # 10 for 30 epochs
+            n_opt_slots = mo_matrix.shape[-1]
+        else:
+            n_opt_slots = self.n_opt_slots
+        mo_matrix = torch.sort(mo_matrix, dim=1)[0][:, :n_opt_slots]   # [bs, 5]
         loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
 
@@ -629,7 +633,9 @@ class SLOTPrompt(Prompt):
 
         return concept_labels
 
-    def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False):
+    def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False,
+                   during_train=False):
+        """during_train=True -> local val acc (mask on current logits)"""
         # return 0
         # pass task to forward if task-awareness
         if model is None:
@@ -679,24 +685,36 @@ class SLOTPrompt(Prompt):
                     prompts = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
                     bs, t, k, e, p, d = prompts.shape
                     prompts = prompts.reshape(bs, t * k, e, p, d)
-                    # slots = model_single.obtain_q(input)  # [bs, k20, h64]
-                    # slots = model_single.prompt.match_pool(slots)
 
                     # forward all prompts
                     _, _, out = self.obtain_mo_matrix(
                         None, prompts=prompts,
-                        train=False,
+                        train=during_train,
                         samples=input,
                         labels=target,
                         group_by_labels=False,
                         return_features=True,
                     )
-                    # out: [bs, 20, 100]
-                    out = out[:, :, :self.valid_out_dim]
+                    # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
+
+                    # apply mask for slots
+                    out = out.reshape(bs, t, k, self.valid_out_dim)
+                    for tt in range(t):
+                        out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
+                    out = out.reshape(bs, t * k, self.valid_out_dim)
+                    ## only retain classes in self.tasks
+                    # masked_out = torch.ones_like(out) * (-float('inf'))
+                    # out = out.reshape(bs, t, k, self.valid_out_dim)
+                    # masked_out = masked_out.reshape(bs, t, k, self.valid_out_dim)
+                    # for tt in range(t):
+                    #     masked_out[:, tt, :, self.tasks[tt]] = out[:, tt, :, self.tasks[tt]]
+                    # out = masked_out
+                    # out = out.reshape(bs, t*k, self.valid_out_dim)
 
                     if self.debug_mode and i == 0:
-                        print(f'out: {out[0,0]}')
+                        print(f'out: {out[0, 0]}')
                         print(f'valid_out_dim: {self.valid_out_dim}')
+
                     # # predict based on cls_stats
                     # # [bs, 20, 768] -> [bs, 768]
                     # output = self.predict_mo(features)[:, :self.valid_out_dim]        # [bs, n_cls]
@@ -709,9 +727,12 @@ class SLOTPrompt(Prompt):
                     # for tid, task in enumerate(tasks):
                     #     out[:, tid, :, ]
                     out = torch.argmax(out, dim=-1)     # [bs, 20]
-                    output = torch.zeros(bs, n_cls).to(out.device)
-                    for cls_id in range(n_cls):
-                        output[:, cls_id] = torch.sum(out == cls_id, dim=-1)
+                    output = torch.stack(
+                        [torch.sum(out == cls_id, dim=-1) for cls_id in range(n_cls)], dim=-1)  # [bs, n_cls]
+
+                    # output = torch.zeros(bs, n_cls).to(out.device)
+                    # for cls_id in range(n_cls):
+                    #     output[:, cls_id] = torch.sum(out == cls_id, dim=-1)
 
                     # if self.debug_mode:
                     #     print(f'batch{i}: \noutput:{output}')
@@ -735,12 +756,18 @@ class SLOTPrompt(Prompt):
                         # forward all prompts
                         _, _, out = self.obtain_mo_matrix(
                             None, prompts=prompts,
-                            train=False,
+                            train=during_train,
                             samples=input,
                             labels=target,
                             group_by_labels=False,
                             return_features=True,
                         )
+
+                        # apply mask for slots
+                        out = out.reshape(bs, t, k, self.valid_out_dim)
+                        for tt in range(t):
+                            out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
+                        out = out.reshape(bs, t * k, self.valid_out_dim)
 
                         # # predict
                         # # [bs, 21, 768] -> [bs, 100]
