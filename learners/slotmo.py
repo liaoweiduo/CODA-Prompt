@@ -695,6 +695,7 @@ class SLOTPrompt(Prompt):
                         group_by_labels=False,
                         return_features=True,
                     )
+                    out = out[:, :, :self.valid_out_dim]
                     # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
                     # apply mask for slots
@@ -762,6 +763,7 @@ class SLOTPrompt(Prompt):
                             group_by_labels=False,
                             return_features=True,
                         )
+                        out = out[:, :, :self.valid_out_dim]
 
                         # apply mask for slots
                         out = out.reshape(bs, t, k, self.valid_out_dim)
@@ -774,9 +776,7 @@ class SLOTPrompt(Prompt):
                         # output = self.predict_mo(features)        # [bs, n_cls]
 
                         # voting [bs, 20, 100] -> [bs, 100]
-                        if task_global:
-                            out = out[:, :, :self.valid_out_dim]
-                        else:
+                        if not task_global:
                             out = out[:, :, task_in]
                         bs, n_slots, n_cls = out.shape
                         out = torch.argmax(out, dim=-1)  # [bs, 20]
