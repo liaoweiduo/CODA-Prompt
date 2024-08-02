@@ -376,7 +376,7 @@ class SLOTPrompt(Prompt):
         # )  # [bs, 5]
         # # features: [bs, 5, 768]
 
-        n_opt_slots = self.n_opt_slots
+        n_opt_slots = mo_matrix.shape[-1]       # self.n_opt_slots
         # if self.epoch < self.config['schedule'][-1] / 3:        # 10 for 30 epochs
         #     n_opt_slots = mo_matrix.shape[-1]
         # else:
