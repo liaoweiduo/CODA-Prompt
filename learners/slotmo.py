@@ -376,7 +376,13 @@ class SLOTPrompt(Prompt):
         # )  # [bs, 5]
         # # features: [bs, 5, 768]
 
-        n_opt_slots = mo_matrix.shape[-1]       # self.n_opt_slots
+        # sort new slots according to loss
+        mo_matrix = torch.cat([
+            mo_matrix[:, :(t-1) * k],                           # old slots
+            torch.sort(mo_matrix[:, (t-1) * k:], dim=1)[0]      # sorted new slots
+        ], dim=1)
+
+        n_opt_slots = (t-1) * k + self.n_opt_slots      # self.n_opt_slots; mo_matrix.shape[-1]
         # if self.epoch < self.config['schedule'][-1] / 3:        # 10 for 30 epochs
         #     n_opt_slots = mo_matrix.shape[-1]
         # else:
