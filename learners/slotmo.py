@@ -389,7 +389,7 @@ class SLOTPrompt(Prompt):
         # # else:
         # #     n_opt_slots = self.n_opt_slots
         # mo_matrix = mo_matrix[:, :n_opt_slots]   # [bs, 5]
-        mo_matrix = torch.sort(mo_matrix, dim=1)[0][:, self.n_opt_slots]        # [bs, 2]
+        mo_matrix = torch.sort(mo_matrix, dim=1)[0][:, :self.n_opt_slots]        # [bs, 2]
 
         loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
