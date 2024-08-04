@@ -333,7 +333,8 @@ class SLOTPrompt(Prompt):
             prompts = model.obtain_q(inputs)      # [bs, t, k20, e12, p8, d768]
 
         bs, t, k, e, p, d = prompts.shape
-        prompts = prompts.reshape(bs, t*k, e, p, d)
+        # prompts = prompts.reshape(bs, t*k, e, p, d)
+        prompts = prompts[:, -1]    # only use new slots
 
         # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
         # for l in self.e_layers:
@@ -377,17 +378,19 @@ class SLOTPrompt(Prompt):
         # # features: [bs, 5, 768]
 
         # sort new slots according to loss
-        mo_matrix = torch.cat([
-            mo_matrix[:, :(t-1) * k],                           # old slots
-            torch.sort(mo_matrix[:, (t-1) * k:], dim=1)[0]      # sorted new slots
-        ], dim=1)
+        # mo_matrix = torch.cat([
+        #     mo_matrix[:, :(t-1) * k],                           # old slots
+        #     torch.sort(mo_matrix[:, (t-1) * k:], dim=1)[0]      # sorted new slots
+        # ], dim=1)
+        #
+        # n_opt_slots = (t-1) * k + self.n_opt_slots      # self.n_opt_slots; mo_matrix.shape[-1]
+        # # if self.epoch < self.config['schedule'][-1] / 3:        # 10 for 30 epochs
+        # #     n_opt_slots = mo_matrix.shape[-1]
+        # # else:
+        # #     n_opt_slots = self.n_opt_slots
+        # mo_matrix = mo_matrix[:, :n_opt_slots]   # [bs, 5]
+        mo_matrix = torch.sort(mo_matrix, dim=1)[0][:, self.n_opt_slots]        # [bs, 2]
 
-        n_opt_slots = (t-1) * k + self.n_opt_slots      # self.n_opt_slots; mo_matrix.shape[-1]
-        # if self.epoch < self.config['schedule'][-1] / 3:        # 10 for 30 epochs
-        #     n_opt_slots = mo_matrix.shape[-1]
-        # else:
-        #     n_opt_slots = self.n_opt_slots
-        mo_matrix = torch.sort(mo_matrix, dim=1)[0][:, :n_opt_slots]   # [bs, 5]
         loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
 
