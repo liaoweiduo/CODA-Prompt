@@ -699,7 +699,7 @@ class SLOTPrompt(Prompt):
                     # forward all prompts
                     _, _, out = self.obtain_mo_matrix(
                         None, prompts=prompts,
-                        train=during_train,
+                        train=False,
                         samples=input,
                         labels=target,
                         group_by_labels=False,
@@ -767,7 +767,7 @@ class SLOTPrompt(Prompt):
                         # forward all prompts
                         _, _, out = self.obtain_mo_matrix(
                             None, prompts=prompts,
-                            train=during_train,
+                            train=False,
                             samples=input,
                             labels=target,
                             group_by_labels=False,
