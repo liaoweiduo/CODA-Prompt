@@ -710,11 +710,12 @@ class SLOTPrompt(Prompt):
 
                     # apply mask for slots
                     out = out.reshape(bs, t, k, self.valid_out_dim)
+                    out_min = torch.min(out)
                     for tt in range(t):
                         # out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
-                        # random mask with mean -1000
-                        out[:, tt, :, :self.tasks[tt][0]] = torch.randn_like(out[:, tt, :, :self.tasks[tt][0]]) - 1000
-                        out[:, tt, :, self.tasks[tt][-1]:] = torch.randn_like(out[:, tt, :, self.tasks[tt][-1]:]) - 1000
+                        # random mask with mean -100
+                        out[:, tt, :, :self.tasks[tt][0]] = torch.rand_like(out[:, tt, :, :self.tasks[tt][0]]) + out_min - 100
+                        out[:, tt, :, self.tasks[tt][-1]:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]:]) + out_min - 100
                     out = out.reshape(bs, t * k, self.valid_out_dim)
                     ## only retain classes in self.tasks
                     # masked_out = torch.ones_like(out) * (-float('inf'))
@@ -780,11 +781,12 @@ class SLOTPrompt(Prompt):
 
                         # apply mask for slots
                         out = out.reshape(bs, t, k, self.valid_out_dim)
+                        out_min = torch.min(out)
                         for tt in range(t):
                             # out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
-                            # random mask with mean -1000
-                            out[:, tt, :, :self.tasks[tt][0]] = torch.randn_like(out[:, tt, :, :self.tasks[tt][0]]) - 1000
-                            out[:, tt, :, self.tasks[tt][-1]:] = torch.randn_like(out[:, tt, :, self.tasks[tt][-1]:]) - 1000
+                            # random mask with mean -100
+                            out[:, tt, :, :self.tasks[tt][0]] = torch.rand_like(out[:, tt, :, :self.tasks[tt][0]]) + out_min - 100
+                            out[:, tt, :, self.tasks[tt][-1]:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]:]) + out_min - 100
                         out = out.reshape(bs, t * k, self.valid_out_dim)
 
                         # # predict
