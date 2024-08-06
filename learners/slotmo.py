@@ -715,7 +715,7 @@ class SLOTPrompt(Prompt):
                         # out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
                         # random mask with mean -100
                         out[:, tt, :, :self.tasks[tt][0]] = torch.rand_like(out[:, tt, :, :self.tasks[tt][0]]) + out_min - 100
-                        # out[:, tt, :, self.tasks[tt][-1]:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]:]) + out_min - 100
+                        # out[:, tt, :, self.tasks[tt][-1]+1:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]+1:]) + out_min - 100
                     out = out.reshape(bs, t * k, self.valid_out_dim)
                     ## only retain classes in self.tasks
                     # masked_out = torch.ones_like(out) * (-float('inf'))
@@ -786,7 +786,7 @@ class SLOTPrompt(Prompt):
                             # out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
                             # random mask with mean -100
                             out[:, tt, :, :self.tasks[tt][0]] = torch.rand_like(out[:, tt, :, :self.tasks[tt][0]]) + out_min - 100
-                            # out[:, tt, :, self.tasks[tt][-1]:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]:]) + out_min - 100
+                            # out[:, tt, :, self.tasks[tt][-1]+1:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]+1:]) + out_min - 100
                         out = out.reshape(bs, t * k, self.valid_out_dim)
 
                         # # predict
