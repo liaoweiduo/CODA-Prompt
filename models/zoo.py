@@ -1556,7 +1556,6 @@ class ViTZoo(nn.Module):
             self.prompt = PmoPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'slot':
             self.prompt = SlotPrompt(768, prompt_param[0], prompt_param[1])
-            self.prompt.tasks = self.tasks
         else:
             self.prompt = None
 
