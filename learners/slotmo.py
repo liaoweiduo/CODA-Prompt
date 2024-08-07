@@ -402,7 +402,7 @@ class SLOTPrompt(Prompt):
         loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
 
-        loss.backward(retain_graph=True)
+        # loss.backward(retain_graph=True)
 
         if self.debug_mode:
             print(f'loss: {loss.item()}')
@@ -419,7 +419,8 @@ class SLOTPrompt(Prompt):
         exp_loss = self.criterion_fn(exp_out, labels.long())     # [bs*10, 2]
         exp_loss = torch.mean(exp_loss)
 
-        exp_loss.backward()
+        total_loss = loss + exp_loss
+        total_loss.backward()
 
         if self.debug_mode:
             print(f'expert loss: {exp_loss.item()}')
