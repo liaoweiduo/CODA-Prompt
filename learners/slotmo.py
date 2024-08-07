@@ -402,7 +402,7 @@ class SLOTPrompt(Prompt):
         loss = torch.mean(mo_matrix, dim=1)        # [bs]
         loss = torch.mean(loss)
 
-        loss.backward()
+        loss.backward(retain_graph=True)
 
         if self.debug_mode:
             print(f'loss: {loss.item()}')
