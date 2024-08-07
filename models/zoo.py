@@ -40,6 +40,12 @@ class SlotPrompt(nn.Module):
         # trigger fixed prompt size (FPS)
         self.FPS = True         # no use, consider update throughout all tasks.
 
+        # expert classifier
+        # logit len: len(self.tasks[self.task_count])
+        self.expert_predictors = torch.nn.ModuleList([
+            nn.Linear(768, 2)
+        ])
+
     def process_task_count(self):
         # freeze old slot attn
         for param in self.slot_attn[-1].parameters():
@@ -55,6 +61,10 @@ class SlotPrompt(nn.Module):
         self.slot_attn.append(new_attn)
         # self.prompt_map_init(self.task_count)
 
+        # logit len: len(self.tasks[self.task_count])
+        new_exp_pre = nn.Linear(768, 2).to(device)
+        self.expert_predictors.append(new_exp_pre)
+
     # def prompt_map_init(self, task_id):
     #     for e in self.e_layers:
     #         prompt_map = tensor_prompt(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
@@ -67,7 +77,7 @@ class SlotPrompt(nn.Module):
     #         prompt_map.requires_grad = False
     #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
 
-    def handle_q(self, q):
+    def handle_q(self, q, all=True):
         # obtain slot-prompts
         if q is None:
             raise ValueError('q is None')
@@ -75,7 +85,10 @@ class SlotPrompt(nn.Module):
             raise Exception(f'q has wrong shape: {q.shape}')
 
         # forward to obtain prompts:
-        prompts = torch.stack([attn(q) for attn in self.slot_attn], dim=1)   # [bs, t, k20, e12, p8, d768]
+        if all:
+            prompts = torch.stack([attn(q) for attn in self.slot_attn], dim=1)   # [bs, t, k20, e12, p8, d768]
+        else:
+            prompts = torch.stack([self.slot_attn[-1](q)], dim=1)   # [bs, 1, k20, e12, p8, d768]
 
         return prompts
 
@@ -1498,7 +1511,7 @@ class ViTZoo(nn.Module):
         super(ViTZoo, self).__init__()
 
         # get last layer
-        self.last = nn.Linear(512, num_classes)
+        # self.last = nn.Linear(512, num_classes)
         self.prompt_flag = prompt_flag
         self.task_id = None
         self.use_vit_emb = use_vit_emb
@@ -1543,6 +1556,7 @@ class ViTZoo(nn.Module):
             self.prompt = PmoPrompt(768, prompt_param[0], prompt_param[1])
         elif self.prompt_flag == 'slot':
             self.prompt = SlotPrompt(768, prompt_param[0], prompt_param[1])
+            self.prompt.tasks = self.tasks
         else:
             self.prompt = None
 
@@ -1553,14 +1567,14 @@ class ViTZoo(nn.Module):
         for param in self.feat.parameters():
             param.requires_grad = False
 
-    def obtain_q(self, x, cond_x=None, maintain_pool=False):
+    def obtain_q(self, x, cond_x=None, maintain_pool=False, **kwargs):
         with torch.no_grad():
             if cond_x is not None:  # condition model
                 q, _, _ = self.feat(cond_x)
             else:
                 q, _, _ = self.feat(x)
         q = q[:, 1:, :]     # only use patch semantic info
-        q = self.prompt.handle_q(q)  # only used for slot-p to cal slot-prompts
+        q = self.prompt.handle_q(q, **kwargs)  # only used for slot-p to cal slot-prompts
 
         if maintain_pool:
             self.prompt.maintain_pool(q, check_init=True)
@@ -1592,10 +1606,7 @@ class ViTZoo(nn.Module):
             out, _, _ = self.feat(x, register_blk=register_blk)
             out = out[:, 0, :]
         out = out.view(out.size(0), -1)
-        if pen:
-            features = out
-        else:
-            features = None
+        features = out
         out = self.last(out)
 
         if pen:
