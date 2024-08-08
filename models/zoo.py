@@ -44,7 +44,7 @@ class SlotPrompt(nn.Module):
         # logit len: len(self.tasks[self.task_count])
         self.expert_predictors = torch.nn.ModuleList([
             nn.Linear(768, 2)
-        ])
+        ])      # Note: the first task's predictor init in create_model() function in slotmo.py
 
     def process_task_count(self):
         # freeze old slot attn
@@ -62,7 +62,7 @@ class SlotPrompt(nn.Module):
         # self.prompt_map_init(self.task_count)
 
         # logit len: len(self.tasks[self.task_count])
-        new_exp_pre = nn.Linear(768, 2).to(device)
+        new_exp_pre = nn.Linear(len(self.tasks[self.task_count]), 2).to(device)
         self.expert_predictors.append(new_exp_pre)
 
     # def prompt_map_init(self, task_id):

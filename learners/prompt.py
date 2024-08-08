@@ -58,6 +58,8 @@ class Prompt(NormalNN):
 
     # sets model optimizers
     def init_optimizer(self, target=None, schedule=None):
+        if schedule is None:
+            schedule = self.schedule
 
         # parse optimizer args
         # Multi-GPU
@@ -102,9 +104,6 @@ class Prompt(NormalNN):
 
         # create optimizers
         self.optimizer = torch.optim.__dict__[self.config['optimizer']](**optimizer_arg)
-
-        if schedule is None:
-            schedule = self.schedule
 
         # create schedules
         if self.schedule_type == 'cosine':
