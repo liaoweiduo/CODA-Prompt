@@ -527,7 +527,8 @@ class SLOTPrompt(Prompt):
         exp_loss = self.criterion_fn(exp_out, labels.long())     # [bs*10, 2]
         exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*10]
         # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
-        weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
+        weights = labels*9+1
+        # weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
         exp_loss = exp_loss * weights
         exp_loss = torch.mean(exp_loss)
 
