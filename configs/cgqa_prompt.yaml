@@ -2,7 +2,7 @@ dataset: CGQA
 first_split_size: 30
 other_split_size: 10
 schedule:
-- [60]
+- [10]
 - [20]
 schedule_type: cosine
 batch_size: 32

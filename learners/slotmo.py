@@ -105,11 +105,25 @@ class SLOTPrompt(Prompt):
             # else:
             #     del state_dict['last.weight']; del state_dict['last.bias']
             # self.model.load_state_dict(state_dict, strict=False)
+
+        flag = True        # True if need to train expert_predictors further
+        for k in state_dict.keys():
+            if 'expert_predictors' in k:
+                flag = False
+
         self.model.load_state_dict(state_dict, strict=False)
         self.log('=> Load Done')
         if self.gpu:
             self.model = self.model.cuda()
         self.model.eval()
+
+        if flag:
+            # freeze prompt:[except expert_predictors] and last
+            for k, p in self.model.named_parameters():
+                if 'expert_predictors' not in k:
+                    p.requires_grad = False
+
+        return flag
 
     # sets model optimizers
     def init_optimizer(self, t=0, target=None, schedule=None):
@@ -141,6 +155,8 @@ class SLOTPrompt(Prompt):
             params_to_opt = list(last.parameters())
         elif target == 'prompt':
             params_to_opt = list(prompt.parameters())
+        elif target == 'expert':
+            params_to_opt = list(prompt.expert_predictors.parameters())
         else:
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
@@ -178,10 +194,11 @@ class SLOTPrompt(Prompt):
 
         # try to load model
         need_train = True
+        expert_pred_flag = False     # True -> only need to train expert predictor and other parts are frozen.
         if not self.overwrite:
             try:
-                self.load_model(model_save_dir)
-                need_train = False
+                expert_pred_flag = self.load_model(model_save_dir)
+                need_train = expert_pred_flag       # True if no expert_predictor trained
             except:
                 pass
 
@@ -197,7 +214,7 @@ class SLOTPrompt(Prompt):
             # trains
             if self.reset_optimizer:  # Reset optimizer before learning each task
                 self.log('Optimizer is reset!')
-                self.init_optimizer(t=self.t)
+                self.init_optimizer(t=self.t, target='expert' if expert_pred_flag else None)
 
             # if self.t == 0:     # first task do
             '''phase I: train slots attn'''
@@ -506,7 +523,8 @@ class SLOTPrompt(Prompt):
         exp_loss = self.criterion_fn(exp_out, labels.long())     # [bs*10, 2]
         exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*10]
         # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
-        exp_loss = exp_loss * (labels*3+1)
+        weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
+        exp_loss = exp_loss * weights
         exp_loss = torch.mean(exp_loss)
 
         total_loss = loss + exp_loss
