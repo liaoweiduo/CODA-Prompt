@@ -62,7 +62,10 @@ class SlotPrompt(nn.Module):
         # self.prompt_map_init(self.task_count)
 
         # logit len: len(self.tasks[self.task_count])
-        new_exp_pre = nn.Linear(len(self.tasks[self.task_count]), 2).to(device)
+        new_exp_pre = nn.Sequential(
+            nn.Linear(len(self.tasks[self.task_count]), len(self.tasks[self.task_count])),
+            nn.ReLU(inplace=True),
+            nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
         self.expert_predictors.append(new_exp_pre)
 
     # def prompt_map_init(self, task_id):

@@ -82,7 +82,11 @@ class SLOTPrompt(Prompt):
         cfg = self.config
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=self.prompt_param, use_vit_emb=False)
         model.prompt.tasks = cfg['tasks']
-        model.prompt.expert_predictors[0] = nn.Linear(len(cfg['tasks'][0]), 2)
+        model.prompt.expert_predictors[0] = nn.Sequential(
+            nn.Linear(len(cfg['tasks'][0]), len(cfg['tasks'][0])),
+            nn.ReLU(inplace=True),
+            nn.Linear(len(cfg['tasks'][0]), 2))
+
         return model
 
     def load_model(self, filename, drop_last=False):
