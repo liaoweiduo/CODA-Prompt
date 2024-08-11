@@ -258,7 +258,7 @@ class SLOTPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output, exp_loss = self.update_model(x, y)      # , task
+                    loss, output, exp_loss = self.update_model(x, y, expert_pred_flag=expert_pred_flag)
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -425,7 +425,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False):
+    def update_model(self, inputs, targets, match_pool=False, expert_pred_flag=False):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -517,22 +517,45 @@ class SLOTPrompt(Prompt):
         self.epoch_log['scaler']['Value'].append(loss.item())
 
         # generate expert labels
-        labels = torch.zeros_like(indexes).long()
-        labels.scatter_(1, indexes[:, :self.n_opt_slots], 1)        # expert: 1; not expert: 0 [bs*10]
-        labels = labels.flatten()       # [bs*10]
+        # indexes[0]:                   tensor([6, 4, 5, 2, 7, 9, 1, 3, 8, 0], device='cuda:0')
+        # selected_positive_indexes[0]: tensor([6, 4], device='cuda:0')
+        # selected_negative_indexes[0]: tensor([8, 0], device='cuda:0')
+        # selected_indexes[0]:          tensor([0, 4, 6, 8], device='cuda:0')
+        # label_indexes[0]:             tensor([3, 1, 0, 2], device='cuda:0')
+        # labels[0]:                    tensor([0, 1, 1, 0], device='cuda:0')
+        assert 2*self.n_opt_slots <= t*k
+        selected_positive_indexes = indexes[:, :self.n_opt_slots]
+        selected_negative_indexes = indexes[:, -self.n_opt_slots:]      # n_opt_slots needs to be smaller than n_slots/2
+        selected_indexes, label_indexes = torch.sort(
+            torch.cat([selected_positive_indexes, selected_negative_indexes], dim=1), dim=1)
+        labels = torch.zeros_like(selected_indexes).long()      # [bs, 4]
+        labels[:, :self.n_opt_slots] = 1
+        labels = torch.stack([labels[bid, label_indexes[bid]] for bid in range(bs)])    # [bs, 4]
+        # labels = torch.zeros_like(selected_indexes).long()      # [bs, 4]
+        # labels.scatter_(1, indexes[:, :self.n_opt_slots], 1)        # expert: 1; not expert: 0 [bs*10]
+        labels = labels.flatten()       # [bs*4]
+
         # forward expert classifier
         expert_predictor = model.prompt.expert_predictors[-1]
         # exp_out = expert_predictor(features.reshape(-1, features.size(-1)))     # [bs*10, 2]
-        exp_out = expert_predictor(out.reshape(-1, out.size(-1))[:, self.last_valid_out_dim:self.valid_out_dim])
-        exp_loss = self.criterion_fn(exp_out, labels.long())     # [bs*10, 2]
-        exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*10]
-        # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
-        weights = labels*9+1
-        # weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
-        exp_loss = exp_loss * weights
+        exp_out = out.reshape(bs*t*k, out.size(-1))      # [bs*10, 100]
+        exp_out = expert_predictor(exp_out[:, self.last_valid_out_dim:self.valid_out_dim])      # [bs*10, 2]
+        selected_out = exp_out.reshape(bs, t*k, 2)
+        selected_out = torch.stack([selected_out[bid, selected_indexes[bid]] for bid in range(bs)])
+        selected_out = selected_out.reshape(bs*2*self.n_opt_slots, 2)       # [bs*4, 2]
+
+        exp_loss = self.criterion_fn(selected_out, labels.long())     # [bs*4, 2]
+        exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*4]
+        # # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
+        # weights = labels*9+1
+        # # weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
+        # exp_loss = exp_loss * weights
         exp_loss = torch.mean(exp_loss)
 
-        total_loss = loss + exp_loss
+        if expert_pred_flag:
+            total_loss = exp_loss
+        else:
+            total_loss = loss + exp_loss
         total_loss.backward()
 
         if self.debug_mode:
