@@ -523,9 +523,9 @@ class SLOTPrompt(Prompt):
         # selected_indexes[0]:          tensor([0, 4, 6, 8], device='cuda:0')
         # label_indexes[0]:             tensor([3, 1, 0, 2], device='cuda:0')
         # labels[0]:                    tensor([0, 1, 1, 0], device='cuda:0')
-        assert 2*self.n_opt_slots <= t*k
+        assert 3*self.n_opt_slots <= t*k    # n_opt_slots needs to be smaller than n_slots/3
         selected_positive_indexes = indexes[:, :self.n_opt_slots]
-        selected_negative_indexes = indexes[:, -self.n_opt_slots:]      # n_opt_slots needs to be smaller than n_slots/2
+        selected_negative_indexes = indexes[:, -2*self.n_opt_slots:]
         selected_indexes, label_indexes = torch.sort(
             torch.cat([selected_positive_indexes, selected_negative_indexes], dim=1), dim=1)
         labels = torch.zeros_like(selected_indexes).long()      # [bs, 4]
@@ -542,7 +542,7 @@ class SLOTPrompt(Prompt):
         exp_out = expert_predictor(exp_out[:, self.last_valid_out_dim:self.valid_out_dim])      # [bs*10, 2]
         selected_out = exp_out.reshape(bs, t*k, 2)
         selected_out = torch.stack([selected_out[bid, selected_indexes[bid]] for bid in range(bs)])
-        selected_out = selected_out.reshape(bs*2*self.n_opt_slots, 2)       # [bs*4, 2]
+        selected_out = selected_out.reshape(-1, 2)       # [bs*6, 2]
 
         exp_loss = self.criterion_fn(selected_out, labels.long())     # [bs*4, 2]
         exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*4]
