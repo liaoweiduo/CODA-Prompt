@@ -2,14 +2,14 @@ dataset: CGQA
 first_split_size: 30
 other_split_size: 10
 schedule:
-- [20]
-- [20]
+- [60]
+- [60]
 schedule_type: cosine
 batch_size: 32
 optimizer: Adam
 lr:
 - 0.00005
-- 0.00001
+- 0.00005
 momentum: 0.9
 weight_decay: 0
 model_type: zoo
