@@ -28,10 +28,10 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-LOGNAME=slot-f4m-10-2-lr5e_4-expert-co
+LOGNAME=slot-f4m-30-5-lr5e_4-expert-co
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 10 2 \
+    --prompt_param 100 8 30 5 \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 

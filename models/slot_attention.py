@@ -16,8 +16,8 @@ class SlotAttention(nn.Module):
         super().__init__()
         if e_layers is None:
             e_layers = [0, 1, 2, 3, 4]
-        self.emb_d = emb_d          # emb for representation
-        self.key_d = key_dim        # emb for slot: Dslot
+        self.emb_d = emb_d          # emb for representation 768
+        self.key_d = key_dim        # emb for slot: Dslot 64
 
         # slot basic param
         self.n_slots = n_slots  # 5   number of slots
