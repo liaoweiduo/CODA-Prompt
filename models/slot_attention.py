@@ -98,8 +98,8 @@ class SlotAttention(nn.Module):
 
             ## slots = GRU(state=slots_prev[b,k,d], inputs=updates[b,k,d])  (for each slot)
 
-            slots = self.gru(updates.view(-1, self.slot_size),               # [b*k, d]
-                             slots_prev.reshape(-1, self.slot_size))         # [b*k, d]
+            slots = self.gru(updates.view(-1, self.key_d),               # [b*k, d]
+                             slots_prev.reshape(-1, self.key_d))         # [b*k, d]
             # slots = self.gru(updates.view(-1, 1, self.key_d).contiguous(),       # [b*k, 1, d]
             #                  slots_prev.view(1, -1, self.key_d).contiguous()            # [1, b*k, d]
             #                  )[0]        # out: [b*k, 1, d]
