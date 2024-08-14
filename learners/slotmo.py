@@ -82,7 +82,7 @@ class SLOTPrompt(Prompt):
         cfg = self.config
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=self.prompt_param, use_vit_emb=False)
         model.prompt.tasks = cfg['tasks']
-        model.prompt.expert_predictors[0] = nn.Sequential(
+        model.prompt.expert_predictor[0] = nn.Sequential(
             nn.Linear(len(cfg['tasks'][0]), len(cfg['tasks'][0])),
             nn.ReLU(inplace=True),
             nn.Linear(len(cfg['tasks'][0]), 2))
@@ -110,9 +110,9 @@ class SLOTPrompt(Prompt):
             #     del state_dict['last.weight']; del state_dict['last.bias']
             # self.model.load_state_dict(state_dict, strict=False)
 
-        flag = True        # True if need to train expert_predictors further
+        flag = True        # True if need to train expert_predictor further
         for k in state_dict.keys():
-            if 'expert_predictors' in k:
+            if 'expert_predictor' in k:
                 flag = False
 
         self.model.load_state_dict(state_dict, strict=False)
@@ -122,9 +122,9 @@ class SLOTPrompt(Prompt):
         self.model.eval()
 
         if flag:
-            # freeze prompt:[except expert_predictors] and last
+            # freeze prompt:[except expert_predictor] and last
             for k, p in self.model.named_parameters():
-                if 'expert_predictors' not in k:
+                if 'expert_predictor' not in k:
                     p.requires_grad = False
 
         return flag
@@ -160,7 +160,9 @@ class SLOTPrompt(Prompt):
         elif target == 'prompt':
             params_to_opt = list(prompt.parameters())
         elif target == 'expert':
-            params_to_opt = list(prompt.expert_predictors.parameters())
+            params_to_opt = list(prompt.expert_predictor.parameters())
+        elif target == 'slot':
+            params_to_opt = list(prompt.slot_attn.parameters())
         else:
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
@@ -198,11 +200,11 @@ class SLOTPrompt(Prompt):
 
         # try to load model
         need_train = True
-        expert_pred_flag = False     # True -> only need to train expert predictor and other parts are frozen.
+        flag = False     # True -> only need to train expert predictor and other parts are frozen.
         if not self.overwrite:
             try:
-                expert_pred_flag = self.load_model(model_save_dir)
-                need_train = expert_pred_flag       # True if no expert_predictor trained
+                flag = self.load_model(model_save_dir)
+                need_train = flag       # True if no expert_predictor trained
             except:
                 pass
 
@@ -218,7 +220,7 @@ class SLOTPrompt(Prompt):
             # trains
             if self.reset_optimizer:  # Reset optimizer before learning each task
                 self.log('Optimizer is reset!')
-                self.init_optimizer(t=self.t, target='expert' if expert_pred_flag else None)
+                self.init_optimizer(t=self.t, target=None if flag else 'slot')
 
             # if self.t == 0:     # first task do
             '''phase I: train slots attn'''
@@ -258,7 +260,7 @@ class SLOTPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output, exp_loss = self.update_model(x, y, expert_pred_flag=expert_pred_flag)
+                    loss, output, exp_loss = self.update_model(x, y, learn_slots=True)
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -266,9 +268,11 @@ class SLOTPrompt(Prompt):
 
                     # measure accuracy and record loss
                     y = y.detach()
-                    accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                    if output:
+                        accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                     losses.update(loss, y.size(0))
-                    exp_losses.update(exp_loss, y.size(0))
+                    if exp_loss:
+                        exp_losses.update(exp_loss, y.size(0))
                     batch_timer.tic()
 
                 # eval update
@@ -287,12 +291,12 @@ class SLOTPrompt(Prompt):
                 exp_losses = AverageMeter()
 
                 # validation
-                if val_loader is not None:
-                    val_acc = self.validation(val_loader, during_train=True)
-                    # log
-                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                    self.epoch_log['scaler']['Idx'].append(self.epoch)
-                    self.epoch_log['scaler']['Value'].append(val_acc)
+                # if val_loader is not None:
+                #     val_acc = self.validation(val_loader, during_train=True)
+                #     # log
+                #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+                #     self.epoch_log['scaler']['Value'].append(val_acc)
 
                 if self.epoch % 10 == 0:
                     '''nvidia-smi'''
@@ -425,167 +429,190 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False, expert_pred_flag=False):
+    def update_model(self, inputs, targets, match_pool=False, learn_slots=True):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
         except:
             model = self.model
+        FPS = self.FPS
 
         # obtain slots
-        if match_pool:
-            # use pool's slots
-            with torch.no_grad():
-                prompts = model.obtain_q(inputs)      # [bs, t, k20, e12, p8, d768]
-            prompts = model.prompt.match_pool(prompts)
+        # if match_pool:
+        #     # use pool's slots
+        #     with torch.no_grad():
+        #         prompts = model.obtain_q(inputs)      # [bs, t, k20, e12, p8, d768]
+        #     prompts = model.prompt.match_pool(prompts)
+        # else:
+        #     prompts = model.obtain_q(inputs, all=False)      # [bs, 1, k20, e12, p8, d768]
+        #     # all=False: only use new slots
+        q = model.obtain_q(inputs, all=not FPS)      # [bs, 1, k20, e12, p8, d768]
+        prompts, slots, attn, recon_loss = q
+
+        if learn_slots:
+            # only update slot attn
+            loss = torch.mean(recon_loss)       # list [1\T]
+
+            if self.debug_mode:
+                print(f'slot recon loss: {loss.item()}')
+
+            self.epoch_log['scaler']['Tag'].append('loss/slot_recon_loss')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(loss.item())
+
+            loss.backward()
+
+            # step
+            self.optimizer.step()
+
+            logits = None
+            return loss.detach(), logits, None
+
         else:
-            prompts = model.obtain_q(inputs, all=False)      # [bs, 1, k20, e12, p8, d768]
-            # all=False: only use new slots
+            bs, t, k, e, p, d = prompts.shape
+            prompts = prompts.reshape(bs, t*k, e, p, d)
+            # prompts = prompts[:, -1]
 
-        bs, t, k, e, p, d = prompts.shape
-        prompts = prompts.reshape(bs, t*k, e, p, d)
-        # prompts = prompts[:, -1]
+            # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
+            # for l in self.e_layers:
+            # with torch.no_grad():
+            mo_matrix, features, out = self.obtain_mo_matrix(
+                None, prompts=prompts,
+                train=True,
+                samples=inputs,
+                labels=targets,
+                group_by_labels=False,
+                return_features=True,
+            )  # [bs, 20]
 
-        # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
-        # for l in self.e_layers:
-        # with torch.no_grad():
-        mo_matrix, features, out = self.obtain_mo_matrix(
-            None, prompts=prompts,
-            train=True,
-            samples=inputs,
-            labels=targets,
-            group_by_labels=False,
-            return_features=True,
-        )  # [bs, 20]
+            if self.debug_mode:
+                print(f'mo_matrix {mo_matrix.shape}')
 
-        if self.debug_mode:
-            print(f'mo_matrix {mo_matrix.shape}')
+            '''log'''
+            for obj_idx in range(mo_matrix.shape[0]):
+                for pop_idx in range(mo_matrix.shape[1]):
+                    self.epoch_log['mo']['Tag'].append('loss')
+                    self.epoch_log['mo']['Pop_id'].append(pop_idx)
+                    self.epoch_log['mo']['Obj_id'].append(obj_idx)
+                    self.epoch_log['mo']['Epoch_id'].append(self.epoch)
+                    self.epoch_log['mo']['Inner_id'].append(0)
+                    self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
 
-        '''log'''
-        for obj_idx in range(mo_matrix.shape[0]):
-            for pop_idx in range(mo_matrix.shape[1]):
-                self.epoch_log['mo']['Tag'].append('loss')
-                self.epoch_log['mo']['Pop_id'].append(pop_idx)
-                self.epoch_log['mo']['Obj_id'].append(obj_idx)
-                self.epoch_log['mo']['Epoch_id'].append(self.epoch)
-                self.epoch_log['mo']['Inner_id'].append(0)
-                self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
+            # # select n_opt_slots minimal slots for each img
+            # indexs = torch.sort(mo_matrix, dim=1)[1][:, :self.n_opt_slots]
+            # indexs = torch.stack([indexs for _ in range(slots.shape[-1])], dim=-1)      # [bs, 5, 64]
+            # slots = torch.gather(slots, dim=1, index=indexs)  # [bs, 5, h64]
+            # # slots = torch.stack([slots[idx, indexs[idx]] for idx in range(indexs.shape[0])])  # [bs, 5, h64]
+            #
+            # mo_matrix, features = self.obtain_mo_matrix(
+            #     None, slots=slots,
+            #     train=True,
+            #     samples=inputs,
+            #     labels=targets,
+            #     group_by_labels=False,
+            #     return_features=True,
+            # )  # [bs, 5]
+            # # features: [bs, 5, 768]
 
-        # # select n_opt_slots minimal slots for each img
-        # indexs = torch.sort(mo_matrix, dim=1)[1][:, :self.n_opt_slots]
-        # indexs = torch.stack([indexs for _ in range(slots.shape[-1])], dim=-1)      # [bs, 5, 64]
-        # slots = torch.gather(slots, dim=1, index=indexs)  # [bs, 5, h64]
-        # # slots = torch.stack([slots[idx, indexs[idx]] for idx in range(indexs.shape[0])])  # [bs, 5, h64]
-        #
-        # mo_matrix, features = self.obtain_mo_matrix(
-        #     None, slots=slots,
-        #     train=True,
-        #     samples=inputs,
-        #     labels=targets,
-        #     group_by_labels=False,
-        #     return_features=True,
-        # )  # [bs, 5]
-        # # features: [bs, 5, 768]
+            # # sort new slots according to loss
+            # mo_matrix = torch.cat([
+            #     mo_matrix[:, :(t-1) * k],                           # old slots
+            #     torch.sort(mo_matrix[:, (t-1) * k:], dim=1)[0]      # sorted new slots
+            # ], dim=1)
+            #
+            # n_opt_slots = (t-1) * k + self.n_opt_slots      # self.n_opt_slots; mo_matrix.shape[-1]
+            # # if self.epoch < self.config['schedule'][-1] / 3:        # 10 for 30 epochs
+            # #     n_opt_slots = mo_matrix.shape[-1]
+            # # else:
+            # #     n_opt_slots = self.n_opt_slots
+            # mo_matrix = mo_matrix[:, :n_opt_slots]   # [bs, 5]
 
-        # # sort new slots according to loss
-        # mo_matrix = torch.cat([
-        #     mo_matrix[:, :(t-1) * k],                           # old slots
-        #     torch.sort(mo_matrix[:, (t-1) * k:], dim=1)[0]      # sorted new slots
-        # ], dim=1)
-        #
-        # n_opt_slots = (t-1) * k + self.n_opt_slots      # self.n_opt_slots; mo_matrix.shape[-1]
-        # # if self.epoch < self.config['schedule'][-1] / 3:        # 10 for 30 epochs
-        # #     n_opt_slots = mo_matrix.shape[-1]
-        # # else:
-        # #     n_opt_slots = self.n_opt_slots
-        # mo_matrix = mo_matrix[:, :n_opt_slots]   # [bs, 5]
+            sorted_mo_matrix, indexes = torch.sort(mo_matrix, dim=1)      # [bs, 10]
 
-        sorted_mo_matrix, indexes = torch.sort(mo_matrix, dim=1)      # [bs, 10]
+            mo_matrix = sorted_mo_matrix[:, :self.n_opt_slots]        # [bs, 2]
 
-        mo_matrix = sorted_mo_matrix[:, :self.n_opt_slots]        # [bs, 2]
+            loss = torch.mean(mo_matrix, dim=1)        # [bs]
+            loss = torch.mean(loss)
 
-        loss = torch.mean(mo_matrix, dim=1)        # [bs]
-        loss = torch.mean(loss)
+            # loss.backward(retain_graph=True)
 
-        # loss.backward(retain_graph=True)
+            if self.debug_mode:
+                print(f'loss: {loss.item()}')
 
-        if self.debug_mode:
-            print(f'loss: {loss.item()}')
+            self.epoch_log['scaler']['Tag'].append('loss/mo_loss')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(loss.item())
 
-        self.epoch_log['scaler']['Tag'].append('loss/mo_loss')
-        self.epoch_log['scaler']['Idx'].append(self.epoch)
-        self.epoch_log['scaler']['Value'].append(loss.item())
+            # generate expert labels
+            # indexes[0]:                   tensor([6, 4, 5, 2, 7, 9, 1, 3, 8, 0], device='cuda:0')
+            # selected_positive_indexes[0]: tensor([6, 4], device='cuda:0')
+            # selected_negative_indexes[0]: tensor([8, 0], device='cuda:0')
+            # selected_indexes[0]:          tensor([0, 4, 6, 8], device='cuda:0')
+            # label_indexes[0]:             tensor([3, 1, 0, 2], device='cuda:0')
+            # labels[0]:                    tensor([0, 1, 1, 0], device='cuda:0')
+            assert 3*self.n_opt_slots <= t*k    # n_opt_slots needs to be smaller than n_slots/3  1:2 samples
+            selected_positive_indexes = indexes[:, :self.n_opt_slots]
+            selected_negative_indexes = indexes[:, -2*self.n_opt_slots:]
+            selected_indexes, label_indexes = torch.sort(
+                torch.cat([selected_positive_indexes, selected_negative_indexes], dim=1), dim=1)
+            labels = torch.zeros_like(selected_indexes).long()      # [bs, 6]
+            labels[:, :self.n_opt_slots] = 1
+            labels = torch.stack([labels[bid, label_indexes[bid]] for bid in range(bs)])    # [bs, 6]
+            # labels = torch.zeros_like(selected_indexes).long()      # [bs, 6]
+            # labels.scatter_(1, indexes[:, :self.n_opt_slots], 1)        # expert: 1; not expert: 0 [bs*10]
+            labels = labels.flatten()       # [bs*6]
 
-        # generate expert labels
-        # indexes[0]:                   tensor([6, 4, 5, 2, 7, 9, 1, 3, 8, 0], device='cuda:0')
-        # selected_positive_indexes[0]: tensor([6, 4], device='cuda:0')
-        # selected_negative_indexes[0]: tensor([8, 0], device='cuda:0')
-        # selected_indexes[0]:          tensor([0, 4, 6, 8], device='cuda:0')
-        # label_indexes[0]:             tensor([3, 1, 0, 2], device='cuda:0')
-        # labels[0]:                    tensor([0, 1, 1, 0], device='cuda:0')
-        assert 3*self.n_opt_slots <= t*k    # n_opt_slots needs to be smaller than n_slots/3  1:2 samples
-        selected_positive_indexes = indexes[:, :self.n_opt_slots]
-        selected_negative_indexes = indexes[:, -2*self.n_opt_slots:]
-        selected_indexes, label_indexes = torch.sort(
-            torch.cat([selected_positive_indexes, selected_negative_indexes], dim=1), dim=1)
-        labels = torch.zeros_like(selected_indexes).long()      # [bs, 6]
-        labels[:, :self.n_opt_slots] = 1
-        labels = torch.stack([labels[bid, label_indexes[bid]] for bid in range(bs)])    # [bs, 6]
-        # labels = torch.zeros_like(selected_indexes).long()      # [bs, 6]
-        # labels.scatter_(1, indexes[:, :self.n_opt_slots], 1)        # expert: 1; not expert: 0 [bs*10]
-        labels = labels.flatten()       # [bs*6]
+            # forward expert classifier
+            expert_predictor = model.prompt.expert_predictor[-1]
+            # exp_out = expert_predictor(features.reshape(-1, features.size(-1)))     # [bs*10, 2]
+            exp_out = out.reshape(bs*t*k, out.size(-1)).detach()      # [bs*10, 100]
+            exp_out = expert_predictor(exp_out[:, self.last_valid_out_dim:self.valid_out_dim])      # [bs*10, 2]
+            selected_out = exp_out.reshape(bs, t*k, 2)
+            selected_out = torch.stack([selected_out[bid, selected_indexes[bid]] for bid in range(bs)])
+            selected_out = selected_out.reshape(-1, 2)       # [bs*6, 2]
 
-        # forward expert classifier
-        expert_predictor = model.prompt.expert_predictors[-1]
-        # exp_out = expert_predictor(features.reshape(-1, features.size(-1)))     # [bs*10, 2]
-        exp_out = out.reshape(bs*t*k, out.size(-1)).detach()      # [bs*10, 100]
-        exp_out = expert_predictor(exp_out[:, self.last_valid_out_dim:self.valid_out_dim])      # [bs*10, 2]
-        selected_out = exp_out.reshape(bs, t*k, 2)
-        selected_out = torch.stack([selected_out[bid, selected_indexes[bid]] for bid in range(bs)])
-        selected_out = selected_out.reshape(-1, 2)       # [bs*6, 2]
+            exp_loss = self.criterion_fn(selected_out, labels.long())     # [bs*6, 2]
+            exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*6]
+            # # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
+            # weights = labels*9+1
+            # # weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
+            # exp_loss = exp_loss * weights
+            exp_loss = torch.mean(exp_loss)
 
-        exp_loss = self.criterion_fn(selected_out, labels.long())     # [bs*6, 2]
-        exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*6]
-        # # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
-        # weights = labels*9+1
-        # # weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
-        # exp_loss = exp_loss * weights
-        exp_loss = torch.mean(exp_loss)
-
-        if expert_pred_flag:
-            total_loss = exp_loss
-        else:
+            # if expert_pred_flag:
+            #     total_loss = exp_loss
+            # else:
             total_loss = loss + exp_loss
-        total_loss.backward()
+            total_loss.backward()
 
-        if self.debug_mode:
-            print(f'expert loss: {exp_loss.item()}')
+            if self.debug_mode:
+                print(f'expert loss: {exp_loss.item()}')
 
-        self.epoch_log['scaler']['Tag'].append('loss/expert_loss')
-        self.epoch_log['scaler']['Idx'].append(self.epoch)
-        self.epoch_log['scaler']['Value'].append(exp_loss.item())
+            self.epoch_log['scaler']['Tag'].append('loss/expert_loss')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(exp_loss.item())
 
-        # voting [bs, 20, 100] -> [bs, 100]
-        exp_out = torch.argmax(exp_out, dim=-1).reshape(bs, t, k)[:, 0]         # [bs, 10]
-        # # if no experts for 1 img, then use all experts
-        # exp_out[torch.sum(exp_out, dim=-1) == 0] = 1     # all 0 means no expert, use all experts: all 1
-        # change all 0 to -1
-        exp_out[exp_out == 0] = -1
+            # voting [bs, 20, 100] -> [bs, 100]
+            exp_out = torch.argmax(exp_out, dim=-1).reshape(bs, t, k)[:, 0]         # [bs, 10]
+            # # if no experts for 1 img, then use all experts
+            # exp_out[torch.sum(exp_out, dim=-1) == 0] = 1     # all 0 means no expert, use all experts: all 1
+            # change all 0 to -1
+            exp_out[exp_out == 0] = -1
 
-        out = out[:, :, :self.valid_out_dim]
-        bs, n_slots, n_cls = out.shape
-        # ce with heuristic
-        out[:, :, :self.last_valid_out_dim] = -float('inf')
-        out = torch.argmax(out, dim=-1)  # [bs, 20]
-        out = (out * exp_out).long()     # apply expert mask, thus only experts' selection is positive.
-        logits = torch.zeros(bs, n_cls).to(out.device)
-        for cls_id in range(n_cls):
-            logits[:, cls_id] = torch.sum(out == cls_id, dim=-1)
+            out = out[:, :, :self.valid_out_dim]
+            bs, n_slots, n_cls = out.shape
+            # ce with heuristic
+            out[:, :, :self.last_valid_out_dim] = -float('inf')
+            out = torch.argmax(out, dim=-1)  # [bs, 20]
+            out = (out * exp_out).long()     # apply expert mask, thus only experts' selection is positive.
+            logits = torch.zeros(bs, n_cls).to(out.device)
+            for cls_id in range(n_cls):
+                logits[:, cls_id] = torch.sum(out == cls_id, dim=-1)
 
-        # step
-        self.optimizer.step()
+            # step
+            self.optimizer.step()
 
-        return loss.detach(), logits, exp_loss.detach()
+            return loss.detach(), logits, exp_loss.detach()
 
     def return_front(self, mo_matrix, idx=-1):
         """Return the specific front from mo_matrix: [obj, pop]"""
@@ -902,16 +929,16 @@ class SLOTPrompt(Prompt):
                     # forward expert classifier
                     # features = features.reshape(bs, t, k, -1)
                     out = out.reshape(bs, t, k, self.valid_out_dim)
-                    expert_predictors = model_single.prompt.expert_predictors
+                    expert_predictor = model_single.prompt.expert_predictor
                     exp_out = []
 
                     for tt in range(t):
                         o = out[:, tt].reshape(-1, out.size(-1))       # [bs*k, valid_out_dim]
                         exp_out.append(
-                            expert_predictors[tt](o[:, self.tasks[tt]]).reshape(bs, k, 2)
+                            expert_predictor[tt](o[:, self.tasks[tt]]).reshape(bs, k, 2)
                         )
                         # exp_out.append(
-                        #     expert_predictors[tt](features[:, tt].reshape(-1, features.size(-1))).reshape(bs, k, 2)
+                        #     expert_predictor[tt](features[:, tt].reshape(-1, features.size(-1))).reshape(bs, k, 2)
                         # )  # [bs, 10, 2]
                     exp_out = torch.stack(exp_out, dim=1)       # [bs, t, k, 2]
                     out = out.reshape(bs, t * k, self.valid_out_dim)
@@ -985,15 +1012,15 @@ class SLOTPrompt(Prompt):
                         # forward expert classifier
                         # features = features.reshape(bs, t, k, -1)
                         out = out.reshape(bs, t, k, self.valid_out_dim)
-                        expert_predictors = model_single.prompt.expert_predictors
+                        expert_predictor = model_single.prompt.expert_predictor
                         exp_out = []
                         for tt in range(t):
                             o = out[:, tt].reshape(-1, out.size(-1))       # [bs*k, valid_out_dim]
                             exp_out.append(
-                                expert_predictors[tt](o[:, self.tasks[tt]]).reshape(bs, k, 2)
+                                expert_predictor[tt](o[:, self.tasks[tt]]).reshape(bs, k, 2)
                             )  # [bs, 10, 2]
                             # exp_out.append(
-                            #     expert_predictors[tt](features[:, tt].reshape(-1, features.size(-1))).reshape(bs, k, 2)
+                            #     expert_predictor[tt](features[:, tt].reshape(-1, features.size(-1))).reshape(bs, k, 2)
                             # )  # [bs, 10, 2]
                         exp_out = torch.stack(exp_out, dim=1)  # [bs, t, k, 2]
                         out = out.reshape(bs, t * k, self.valid_out_dim)

@@ -13,7 +13,7 @@ import copy
 
 # Our Slot Prompt
 class SlotPrompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=64):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=128):
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d
@@ -28,45 +28,51 @@ class SlotPrompt(nn.Module):
         # prompt mapping init
         # self.prompt_map_init(self.task_count)
 
+        # trigger fixed prompt size (FPS)
+        self.FPS = True         # if True, continually learning one slot attn
+
         # slot basic param
         # self.e_pool_size = int(prompt_param[0])  # 100
         # self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
         # self.pool_init_idx = 0
         self.n_slots = int(prompt_param[2])     # n_slots:10   number of slots for one extraction
         self.slot_attn = torch.nn.ModuleList([
-            SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim,
-                          e_p_length=self.e_p_length, e_layers=self.e_layers)])
+            SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim)])
 
-        # trigger fixed prompt size (FPS)
-        self.FPS = True         # no use, consider update throughout all tasks.
+        # output setting
+        prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
+        # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
+        setattr(self, f's2p', prompt_map)
 
         # expert classifier
         # logit len: len(self.tasks[self.task_count])
-        self.expert_predictors = torch.nn.ModuleList([
+        self.expert_predictor = torch.nn.ModuleList([
             nn.Linear(768, 2)
         ])      # Note: the first task's predictor init in create_model() function in slotmo.py
 
     def process_task_count(self):
-        # freeze old slot attn
-        for param in self.slot_attn[-1].parameters():
-            param.requires_grad = False
-        # self.prompt_map_freeze(self.task_count)
+        if not self.FPS:
+            # freeze old slot attn
+            for param in self.slot_attn[-1].parameters():
+                param.requires_grad = False
+            # self.prompt_map_freeze(self.task_count)
 
         self.task_count += 1
 
-        device = next(self.slot_attn[-1].parameters()).device
-        new_attn = SlotAttention(self.emb_d, n_slots=self.n_slots, key_dim=self.key_d,
-                                 e_p_length=self.e_p_length, e_layers=self.e_layers).to(device)
-        new_attn.load_state_dict(self.slot_attn[-1].state_dict())     # init using last slot attn
-        self.slot_attn.append(new_attn)
-        # self.prompt_map_init(self.task_count)
+        if not self.FPS:
+            device = next(self.slot_attn[-1].parameters()).device
+            new_attn = SlotAttention(self.emb_d, n_slots=self.n_slots, key_dim=self.key_d,
+                                     e_p_length=self.e_p_length, e_layers=self.e_layers).to(device)
+            new_attn.load_state_dict(self.slot_attn[-1].state_dict())     # init using last slot attn
+            self.slot_attn.append(new_attn)
+            # self.prompt_map_init(self.task_count)
 
-        # logit len: len(self.tasks[self.task_count])
-        new_exp_pre = nn.Sequential(
-            nn.Linear(len(self.tasks[self.task_count]), len(self.tasks[self.task_count])),
-            nn.ReLU(inplace=True),
-            nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
-        self.expert_predictors.append(new_exp_pre)
+            # logit len: len(self.tasks[self.task_count])
+            new_exp_pre = nn.Sequential(
+                nn.Linear(len(self.tasks[self.task_count]), len(self.tasks[self.task_count])),
+                nn.ReLU(inplace=True),
+                nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
+            self.expert_predictor.append(new_exp_pre)
 
     # def prompt_map_init(self, task_id):
     #     for e in self.e_layers:
@@ -88,12 +94,24 @@ class SlotPrompt(nn.Module):
             raise Exception(f'q has wrong shape: {q.shape}')
 
         # forward to obtain prompts:
+        prompts, slots, attn, recon_loss = [], [], [], []
         if all:
-            prompts = torch.stack([attn(q) for attn in self.slot_attn], dim=1)   # [bs, t, k20, e12, p8, d768]
+            T = range(len(self.slot_attn))
         else:
-            prompts = torch.stack([self.slot_attn[-1](q)], dim=1)   # [bs, 1, k20, e12, p8, d768]
+            T = [-1]
+        for t in T:
+            _slots, _attn, _recon_loss = self.slot_attn[t](q)
+            _prompts = self.slot2prompts(slots)
+            prompts.append(_prompts)
+            slots.append(_slots)
+            attn.append(_attn)
+            recon_loss.append(_recon_loss)          # list [1\T]
 
-        return prompts
+        prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, k20, e12, p8, d768]
+        slots = torch.stack(slots, dim=1)           # [bs, 1\T, k20, d64]
+        attn = torch.stack(attn, dim=1)             # [bs, 1\T, n196, k20] (softmax-ed over k20)
+
+        return prompts, slots, attn, recon_loss
 
     @torch.no_grad()
     def maintain_pool(self, slots, check_init=False):
@@ -159,6 +177,13 @@ class SlotPrompt(nn.Module):
         elif len(x_querry.shape) != 4:      # [bs*(t*k+add), e12, p8, d768]
             raise Exception(f'x_querry has wrong shape: {x_querry.shape}')
         return x_querry
+
+    def slot2prompt(self, slots):
+        prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
+        # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
+        prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
+
+        return prompts
 
     def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
         prompts = self.handle_x_querry(x_querry, x_block, l)
@@ -1494,13 +1519,15 @@ class L2P(DualPrompt):
 
 
 # note - ortho init has not been found to help l2p/dual prompt
-def tensor_prompt(a, b=None, c=None, ortho=False) -> torch.nn.Parameter:
+def tensor_prompt(a, b=None, c=None, d=None, ortho=False) -> torch.nn.Parameter:
     if b is None:
         p = torch.nn.Parameter(torch.FloatTensor(a), requires_grad=True)
     elif c is None:
         p = torch.nn.Parameter(torch.FloatTensor(a, b), requires_grad=True)
-    else:
+    elif d is None:
         p = torch.nn.Parameter(torch.FloatTensor(a, b, c), requires_grad=True)
+    else:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b, c, d), requires_grad=True)
     if ortho:
         nn.init.orthogonal_(p)
     else:
