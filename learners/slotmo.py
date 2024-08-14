@@ -708,7 +708,8 @@ class SLOTPrompt(Prompt):
                     model = self.model.module
                 except:
                     model = self.model
-                prompts = model.obtain_q(samples)        # [bs, t, k20, e12, p8, d768]
+                q = model.obtain_q(samples)        # [bs, t, k20, e12, p8, d768]
+                prompts, slots, attn, recon_loss = q
                 bs, t, k, e, p, d = prompts.shape
                 prompts = prompts.reshape(bs, t*k, e, p, d)
 
@@ -888,7 +889,8 @@ class SLOTPrompt(Prompt):
                     #                        concepts=concepts if self.use_concept_labels_as_aqk else None
                     #                        )[:, :self.valid_out_dim]
 
-                    prompts = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                    q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                    prompts, slots, attn, recon_loss = q
                     bs, t, k, e, p, d = prompts.shape
                     prompts = prompts.reshape(bs, t * k, e, p, d)
 
@@ -982,7 +984,8 @@ class SLOTPrompt(Prompt):
                     mask_ind = mask.nonzero().view(-1)
                     input, target = input[mask_ind], target[mask_ind]
 
-                    prompts = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                    q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                    prompts, slots, attn, recon_loss = q
                     bs, t, k, e, p, d = prompts.shape
                     prompts = prompts.reshape(bs, t * k, e, p, d)
                     # slots = model_single.prompt.match_pool(slots)

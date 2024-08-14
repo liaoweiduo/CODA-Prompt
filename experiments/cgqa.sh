@@ -28,7 +28,7 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-LOGNAME=slot-recon-lr5e-4
+LOGNAME=slot-recon-lr3e-4
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 30 5 \
