@@ -451,7 +451,7 @@ class SLOTPrompt(Prompt):
 
         if learn_slots:
             # only update slot attn
-            loss = torch.mean(recon_loss)       # list [1\T]
+            loss = torch.mean(torch.stack(recon_loss))       # list [1\T]
 
             if self.debug_mode:
                 print(f'slot recon loss: {loss.item()}')
