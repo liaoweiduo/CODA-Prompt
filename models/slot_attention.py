@@ -27,8 +27,8 @@ class SlotAttention(nn.Module):
         self.ln_input = nn.LayerNorm(self.emb_d)
         self.ln_slot = nn.LayerNorm(self.key_d)
         self.ln_output = nn.LayerNorm(self.key_d)
-        self.mu = init_tensor(self.key_d)             # slot gaussian distribution mu
-        self.log_sigma = init_tensor(self.key_d)          # slot gaussian distribution sigma
+        self.mu = init_tensor(1, 1, self.key_d)             # slot gaussian distribution mu
+        self.log_sigma = init_tensor(1, 1, self.key_d)          # slot gaussian distribution sigma
         self.k = nn.Linear(emb_d, key_dim, bias=False)
         self.q = nn.Linear(key_dim, key_dim, bias=False)
         self.v = nn.Linear(emb_d, key_dim, bias=False)
