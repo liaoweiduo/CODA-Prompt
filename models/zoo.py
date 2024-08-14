@@ -101,7 +101,7 @@ class SlotPrompt(nn.Module):
             T = [-1]
         for t in T:
             _slots, _attn, _recon_loss = self.slot_attn[t](q)
-            _prompts = self.slot2prompts(slots)
+            _prompts = self.slot2prompt(slots)
             prompts.append(_prompts)
             slots.append(_slots)
             attn.append(_attn)
