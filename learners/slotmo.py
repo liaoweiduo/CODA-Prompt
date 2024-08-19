@@ -214,7 +214,6 @@ class SLOTPrompt(Prompt):
         self.data_weighting(train_dataset)
         if need_train:
             losses = AverageMeter()
-            reg_losses = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
 
@@ -263,7 +262,7 @@ class SLOTPrompt(Prompt):
                         # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                         # model update
-                        loss, output, reg_loss = self.update_model(x, y, learn_slots=True)
+                        loss, output, _ = self.update_model(x, y, learn_slots=True)
 
                         # measure elapsed time
                         batch_time.update(batch_timer.toc())
@@ -272,8 +271,6 @@ class SLOTPrompt(Prompt):
                         # measure accuracy and record loss
                         y = y.detach()
                         losses.update(loss, y.size(0))
-                        if reg_loss:
-                            reg_losses.update(reg_loss, y.size(0))
                         batch_timer.tic()
 
                     # eval update
@@ -281,13 +278,11 @@ class SLOTPrompt(Prompt):
                         'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                     self.log(
                         ' * Loss {loss.avg:.3f} | '
-                        'Reg Loss {reg_loss.avg:.3f} | '
                         'Time {time.avg:.3f}*{i}'.format(
-                            loss=losses, reg_loss=reg_losses, time=batch_time, i=len(train_loader)))
+                            loss=losses, time=batch_time, i=len(train_loader)))
 
                     # reset
                     losses = AverageMeter()
-                    reg_losses = AverageMeter()
 
                     if self.epoch % 10 == 0:
                         '''nvidia-smi'''
@@ -306,6 +301,7 @@ class SLOTPrompt(Prompt):
             epochs = schedule[1]        # phase II
 
             losses = AverageMeter()
+            reg_losses = AverageMeter()
             acc = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
@@ -341,7 +337,7 @@ class SLOTPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output = self.update_model(x, y)  # , task
+                    loss, output, reg_loss = self.update_model(x, y)  # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -351,6 +347,7 @@ class SLOTPrompt(Prompt):
                     y = y.detach()
                     accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                     losses.update(loss, y.size(0))
+                    reg_losses.update(reg_loss, y.size(0))
                     batch_timer.tic()
 
                 # eval update
@@ -358,9 +355,10 @@ class SLOTPrompt(Prompt):
                     'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                 self.log(
                     ' * Loss {loss.avg:.3f} | '
+                    'Reg Loss {reg_loss.avg:.3f} | '
                     'Train Acc {acc.avg:.3f} | '
                     'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
+                        loss=losses, reg_loss=reg_losses, acc=acc, time=batch_time, i=len(train_loader)))
 
                 if self.epoch % 10 == 0:
                     '''nvidia-smi'''
@@ -368,6 +366,7 @@ class SLOTPrompt(Prompt):
 
                 # reset
                 losses = AverageMeter()
+                reg_losses = AverageMeter()
                 acc = AverageMeter()
 
                 # validation
