@@ -164,7 +164,7 @@ class SLOTPrompt(Prompt):
         elif target == 'slot':
             params_to_opt = list(prompt.slot_attn.parameters())
         elif target == '/slot':
-            params_to_opt = [p for k, p in list(prompt.parameters()) + list(last.parameters()) if 'slot_attn' not in k]
+            params_to_opt = [p for k, p in list(prompt.named_parameters()) + list(last.named_parameters()) if 'slot_attn' not in k]
         else:
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
