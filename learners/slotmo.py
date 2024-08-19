@@ -110,10 +110,10 @@ class SLOTPrompt(Prompt):
             #     del state_dict['last.weight']; del state_dict['last.bias']
             # self.model.load_state_dict(state_dict, strict=False)
 
-        flag = True        # True if need to train expert_predictor further
-        for k in state_dict.keys():
-            if 'expert_predictor' in k:
-                flag = False
+        flag = True        # True if need to further train
+        # for k in state_dict.keys():
+        #     if 'expert_predictor' in k:
+        #         flag = False
 
         self.model.load_state_dict(state_dict, strict=False)
         self.log('=> Load Done')
@@ -121,16 +121,16 @@ class SLOTPrompt(Prompt):
             self.model = self.model.cuda()
         self.model.eval()
 
-        if flag:
-            # freeze prompt:[except expert_predictor] and last
-            for k, p in self.model.named_parameters():
-                if 'expert_predictor' not in k:
-                    p.requires_grad = False
+        # if flag:
+        #     # freeze prompt:[except expert_predictor] and last
+        #     for k, p in self.model.named_parameters():
+        #         if 'expert_predictor' not in k:
+        #             p.requires_grad = False
 
         return flag
 
     # sets model optimizers
-    def init_optimizer(self, t=0, target=None, schedule=None):
+    def init_optimizer(self, t=0, target=None, schedule=None, phase=0):
         if t >= len(self.config['lr']):
             lr = self.config['lr'][-1]
         else:
@@ -163,6 +163,8 @@ class SLOTPrompt(Prompt):
             params_to_opt = list(prompt.expert_predictor.parameters())
         elif target == 'slot':
             params_to_opt = list(prompt.slot_attn.parameters())
+        elif target == '/slot':
+            params_to_opt = [p for k, p in list(prompt.parameters()) + list(last.parameters()) if 'slot_attn' not in k]
         else:
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
@@ -187,7 +189,7 @@ class SLOTPrompt(Prompt):
 
         # create schedules
         if self.schedule_type == 'cosine':
-            self.scheduler = CosineSchedule(self.optimizer, K=schedule[-1])
+            self.scheduler = CosineSchedule(self.optimizer, K=schedule[phase])
         elif self.schedule_type == 'decay':
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule, gamma=0.1)
 
@@ -200,7 +202,7 @@ class SLOTPrompt(Prompt):
 
         # try to load model
         need_train = True
-        flag = False     # True -> only need to train expert predictor and other parts are frozen.
+        flag = False     # True -> slot attn is already trained
         if not self.overwrite:
             try:
                 flag = self.load_model(model_save_dir)
@@ -212,24 +214,103 @@ class SLOTPrompt(Prompt):
         self.data_weighting(train_dataset)
         if need_train:
             losses = AverageMeter()
-            exp_losses = AverageMeter()
-            acc = AverageMeter()
+            reg_losses = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
 
             # trains
-            if self.reset_optimizer:  # Reset optimizer before learning each task
-                self.log('Optimizer is reset!')
-                self.init_optimizer(t=self.t, target=None if flag else 'slot')
-
             # if self.t == 0:     # first task do
-            '''phase I: train slots attn'''
+            if not flag:
+                self.log(f'Phase I： training slots')
+                if self.reset_optimizer:  # Reset optimizer before learning each task
+                    self.log('Optimizer is reset')
+                    self.init_optimizer(t=self.t, target='slot', phase=0)
+
+                schedule = self.config['schedule']
+                if self.t >= len(schedule):
+                    schedule = schedule[-1]
+                else:
+                    schedule = schedule[self.t]
+                epochs = schedule[0]        # phase I
+                for epoch in range(epochs):
+                    self.epoch = epoch
+
+                    if epoch > 0: self.scheduler.step()
+                    for param_group in self.optimizer.param_groups:
+                        self.log('LR:', param_group['lr'])
+                    batch_timer.tic()
+                    for i, sample in enumerate(train_loader):
+                        self.batch_idx = i
+
+                        concepts = None
+                        if train_dataset.return_concepts:
+                            x, y, concepts, task = sample
+                        else:
+                            x, y, task = sample
+
+                        # verify in train mode
+                        self.model.train()
+
+                        # send data to gpu
+                        if self.gpu:
+                            x = x.cuda()
+                            y = y.cuda()
+                            # if concepts is not None:
+                            #     concepts = concepts.cuda()      # [bs, 224, 224]
+                            # task = task.cuda()
+
+                        # # debug
+                        # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                        # model update
+                        loss, output, reg_loss = self.update_model(x, y, learn_slots=True)
+
+                        # measure elapsed time
+                        batch_time.update(batch_timer.toc())
+                        batch_timer.tic()
+
+                        # measure accuracy and record loss
+                        y = y.detach()
+                        losses.update(loss, y.size(0))
+                        if reg_loss:
+                            reg_losses.update(reg_loss, y.size(0))
+                        batch_timer.tic()
+
+                    # eval update
+                    self.log(
+                        'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
+                    self.log(
+                        ' * Loss {loss.avg:.3f} | '
+                        'Reg Loss {reg_loss.avg:.3f} | '
+                        'Time {time.avg:.3f}*{i}'.format(
+                            loss=losses, reg_loss=reg_losses, time=batch_time, i=len(train_loader)))
+
+                    # reset
+                    losses = AverageMeter()
+                    reg_losses = AverageMeter()
+
+                    if self.epoch % 10 == 0:
+                        '''nvidia-smi'''
+                        self.log(os.system('nvidia-smi'))
+
+            self.log(f'Phase II： training slots')
+            if self.reset_optimizer:  # Reset optimizer before learning each task
+                self.log('Optimizer is reset')
+                self.init_optimizer(t=self.t, target='/slot', phase=1)
+
             schedule = self.config['schedule']
             if self.t >= len(schedule):
                 schedule = schedule[-1]
             else:
                 schedule = schedule[self.t]
-            for epoch in range(schedule[-1]):
+            epochs = schedule[1]        # phase II
+
+            losses = AverageMeter()
+            acc = AverageMeter()
+            batch_time = AverageMeter()
+            batch_timer = Timer()
+
+            for epoch in range(epochs):       # self.config['schedule'][-1]
                 self.epoch = epoch
 
                 if epoch > 0: self.scheduler.step()
@@ -260,7 +341,7 @@ class SLOTPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output, exp_loss = self.update_model(x, y, learn_slots=True)
+                    loss, output = self.update_model(x, y)  # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -268,151 +349,34 @@ class SLOTPrompt(Prompt):
 
                     # measure accuracy and record loss
                     y = y.detach()
-                    if output:
-                        accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                    accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                     losses.update(loss, y.size(0))
-                    if exp_loss:
-                        exp_losses.update(exp_loss, y.size(0))
                     batch_timer.tic()
 
                 # eval update
                 self.log(
-                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=schedule[-1]))
+                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                 self.log(
                     ' * Loss {loss.avg:.3f} | '
-                    'Expert Loss {exp_loss.avg:.3f} | '
                     'Train Acc {acc.avg:.3f} | '
                     'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, acc=acc, exp_loss=exp_losses, time=batch_time, i=len(train_loader)))
-
-                # reset
-                losses = AverageMeter()
-                acc = AverageMeter()
-                exp_losses = AverageMeter()
-
-                # validation
-                # if val_loader is not None:
-                #     val_acc = self.validation(val_loader, during_train=True)
-                #     # log
-                #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                #     self.epoch_log['scaler']['Idx'].append(self.epoch)
-                #     self.epoch_log['scaler']['Value'].append(val_acc)
+                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
 
                 if self.epoch % 10 == 0:
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
 
-            # '''phase II: maintain pool'''
-            # self.log('Phase II: maintain pool!')
-            # batch_timer.tic()
-            # for i, sample in enumerate(train_loader):
-            #     concepts = None
-            #     if train_dataset.return_concepts:
-            #         x, y, concepts, task = sample
-            #     else:
-            #         x, y, task = sample
-            #
-            #     # verify in train mode
-            #     self.model.train()
-            #
-            #     # send data to gpu
-            #     if self.gpu:
-            #         x = x.cuda()
-            #         y = y.cuda()
-            #
-            #     try:
-            #         model = self.model.module
-            #     except:
-            #         model = self.model
-            #
-            #     model.obtain_q(x, maintain_pool=True)
-            #
-            # # measure elapsed time
-            # t = batch_timer.toc()
-            # batch_timer.tic()
-            # self.log(
-            #     ' * maintain pool | '
-            #     'Time {t:.3f}'.format(t=t))
+                # reset
+                losses = AverageMeter()
+                acc = AverageMeter()
 
-            # '''phase III: use the closest slots in the pool and train slot2prompt mapping and classifier'''
-            # if self.reset_optimizer:  # Reset optimizer before learning each task
-            #     self.log('Optimizer is reset!')
-            #     self.init_optimizer()
-            #
-            # losses = AverageMeter()
-            # acc = AverageMeter()
-            # batch_time = AverageMeter()
-            # batch_timer = Timer()
-            #
-            # # total = self.config['schedule'][-1]
-            # total = 10
-            # for epoch in range(total):       # self.config['schedule'][-1]
-            #     self.epoch = epoch
-            #
-            #     if epoch > 0: self.scheduler.step()
-            #     for param_group in self.optimizer.param_groups:
-            #         self.log('LR:', param_group['lr'])
-            #     batch_timer.tic()
-            #     for i, sample in enumerate(train_loader):
-            #         self.batch_idx = i
-            #
-            #         concepts = None
-            #         if train_dataset.return_concepts:
-            #             x, y, concepts, task = sample
-            #         else:
-            #             x, y, task = sample
-            #
-            #         # verify in train mode
-            #         self.model.train()
-            #
-            #         # send data to gpu
-            #         if self.gpu:
-            #             x = x.cuda()
-            #             y = y.cuda()
-            #             # if concepts is not None:
-            #             #     concepts = concepts.cuda()      # [bs, 224, 224]
-            #             # task = task.cuda()
-            #
-            #         # # debug
-            #         # print(f'x shape: {x.shape}, y: {y}, task: {task}')
-            #
-            #         # model update
-            #         loss, output = self.update_model(x, y, match_pool=True)  # , task
-            #
-            #         # measure elapsed time
-            #         batch_time.update(batch_timer.toc())
-            #         batch_timer.tic()
-            #
-            #         # measure accuracy and record loss
-            #         y = y.detach()
-            #         # accumulate_acc(output, y, task, acc, topk=(self.top_k,))
-            #         losses.update(loss, y.size(0))
-            #         batch_timer.tic()
-            #
-            #     # eval update
-            #     self.log(
-            #         'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=total))
-            #     self.log(
-            #         ' * Loss {loss.avg:.3f} | '
-            #         'Time {time.avg:.3f}*{i}'.format(
-            #             loss=losses, time=batch_time, i=len(train_loader)))
-            #     # 'Train Acc {acc.avg:.3f} | '      , acc=acc
-            #
-            #     if self.epoch % 10 == 0:
-            #         '''nvidia-smi'''
-            #         self.log(os.system('nvidia-smi'))
-            #
-            #     # reset
-            #     losses = AverageMeter()
-            #     acc = AverageMeter()
-            #
-            #     # validation
-            #     if val_loader is not None:
-            #         val_acc = self.validation(val_loader)
-            #         # log
-            #         self.epoch_log['scaler']['Tag'].append(f'val_acc')
-            #         self.epoch_log['scaler']['Idx'].append(self.epoch)
-            #         self.epoch_log['scaler']['Value'].append(val_acc)
+                # validation
+                if val_loader is not None:
+                    val_acc = self.validation(val_loader)
+                    # log
+                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 
@@ -429,7 +393,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False, learn_slots=True):
+    def update_model(self, inputs, targets, match_pool=False, learn_slots=False):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -446,7 +410,7 @@ class SLOTPrompt(Prompt):
         # else:
         #     prompts = model.obtain_q(inputs, all=False)      # [bs, 1, k20, e12, p8, d768]
         #     # all=False: only use new slots
-        q = model.obtain_q(inputs, all=not FPS)      # [bs, 1, k20, e12, p8, d768]
+        q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
         prompts, slots, attn, recon_loss = q
 
         if learn_slots:
@@ -488,16 +452,6 @@ class SLOTPrompt(Prompt):
             if self.debug_mode:
                 print(f'mo_matrix {mo_matrix.shape}')
 
-            '''log'''
-            for obj_idx in range(mo_matrix.shape[0]):
-                for pop_idx in range(mo_matrix.shape[1]):
-                    self.epoch_log['mo']['Tag'].append('loss')
-                    self.epoch_log['mo']['Pop_id'].append(pop_idx)
-                    self.epoch_log['mo']['Obj_id'].append(obj_idx)
-                    self.epoch_log['mo']['Epoch_id'].append(self.epoch)
-                    self.epoch_log['mo']['Inner_id'].append(0)
-                    self.epoch_log['mo']['Value'].append(mo_matrix[obj_idx, pop_idx].item())
-
             # # select n_opt_slots minimal slots for each img
             # indexs = torch.sort(mo_matrix, dim=1)[1][:, :self.n_opt_slots]
             # indexs = torch.stack([indexs for _ in range(slots.shape[-1])], dim=-1)      # [bs, 5, 64]
@@ -529,9 +483,19 @@ class SLOTPrompt(Prompt):
 
             sorted_mo_matrix, indexes = torch.sort(mo_matrix, dim=1)      # [bs, 10]
 
-            mo_matrix = sorted_mo_matrix[:, :self.n_opt_slots]        # [bs, 2]
+            '''log'''
+            for obj_idx in range(sorted_mo_matrix.shape[0]):
+                for pop_idx in range(sorted_mo_matrix.shape[1]):
+                    self.epoch_log['mo']['Tag'].append('loss')
+                    self.epoch_log['mo']['Pop_id'].append(pop_idx)
+                    self.epoch_log['mo']['Obj_id'].append(obj_idx)
+                    self.epoch_log['mo']['Epoch_id'].append(self.epoch)
+                    self.epoch_log['mo']['Inner_id'].append(0)
+                    self.epoch_log['mo']['Value'].append(sorted_mo_matrix[obj_idx, pop_idx].item())
 
-            loss = torch.mean(mo_matrix, dim=1)        # [bs]
+            positive = sorted_mo_matrix[:, :self.n_opt_slots]       # [bs, 2]
+
+            loss = torch.mean(positive, dim=1)        # [bs]
             loss = torch.mean(loss)
 
             # loss.backward(retain_graph=True)
@@ -543,68 +507,82 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(loss.item())
 
-            # generate expert labels
-            # indexes[0]:                   tensor([6, 4, 5, 2, 7, 9, 1, 3, 8, 0], device='cuda:0')
-            # selected_positive_indexes[0]: tensor([6, 4], device='cuda:0')
-            # selected_negative_indexes[0]: tensor([8, 0], device='cuda:0')
-            # selected_indexes[0]:          tensor([0, 4, 6, 8], device='cuda:0')
-            # label_indexes[0]:             tensor([3, 1, 0, 2], device='cuda:0')
-            # labels[0]:                    tensor([0, 1, 1, 0], device='cuda:0')
-            assert 3*self.n_opt_slots <= t*k    # n_opt_slots needs to be smaller than n_slots/3  1:2 samples
-            selected_positive_indexes = indexes[:, :self.n_opt_slots]
-            selected_negative_indexes = indexes[:, -2*self.n_opt_slots:]
-            selected_indexes, label_indexes = torch.sort(
-                torch.cat([selected_positive_indexes, selected_negative_indexes], dim=1), dim=1)
-            labels = torch.zeros_like(selected_indexes).long()      # [bs, 6]
-            labels[:, :self.n_opt_slots] = 1
-            labels = torch.stack([labels[bid, label_indexes[bid]] for bid in range(bs)])    # [bs, 6]
+            # # generate expert labels
+            # # indexes[0]:                   tensor([6, 4, 5, 2, 7, 9, 1, 3, 8, 0], device='cuda:0')
+            # # selected_positive_indexes[0]: tensor([6, 4], device='cuda:0')
+            # # selected_negative_indexes[0]: tensor([8, 0], device='cuda:0')
+            # # selected_indexes[0]:          tensor([0, 4, 6, 8], device='cuda:0')
+            # # label_indexes[0]:             tensor([3, 1, 0, 2], device='cuda:0')
+            # # labels[0]:                    tensor([0, 1, 1, 0], device='cuda:0')
+            # assert 3*self.n_opt_slots <= t*k    # n_opt_slots needs to be smaller than n_slots/3  1:2 samples
+            # selected_positive_indexes = indexes[:, :self.n_opt_slots]
+            # selected_negative_indexes = indexes[:, -2*self.n_opt_slots:]
+            # selected_indexes, label_indexes = torch.sort(
+            #     torch.cat([selected_positive_indexes, selected_negative_indexes], dim=1), dim=1)
             # labels = torch.zeros_like(selected_indexes).long()      # [bs, 6]
-            # labels.scatter_(1, indexes[:, :self.n_opt_slots], 1)        # expert: 1; not expert: 0 [bs*10]
-            labels = labels.flatten()       # [bs*6]
+            # labels[:, :self.n_opt_slots] = 1
+            # labels = torch.stack([labels[bid, label_indexes[bid]] for bid in range(bs)])    # [bs, 6]
+            # # labels = torch.zeros_like(selected_indexes).long()      # [bs, 6]
+            # # labels.scatter_(1, indexes[:, :self.n_opt_slots], 1)        # expert: 1; not expert: 0 [bs*10]
+            # labels = labels.flatten()       # [bs*6]
+            #
+            # # forward expert classifier
+            # expert_predictor = model.prompt.expert_predictor[-1]
+            # # exp_out = expert_predictor(features.reshape(-1, features.size(-1)))     # [bs*10, 2]
+            # exp_out = out.reshape(bs*t*k, out.size(-1)).detach()      # [bs*10, 100]
+            # exp_out = expert_predictor(exp_out[:, self.last_valid_out_dim:self.valid_out_dim])      # [bs*10, 2]
+            # selected_out = exp_out.reshape(bs, t*k, 2)
+            # selected_out = torch.stack([selected_out[bid, selected_indexes[bid]] for bid in range(bs)])
+            # selected_out = selected_out.reshape(-1, 2)       # [bs*6, 2]
+            #
+            # exp_loss = self.criterion_fn(selected_out, labels.long())     # [bs*6, 2]
+            # exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*6]
+            # # # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
+            # # weights = labels*9+1
+            # # # weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
+            # # exp_loss = exp_loss * weights
+            # exp_loss = torch.mean(exp_loss)
+            #
+            # if self.debug_mode:
+            #     print(f'expert loss: {exp_loss.item()}')
+            #
+            # self.epoch_log['scaler']['Tag'].append('loss/expert_loss')
+            # self.epoch_log['scaler']['Idx'].append(self.epoch)
+            # self.epoch_log['scaler']['Value'].append(exp_loss.item())
+            #
+            # # if expert_pred_flag:
+            # #     total_loss = exp_loss
+            # # else:
+            # total_loss = loss + exp_loss
+            # # exp_loss = torch.zeros(1).mean()
 
-            # forward expert classifier
-            expert_predictor = model.prompt.expert_predictor[-1]
-            # exp_out = expert_predictor(features.reshape(-1, features.size(-1)))     # [bs*10, 2]
-            exp_out = out.reshape(bs*t*k, out.size(-1)).detach()      # [bs*10, 100]
-            exp_out = expert_predictor(exp_out[:, self.last_valid_out_dim:self.valid_out_dim])      # [bs*10, 2]
-            selected_out = exp_out.reshape(bs, t*k, 2)
-            selected_out = torch.stack([selected_out[bid, selected_indexes[bid]] for bid in range(bs)])
-            selected_out = selected_out.reshape(-1, 2)       # [bs*6, 2]
-
-            exp_loss = self.criterion_fn(selected_out, labels.long())     # [bs*6, 2]
-            exp_loss = torch.mean(exp_loss, dim=-1)     # [bs*6]
-            # # balance importance for 1: 2:8 -> 1:4; [0, 1,..., 1] -> [1, 4,..., 4]
-            # weights = labels*9+1
-            # # weights = labels*((labels.shape[0]-torch.sum(labels))/torch.sum(labels)-1)+1
-            # exp_loss = exp_loss * weights
-            exp_loss = torch.mean(exp_loss)
-
-            # if expert_pred_flag:
-            #     total_loss = exp_loss
-            # else:
-            total_loss = loss + exp_loss
-            total_loss.backward()
-
-            if self.debug_mode:
-                print(f'expert loss: {exp_loss.item()}')
-
-            self.epoch_log['scaler']['Tag'].append('loss/expert_loss')
-            self.epoch_log['scaler']['Idx'].append(self.epoch)
-            self.epoch_log['scaler']['Value'].append(exp_loss.item())
-
-            # voting [bs, 20, 100] -> [bs, 100]
-            exp_out = torch.argmax(exp_out, dim=-1).reshape(bs, t, k)[:, 0]         # [bs, 10]
-            # # if no experts for 1 img, then use all experts
-            # exp_out[torch.sum(exp_out, dim=-1) == 0] = 1     # all 0 means no expert, use all experts: all 1
-            # change all 0 to -1
-            exp_out[exp_out == 0] = -1
+            # exp_out = torch.argmax(exp_out, dim=-1).reshape(bs, t, k)[:, 0]         # [bs, 10]
+            # # # if no experts for 1 img, then use all experts
+            # # exp_out[torch.sum(exp_out, dim=-1) == 0] = 1     # all 0 means no expert, use all experts: all 1
+            # # change all 0 to -1
+            # exp_out[exp_out == 0] = -1
 
             out = out[:, :, :self.valid_out_dim]
             bs, n_slots, n_cls = out.shape
             # ce with heuristic
             out[:, :, :self.last_valid_out_dim] = -float('inf')
+
+            # regularization loss: entropy
+            selected_negative_indexes = indexes[:, self.n_opt_slots:]
+            negative = torch.stack([
+                out[bid, selected_negative_indexes[bid], self.last_valid_out_dim:] for bid in range(bs)])
+
+            reg_loss = calc_entropy(negative)
+            self.epoch_log['scaler']['Tag'].append('loss/reg_loss')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(reg_loss.item())
+
+            total_loss = loss + reg_loss
+            total_loss.backward()
+
+            # voting [bs, 20, 100] -> [bs, 100]
             out = torch.argmax(out, dim=-1)  # [bs, 20]
-            out = (out * exp_out).long()     # apply expert mask, thus only experts' selection is positive.
+            # out = (out * exp_out).long()     # apply expert mask, thus only experts' selection is positive.
             logits = torch.zeros(bs, n_cls).to(out.device)
             for cls_id in range(n_cls):
                 logits[:, cls_id] = torch.sum(out == cls_id, dim=-1)
@@ -612,7 +590,7 @@ class SLOTPrompt(Prompt):
             # step
             self.optimizer.step()
 
-            return loss.detach(), logits, exp_loss.detach()
+            return loss.detach(), logits, reg_loss.detach()
 
     def return_front(self, mo_matrix, idx=-1):
         """Return the specific front from mo_matrix: [obj, pop]"""
@@ -1216,6 +1194,15 @@ class Auxiliary:
             return imgs, torch.from_numpy(targets), concepts
         else:
             return imgs, torch.from_numpy(targets)
+
+
+def calc_entropy(input_tensor):
+    lsm = nn.LogSoftmax(dim=-1)
+    log_probs = lsm(input_tensor)
+    probs = torch.exp(log_probs)
+    p_log_p = log_probs * probs
+    entropy = -p_log_p.mean()
+    return entropy
 
 
 if __name__ == '__main__':

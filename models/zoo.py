@@ -86,7 +86,7 @@ class SlotPrompt(nn.Module):
     #         prompt_map.requires_grad = False
     #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
 
-    def handle_q(self, q, all=True):
+    def handle_q(self, q, all=True, learn_slots=True):
         # obtain slot-prompts
         if q is None:
             raise ValueError('q is None')
@@ -100,7 +100,12 @@ class SlotPrompt(nn.Module):
         else:
             T = [-1]
         for t in T:
-            _slots, _attn, _recon_loss = self.slot_attn[t](q)
+            if learn_slots:
+                _slots, _attn, _recon_loss = self.slot_attn[t](q)
+            else:
+                with torch.no_grad():       # this phase does not learn slot attn
+                    _slots, _attn = self.slot_attn[t].forward_slots(q)
+                _recon_loss = 0
             _prompts = self.slot2prompt(_slots)
             prompts.append(_prompts)
             slots.append(_slots)
