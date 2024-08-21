@@ -40,15 +40,20 @@ class SlotPrompt(nn.Module):
             SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim)])
 
         # output setting
-        prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
-        # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
-        setattr(self, f's2p', prompt_map)
+        self.s2p = nn.ModuleList([
+            nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),
+            nn.Linear(key_dim, len(self.e_layers) * self.e_p_length * self.emb_d)   # [64 -> 12*8*768]
+        ])
+        nn.init.xavier_uniform(self.s2p)
+        # prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
+        # # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
+        # setattr(self, f's2p', prompt_map)
 
-        # expert classifier
-        # logit len: len(self.tasks[self.task_count])
-        self.expert_predictor = torch.nn.ModuleList([
-            nn.Linear(768, 2)
-        ])      # Note: the first task's predictor init in create_model() function in slotmo.py
+        # # expert classifier
+        # # logit len: len(self.tasks[self.task_count])
+        # self.expert_predictor = torch.nn.ModuleList([
+        #     nn.Linear(768, 2)
+        # ])      # Note: the first task's predictor init in create_model() function in slotmo.py
 
     def process_task_count(self):
         if not self.FPS:
@@ -112,7 +117,7 @@ class SlotPrompt(nn.Module):
             attn.append(_attn)
             recon_loss.append(_recon_loss)          # list [1\T]
 
-        prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, k20, e12, p8, d768]
+        prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, e12, p8, d768]      # no K , k20
         slots = torch.stack(slots, dim=1)           # [bs, 1\T, k20, d64]
         attn = torch.stack(attn, dim=1)             # [bs, 1\T, n196, k20] (softmax-ed over k20)
 
@@ -184,9 +189,19 @@ class SlotPrompt(nn.Module):
         return x_querry
 
     def slot2prompt(self, slots):
-        prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
-        # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
-        prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
+        # slots [bs, k20, h64]
+        bs, k, h = slots.shape
+        slot_map = self.s2p[0]          # [self.key_d -> self.key_d]
+        prompt_map = self.s2p[1]        # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
+
+        weighted_slots = slot_map(slots)
+        weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
+        prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
+        # [bs, e, p, d]
+
+        # prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
+        # # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
+        # prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
 
         return prompts
 

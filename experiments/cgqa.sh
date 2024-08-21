@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0 1 2 3'   # '0 1 2 3'
+GPUID='0 1'   # '0 1 2 3'
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -28,7 +28,7 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-LOGNAME=slot-k5-recon-lr1e-4
+LOGNAME=slot-k5-recon-kl-lr1e-4
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 5 2 \
