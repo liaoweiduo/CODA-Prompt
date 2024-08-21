@@ -988,17 +988,16 @@ class SLOTPrompt(Prompt):
 
                     q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
                     prompts, slots, attn, recon_loss = q
+                    bs, t, e, p, d = prompts.shape
+                    assert t == 1
+                    # bs, t, k, e, p, d = prompts.shape
+                    # prompts = prompts.reshape(bs, t * k, e, p, d)
 
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
                     if slot_recon_loss:
                         recon_losses.update(recon_loss, bs)
                         continue
-
-                    bs, t, e, p, d = prompts.shape
-                    assert t == 1
-                    # bs, t, k, e, p, d = prompts.shape
-                    # prompts = prompts.reshape(bs, t * k, e, p, d)
 
                     # forward all prompts
                     _, features, out = self.obtain_mo_matrix(
