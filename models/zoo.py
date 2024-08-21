@@ -44,7 +44,7 @@ class SlotPrompt(nn.Module):
             nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),
             nn.Linear(key_dim, len(self.e_layers) * self.e_p_length * self.emb_d)   # [64 -> 12*8*768]
         ])
-        nn.init.xavier_uniform(self.s2p)
+
         # prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
         # # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
         # setattr(self, f's2p', prompt_map)
