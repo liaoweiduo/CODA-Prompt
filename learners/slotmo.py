@@ -286,8 +286,8 @@ class SLOTPrompt(Prompt):
                     'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                 self.log(
                     ' * Loss {loss.avg:.3f} | '
-                    'Time {time:.3f}s'.format(
-                        loss=losses, time=batch_time.avg*len(train_loader)))
+                    'Time {time:.3f}s ({i} batches)'.format(
+                        loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                 # reset
                 losses = AverageMeter()
@@ -373,8 +373,9 @@ class SLOTPrompt(Prompt):
                     ' * Loss {loss.avg:.3f} | '
                     'Reg Loss {reg_loss.avg:.3f} | '
                     'Train Acc {acc.avg:.3f} | '
-                    'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, reg_loss=reg_losses, acc=acc, time=batch_time, i=len(train_loader)))
+                    'Time {time:.3f}s ({i} batches)'.format(
+                        loss=losses, reg_loss=reg_losses, acc=acc,
+                        time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                 # reset
                 losses = AverageMeter()
@@ -493,7 +494,7 @@ class SLOTPrompt(Prompt):
                 s2p_loss = torch.stack([
                     F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
                              F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='none').mean()
-                    for k, v in model.s2p.named_parameters()
+                    for k, v in model.prompt.s2p.named_parameters()
                 ])
                 s2p_loss = torch.mean(s2p_loss)
 
