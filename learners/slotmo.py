@@ -508,7 +508,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-            total_loss = loss + 0 * s2p_loss
+            total_loss = loss  # + 0.01 * s2p_loss
             total_loss.backward()
 
             out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [s, n_cls]
