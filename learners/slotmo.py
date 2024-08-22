@@ -198,7 +198,7 @@ class SLOTPrompt(Prompt):
         elif self.schedule_type == 'decay':
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule, gamma=0.1)
 
-    def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None, debug=True):
+    def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
 
         self.train_dataset = train_dataset
@@ -225,89 +225,88 @@ class SLOTPrompt(Prompt):
                 except:
                     model = self.model
                 self.log(f'record s2p weights')
-                self.s2p_state_dict = model.prompt.s2p.state_dict()
+                self.s2p_state_dict = copy.deepcopy(model.prompt.s2p.state_dict())
 
-            if not debug:
-                self.log(f'Phase I： training slots')
-                if self.reset_optimizer:  # Reset optimizer before learning each task
-                    self.log('Optimizer is reset')
-                    self.init_optimizer(t=self.t, target='slot', phase=0)
+            self.log(f'Phase I： training slots')
+            if self.reset_optimizer:  # Reset optimizer before learning each task
+                self.log('Optimizer is reset')
+                self.init_optimizer(t=self.t, target='slot', phase=0)
 
-                losses = AverageMeter()
-                batch_time = AverageMeter()
-                batch_timer = Timer()
+            losses = AverageMeter()
+            batch_time = AverageMeter()
+            batch_timer = Timer()
 
-                schedule = self.config['schedule']
-                if self.t >= len(schedule):
-                    schedule = schedule[-1]
-                else:
-                    schedule = schedule[self.t]
-                epochs = schedule[0]        # phase I
-                for epoch in range(epochs):
-                    self.epoch = epoch
+            schedule = self.config['schedule']
+            if self.t >= len(schedule):
+                schedule = schedule[-1]
+            else:
+                schedule = schedule[self.t]
+            epochs = schedule[0]        # phase I
+            for epoch in range(epochs):
+                self.epoch = epoch
 
-                    if epoch > 0: self.scheduler.step()
-                    for param_group in self.optimizer.param_groups:
-                        self.log('LR:', param_group['lr'])
+                if epoch > 0: self.scheduler.step()
+                for param_group in self.optimizer.param_groups:
+                    self.log('LR:', param_group['lr'])
+                batch_timer.tic()
+                for i, sample in enumerate(train_loader):
+                    self.batch_idx = i
+
+                    concepts = None
+                    if train_dataset.return_concepts:
+                        x, y, concepts, task = sample
+                    else:
+                        x, y, task = sample
+
+                    # verify in train mode
+                    self.model.train()
+
+                    # send data to gpu
+                    if self.gpu:
+                        x = x.cuda()
+                        y = y.cuda()
+                        # if concepts is not None:
+                        #     concepts = concepts.cuda()      # [bs, 224, 224]
+                        # task = task.cuda()
+
+                    # # debug
+                    # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                    # model update
+                    loss, output, _ = self.update_model(x, y, learn_slots=True)
+
+                    # measure elapsed time
+                    batch_time.update(batch_timer.toc())
                     batch_timer.tic()
-                    for i, sample in enumerate(train_loader):
-                        self.batch_idx = i
 
-                        concepts = None
-                        if train_dataset.return_concepts:
-                            x, y, concepts, task = sample
-                        else:
-                            x, y, task = sample
+                    # measure accuracy and record loss
+                    y = y.detach()
+                    losses.update(loss, y.size(0))
+                    batch_timer.tic()
 
-                        # verify in train mode
-                        self.model.train()
+                # eval update
+                self.log(
+                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
+                self.log(
+                    ' * Loss {loss.avg:.3f} | '
+                    'Time {time:.3f}s ({i} batches)'.format(
+                        loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
-                        # send data to gpu
-                        if self.gpu:
-                            x = x.cuda()
-                            y = y.cuda()
-                            # if concepts is not None:
-                            #     concepts = concepts.cuda()      # [bs, 224, 224]
-                            # task = task.cuda()
+                # reset
+                losses = AverageMeter()
 
-                        # # debug
-                        # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+                # validation recon loss
+                if val_loader is not None:
+                    val_recon_loss = self.validation(val_loader, slot_recon_loss=True)
+                    # log
+                    self.epoch_log['scaler']['Tag'].append(f'val_recon_loss')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(val_recon_loss)
 
-                        # model update
-                        loss, output, _ = self.update_model(x, y, learn_slots=True)
-
-                        # measure elapsed time
-                        batch_time.update(batch_timer.toc())
-                        batch_timer.tic()
-
-                        # measure accuracy and record loss
-                        y = y.detach()
-                        losses.update(loss, y.size(0))
-                        batch_timer.tic()
-
-                    # eval update
-                    self.log(
-                        'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
-                    self.log(
-                        ' * Loss {loss.avg:.3f} | '
-                        'Time {time:.3f}s ({i} batches)'.format(
-                            loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
-
-                    # reset
-                    losses = AverageMeter()
-
-                    # validation recon loss
-                    if val_loader is not None:
-                        val_recon_loss = self.validation(val_loader, slot_recon_loss=True)
-                        # log
-                        self.epoch_log['scaler']['Tag'].append(f'val_recon_loss')
-                        self.epoch_log['scaler']['Idx'].append(self.epoch)
-                        self.epoch_log['scaler']['Value'].append(val_recon_loss)
-
-                    # if self.epoch == 0:
-                    if self.epoch % 10 == 0:
-                        '''nvidia-smi'''
-                        self.log(os.system('nvidia-smi'))
+                # if self.epoch == 0:
+                if self.epoch % 10 == 0:
+                    '''nvidia-smi'''
+                    self.log(os.system('nvidia-smi'))
 
             self.log(f'Phase I.5: update correlation for labels')
 
@@ -514,8 +513,8 @@ class SLOTPrompt(Prompt):
             total_loss = loss  # + 0.01 * s2p_loss
             total_loss.backward()
 
-            ## debug:
-            print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad}')
+            if self.debug_mode:
+                print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
 
             # step
             self.optimizer.step()
