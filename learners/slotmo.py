@@ -228,6 +228,7 @@ class SLOTPrompt(Prompt):
                     model = self.model.module
                 except:
                     model = self.model
+                self.log(f'record s2p weights')
                 self.s2p_state_dict = model.prompt.s2p.state_dict()
 
             self.log(f'Phase I： training slots')
@@ -305,6 +306,9 @@ class SLOTPrompt(Prompt):
                 if self.epoch % 10 == 0:
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
+
+            self.log(f'Phase I.5: update correlation for labels')
+
 
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -504,7 +508,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-            total_loss = loss + 0.01 * s2p_loss
+            total_loss = loss + 0 * s2p_loss
             total_loss.backward()
 
             out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [s, n_cls]
