@@ -496,12 +496,16 @@ class SLOTPrompt(Prompt):
             # ce with heuristic
             out[:, :, :self.last_valid_out_dim] = -float('inf')
 
-            # regularization loss: KL on slot2prompt mapping
+            # regularization loss: l2 on slot2prompt mapping
             s2p_loss = torch.zeros(1).mean()
             if self.s2p_state_dict is not None:     # from the 2-nd task
+                # s2p_loss = torch.stack([
+                #     F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
+                #              F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='none').mean()
+                #     for k, v in model.prompt.s2p.named_parameters()
+                # ])
                 s2p_loss = torch.stack([
-                    F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
-                             F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='none').mean()
+                    torch.cdist(v, self.s2p_state_dict[k], p=2).mean()
                     for k, v in model.prompt.s2p.named_parameters()
                 ])
                 s2p_loss = torch.mean(s2p_loss)
@@ -510,7 +514,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-            total_loss = loss  # + 0.01 * s2p_loss
+            total_loss = loss + 1 * s2p_loss
             total_loss.backward()
 
             if self.debug_mode:
