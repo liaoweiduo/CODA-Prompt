@@ -309,7 +309,20 @@ class SLOTPrompt(Prompt):
                     self.log(os.system('nvidia-smi'))
 
             self.log(f'Phase I.5: update correlation for labels')
+            # large_batch_loader =
+            # for i, sample in enumerate(large_batch_loader):
+            #     concepts = None
+            #     if train_dataset.return_concepts:
+            #         x, y, concepts, task = sample
+            #     else:
+            #         x, y, task = sample
+            #     # send data to gpu
+            #     if self.gpu:
+            #         x = x.cuda()
+            #         y = y.cuda()
 
+
+            hungarian_algorithm()
 
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -505,7 +518,7 @@ class SLOTPrompt(Prompt):
                 #     for k, v in model.prompt.s2p.named_parameters()
                 # ])
                 s2p_loss = torch.stack([
-                    torch.cdist(v, self.s2p_state_dict[k], p=2).mean()
+                    torch.norm(v - self.s2p_state_dict[k], p=2)
                     for k, v in model.prompt.s2p.named_parameters()
                 ])
                 s2p_loss = torch.mean(s2p_loss)
