@@ -8,7 +8,8 @@ OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
 GPUID='0'   # '0 1 2 3'
-CONFIG=configs/cgqa_prompt.yaml
+#CONFIG=configs/cgqa_prompt.yaml
+CONFIG=configs/cgqa_prompt_old.yaml
 REPEAT=1
 OVERWRITE=0
 
@@ -26,14 +27,14 @@ mkdir -p $OUTDIR
 #    arg 4 = num of slots considered to be opted
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
-LEARNERTYPE=slotmo
-LEARNERNAME=SLOTPrompt
-LOGNAME=slot-k5-recon-l2-lr1e-4
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 5 2 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
+#LEARNERTYPE=slotmo
+#LEARNERNAME=SLOTPrompt
+#LOGNAME=slot-k5-recon-l2-lr1e-4
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --prompt_param 100 8 5 2 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
 
 # PMO-Prompt
 #
@@ -89,10 +90,10 @@ date
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPrompt \
-#    --prompt_param 100 8 0.0 \
-#    --log_dir ${OUTDIR}/coda-epoch30-first30-1
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPrompt \
+    --prompt_param 100 8 0.0 \
+    --log_dir ${OUTDIR}/coda-epoch50-first30
 
 # PATCH-P
 #
