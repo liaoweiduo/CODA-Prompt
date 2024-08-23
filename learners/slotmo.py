@@ -308,19 +308,24 @@ class SLOTPrompt(Prompt):
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
 
-            self.log(f'Phase I.5: update correlation for labels')
-            # large_batch_loader =
-            # for i, sample in enumerate(large_batch_loader):
-            #     concepts = None
-            #     if train_dataset.return_concepts:
-            #         x, y, concepts, task = sample
-            #     else:
-            #         x, y, task = sample
-            #     # send data to gpu
-            #     if self.gpu:
-            #         x = x.cuda()
-            #         y = y.cuda()
-            # hungarian_algorithm()
+            if self.t > 0:
+                self.log(f'Phase I.5: update correlation for labels')
+                # ## write a function to handle this: collect_prototypes(self, train_dataset)
+                # self.model.eval()
+                # large_batch_loader =
+                # for i, sample in enumerate(large_batch_loader):
+                #     concepts = None
+                #     if train_dataset.return_concepts:
+                #         x, y, concepts, task = sample
+                #     else:
+                #         x, y, task = sample
+                #     # send data to gpu
+                #     if self.gpu:
+                #         x = x.cuda()
+                #         y = y.cuda()
+                # with torch.no_grad():
+                #     no grad on this collection process
+                # hungarian_algorithm()
 
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -525,7 +530,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-            total_loss = loss + 1 * s2p_loss
+            total_loss = loss + 0.1 * s2p_loss
             total_loss.backward()
 
             if self.debug_mode:
