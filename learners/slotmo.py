@@ -320,9 +320,7 @@ class SLOTPrompt(Prompt):
             #     if self.gpu:
             #         x = x.cuda()
             #         y = y.cuda()
-
-
-            hungarian_algorithm()
+            # hungarian_algorithm()
 
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
