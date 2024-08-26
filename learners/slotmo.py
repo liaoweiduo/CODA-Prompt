@@ -555,6 +555,8 @@ class SLOTPrompt(Prompt):
                 selected_out = torch.softmax(selected_out, dim=1)
                 # obtain old response
                 with torch.no_grad():
+                    bs, t, k, d = slots.shape
+                    slots = slots.reshape(bs, t*k, d)
                     old_prompts = model.prompt.slot2prompt(slots, self.s2p_copy)
                     _, _, old_out = self.obtain_mo_matrix(
                         None, prompts=old_prompts,
