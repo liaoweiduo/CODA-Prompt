@@ -557,9 +557,9 @@ class SLOTPrompt(Prompt):
                 with torch.no_grad():
                     bs, t, k, d = slots.shape
                     slots = slots.reshape(bs, t*k, d)
-                    old_prompts = model.prompt.slot2prompt(slots, self.s2p_copy)
+                    old_prompts = model.prompt.slot2prompt(slots, self.s2p_copy)    # [bs, e, p, d]
                     _, _, old_out = self.obtain_mo_matrix(
-                        None, prompts=old_prompts,
+                        None, prompts=old_prompts.unsqueeze(1),     # [bs, 1, e, p, d]
                         train=True,
                         samples=inputs,
                         labels=targets,
