@@ -63,10 +63,10 @@ class SLOTPrompt(Prompt):
         self.key_d = prompt.key_d                   # 64
 
         # cls statistics
-        # self.cls_stats = {}
+        self.cls_stats = {}
 
         # s2p regularizer
-        self.s2p_state_dict = None
+        self.s2p_copy = None
 
         # log
         self.epoch_log = dict()
@@ -225,7 +225,7 @@ class SLOTPrompt(Prompt):
                 except:
                     model = self.model
                 self.log(f'record s2p weights')
-                self.s2p_state_dict = copy.deepcopy(model.prompt.s2p.state_dict())
+                self.s2p_copy = copy.deepcopy(model.prompt.s2p)
 
             self.log(f'Phase I： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -310,22 +310,7 @@ class SLOTPrompt(Prompt):
 
             if self.t > 0:
                 self.log(f'Phase I.5: update correlation for labels')
-                # ## write a function to handle this: collect_prototypes(self, train_dataset)
-                # self.model.eval()
-                # large_batch_loader =
-                # for i, sample in enumerate(large_batch_loader):
-                #     concepts = None
-                #     if train_dataset.return_concepts:
-                #         x, y, concepts, task = sample
-                #     else:
-                #         x, y, task = sample
-                #     # send data to gpu
-                #     if self.gpu:
-                #         x = x.cuda()
-                #         y = y.cuda()
-                # with torch.no_grad():
-                #     no grad on this collection process
-                # hungarian_algorithm()
+                self.collect_statistics(self, train_loader, train_dataset)
 
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -512,25 +497,89 @@ class SLOTPrompt(Prompt):
             # ce with heuristic
             out[:, :, :self.last_valid_out_dim] = -float('inf')
 
-            # regularization loss: l2 on slot2prompt mapping
+            # regularization loss on slot2prompt mapping
+            # selection: ['weights', 'response']
+            reg_mode = 'response'
             s2p_loss = torch.zeros(1).mean()
-            if self.s2p_state_dict is not None:     # from the 2-nd task
+            if self.t > 0 and reg_mode == 'weights':
                 # s2p_loss = torch.stack([
                 #     F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
-                #              F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='none').mean()
+                #              F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='batchmean')
                 #     for k, v in model.prompt.s2p.named_parameters()
                 # ])
+                s2p_state_dict = copy.deepcopy(self.s2p.state_dict())
                 s2p_loss = torch.stack([
-                    torch.norm(v - self.s2p_state_dict[k], p=2)
+                    torch.norm(v - s2p_state_dict[k], p=2)
                     for k, v in model.prompt.s2p.named_parameters()
                 ])
                 s2p_loss = torch.mean(s2p_loss)
+            elif self.t > 0 and reg_mode == 'response':
+                # if len(self.cls_stats) > 0:
+                #     # align batch with cls_status
+                #     proto = torch.stack([self.cls_stats[label.item()] for label in targets])      # [bs, k5, d128]
+                #     proto_ = proto.unsqueeze(2)  # [bs, k5, 1, d128]
+                #     slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
+                #     cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                #     sim = cos(proto_, slots_)  # [bs, k, k]
+                #     cost = 1 - sim
+                #     _, index = hungarian_algorithm(cost)  # [bs, 2, k]
+                #     # apply index
+                #     indexes = index[:, 1]  # [bs, k]
+                #     slots = torch.stack([slots[idx, indexes[idx]] for idx in range(bs)])  # [bs, k, d128]
+                #
+                #     # sim over n_cls
+                #     proto = torch.zeros(self.valid_out_dim, *slots.shape[-2:]).to(slots.device)      # [n_cls, k5, d128]
+                #     for label in self.cls_stats.keys():
+                #         proto[label] = self.cls_stats[label].detach().clone()
+                #     proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
+                #     slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
+                #     cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                #     sim = cos(slots_, proto_)  # [bs, n_cls, k]  each aligned-slot
+                #     sim = torch.mean(sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
+                #
+                #     p = 5
+                #     # sim = torch.softmax(sim ** p, dim=-1)
+                #     # 原文是sum over all n_cls ** p 作为这个label的overall correlation，然后再softmax over batch,
+                #     # 来做这个sample的reg系数
+
+                # kl on response without target logits
+                # out [bs, 1, n_cls]
+                # remove target logits
+                selected_out = out.reshape(bs, n_cls)
+                mask = torch.arange(n_cls).expand(bs, n_cls) != targets.unsqueeze(1)
+                selected_out = selected_out[mask].view(bs, n_cls - 1)
+                # y_one_hot = F.one_hot(targets, num_classes=n_cls)
+                # mask = 1 - y_one_hot
+                # selected_out = torch.stack([selected_out[bi][mask[bi]] for bi in range(bs)])      # [bs, n_cls-1]
+                selected_out = selected_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
+                selected_out = torch.softmax(selected_out, dim=1)
+                # obtain old response
+                with torch.no_grad():
+                    old_prompts = model.prompt.slot2prompt(slots, self.s2p)
+                    _, _, old_out = self.obtain_mo_matrix(
+                        None, prompts=old_prompts,
+                        train=True,
+                        samples=inputs,
+                        labels=targets,
+                        group_by_labels=False,
+                        return_features=True,
+                    )
+                    old_out = old_out[:, :, :self.valid_out_dim]
+                    # ce with heuristic
+                    old_out[:, :, :self.last_valid_out_dim] = -float('inf')
+                    selected_old_out = old_out.reshape(bs, n_cls)
+                    selected_old_out = selected_old_out[mask].view(bs, n_cls - 1)
+                    selected_old_out = selected_old_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
+                    selected_old_out = torch.softmax(selected_old_out, dim=1)
+                # kl on selected_out and selected_old_out
+                s2p_loss = F.kl_div(torch.log(selected_out), selected_old_out, reduction='batchmean')
 
             self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-            total_loss = loss + 0.05 * s2p_loss
+            coeff = 1
+            total_loss = loss + coeff * s2p_loss
             total_loss.backward()
 
             if self.debug_mode:
@@ -1214,10 +1263,11 @@ class SLOTPrompt(Prompt):
                          .format(acc=acc, time=batch_timer.toc()))
             return acc.avg
 
-    def collect_statistics(self, train_loader, train_dataset, model=None, verbal=True):
+    def collect_statistics(self, train_loader, train_dataset, model=None):
+        t = train_dataset.t
         if model is None:
             model = self.model
-
+        self.cls_stats = {}
         try:
             prompt = model.module.prompt
         except:
@@ -1227,6 +1277,7 @@ class SLOTPrompt(Prompt):
         batch_timer = Timer()
         batch_timer.tic()
 
+        buffer = dict()
         orig_mode = model.training
         model.eval()
         batch_timer.tic()
@@ -1245,53 +1296,64 @@ class SLOTPrompt(Prompt):
                 #     concepts = concepts.cuda()      # [bs, 224, 224]
                 # task = task.cuda()
 
-            # # debug
-            # print(f'x shape: {x.shape}, y: {y}, task: {task}')
             with torch.no_grad():
-                _, features, _ = self.obtain_mo_matrix_pop_prompt(
-                    None, use_old_prompts=False if prompt.FPS else True,
-                    mask=self.mask, mask_mode=self.mask_mode,
-                    samples=x,
-                    labels=y,
-                    group_by_labels=False,
-                    return_features=True,
-                )
-                # features: [bs, 21, 768]
+                # get slots
+                q = model.obtain_q(x, all=not self.FPS, learn_slots=False)
+                _, slots, _, _ = q  # [bs, 1, k5, d128]
+                bs, t, k, d = slots.shape
+                slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
 
-            # vars = torch.softmax(torch.var(features, dim=-1), dim=-1)   # [bs, 21]
+                # label-wise collecting prototypes
+                labels = torch.unique(y)
+                for label in labels:
+                    label = label.item()
 
-            # accumulate aligning label   [21, 768]
-            uni_y = torch.unique(y)
-            for label in uni_y:
-                label_features = features[y == label]
-                l = label_features.shape[0]
-                label = label.item()
-                if label in self.cls_stats.keys():
-                    self.cls_stats[label] = (self.cls_stats[label]*self.cls_stats[f'n_{label}'] +
-                                             torch.sum(label_features, dim=0)
-                                             ) / (self.cls_stats[f'n_{label}'] + l)
-                    self.cls_stats[f'n_{label}'] += l
-                else:
-                    self.cls_stats[label] = torch.sum(label_features, dim=0)
-                    self.cls_stats[f'n_{label}'] = l
+                    # only collect once
+                    if label in self.cls_stats.keys():
+                        continue
+
+                    # collect slots with this label
+                    labeled_slots = slots[y == label]  # [n_img, k5, d128]
+                    if label in buffer.keys():
+                        labeled_slots = torch.cat([labeled_slots, buffer[label]])
+                        del(buffer[label])
+
+                    # not enough put into buffer
+                    if len(labeled_slots) < 50:      # 50
+                        buffer[label] = labeled_slots
+                        continue
+
+                    # align slots with 1st slot by hungarian_algorithm
+                    # cost matrix -> 1-cossim with 1st slot -> [n_img, k, k]
+                    anchor = labeled_slots[:1].unsqueeze(2)  # [1, k5, 1, d128]
+                    labeled_slots_ = labeled_slots.unsqueeze(1)  # [n_img, 1, k5, d128]
+                    cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                    sim = cos(anchor, labeled_slots_)  # [n_img, k, k]
+                    cost = 1 - sim
+                    _, index = hungarian_algorithm(cost)  # [n_img, 2, k]
+
+                    # apply index
+                    slot_indexes = index[:, 1]  # [n_img, k]
+                    labeled_slots = torch.stack([labeled_slots[idx, slot_indexes[idx]] for idx in
+                                                 range(labeled_slots.shape[0])])  # [n_img, k, d128]
+
+                    self.cls_stats[label] = torch.mean(labeled_slots, dim=0)  # [k, d]
 
         model.train(orig_mode)
 
-        if verbal:
-            self.log(' * Collect statistics: Total time {time:.2f}'
-                     .format(time=batch_timer.toc()))
+        self.log(' * Collect statistics: Total time {time:.2f}'
+                 .format(time=batch_timer.toc()))
 
         # save statistics
-        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats_{t}.pkl')
         print('=> Saving statistics to:', stats_path)
         with open(stats_path, 'wb') as f:
             pickle.dump(self.cls_stats, f)
         print('=> Save Done')
 
-    def load_statistics(self, verbose=False):
-        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
-        if verbose:
-            print('=> Load statistics from:', stats_path)
+    def load_statistics(self, t=0):
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats_{t}.pkl')
+        print('=> Load statistics from:', stats_path)
         with open(stats_path, 'rb') as f:
             self.cls_stats = pickle.load(f)
 

@@ -188,11 +188,13 @@ class SlotPrompt(nn.Module):
             raise Exception(f'x_querry has wrong shape: {x_querry.shape}')
         return x_querry
 
-    def slot2prompt(self, slots):
+    def slot2prompt(self, slots, s2p=None):
         # slots [bs, k20, h64]
         bs, k, h = slots.shape
-        slot_map = self.s2p[0]          # [self.key_d -> self.key_d]
-        prompt_map = self.s2p[1]        # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
+        if s2p is None:
+            s2p = self.s2p
+        slot_map = s2p[0]          # [self.key_d -> self.key_d]
+        prompt_map = s2p[1]        # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
 
         weighted_slots = slot_map(slots)
         weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
