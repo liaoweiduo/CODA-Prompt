@@ -546,7 +546,7 @@ class SLOTPrompt(Prompt):
                 # out [bs, 1, n_cls]
                 # remove target logits
                 selected_out = out.reshape(bs, n_cls)
-                mask = torch.arange(n_cls).expand(bs, n_cls) != targets.unsqueeze(1)
+                mask = torch.arange(n_cls).expand(bs, n_cls).to(targets.device) != targets.unsqueeze(1)
                 selected_out = selected_out[mask].view(bs, n_cls - 1)
                 # y_one_hot = F.one_hot(targets, num_classes=n_cls)
                 # mask = 1 - y_one_hot
