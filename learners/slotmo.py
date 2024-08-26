@@ -507,7 +507,7 @@ class SLOTPrompt(Prompt):
                 #              F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='batchmean')
                 #     for k, v in model.prompt.s2p.named_parameters()
                 # ])
-                s2p_state_dict = copy.deepcopy(self.s2p.state_dict())
+                s2p_state_dict = copy.deepcopy(self.s2p_copy.state_dict())
                 s2p_loss = torch.stack([
                     torch.norm(v - s2p_state_dict[k], p=2)
                     for k, v in model.prompt.s2p.named_parameters()
@@ -555,7 +555,7 @@ class SLOTPrompt(Prompt):
                 selected_out = torch.softmax(selected_out, dim=1)
                 # obtain old response
                 with torch.no_grad():
-                    old_prompts = model.prompt.slot2prompt(slots, self.s2p)
+                    old_prompts = model.prompt.slot2prompt(slots, self.s2p_copy)
                     _, _, old_out = self.obtain_mo_matrix(
                         None, prompts=old_prompts,
                         train=True,
