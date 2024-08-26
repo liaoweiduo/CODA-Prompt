@@ -310,7 +310,7 @@ class SLOTPrompt(Prompt):
 
             if self.t > 0:
                 self.log(f'Phase I.5: update correlation for labels')
-                self.collect_statistics(self, train_loader, train_dataset)
+                self.collect_statistics(train_loader, train_dataset)
 
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -1267,7 +1267,7 @@ class SLOTPrompt(Prompt):
         t = train_dataset.t
         if model is None:
             model = self.model
-        self.cls_stats = {}
+        # self.cls_stats = {}
         try:
             prompt = model.module.prompt
         except:
