@@ -580,7 +580,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-            coeff = 0.1
+            coeff = 0.01
             total_loss = loss + coeff * s2p_loss
             total_loss.backward()
 
