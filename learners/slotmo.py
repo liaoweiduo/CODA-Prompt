@@ -308,10 +308,6 @@ class SLOTPrompt(Prompt):
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
 
-            if self.t > 0:
-                self.log(f'Phase I.5: update correlation for labels')
-                self.collect_statistics(train_loader, train_dataset)
-
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
                 self.log('Optimizer is reset')
@@ -402,6 +398,9 @@ class SLOTPrompt(Prompt):
                 if self.epoch % 10 == 0:
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
+
+        self.log(f'Phase III: update correlation for labels')
+        self.collect_statistics(train_loader, train_dataset)
 
         self.model.eval()
 
@@ -514,33 +513,33 @@ class SLOTPrompt(Prompt):
                 ])
                 s2p_loss = torch.mean(s2p_loss)
             elif self.t > 0 and reg_mode == 'response':
-                # if len(self.cls_stats) > 0:
-                #     # align batch with cls_status
-                #     proto = torch.stack([self.cls_stats[label.item()] for label in targets])      # [bs, k5, d128]
-                #     proto_ = proto.unsqueeze(2)  # [bs, k5, 1, d128]
-                #     slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
-                #     cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-                #     sim = cos(proto_, slots_)  # [bs, k, k]
-                #     cost = 1 - sim
-                #     _, index = hungarian_algorithm(cost)  # [bs, 2, k]
-                #     # apply index
-                #     indexes = index[:, 1]  # [bs, k]
-                #     slots = torch.stack([slots[idx, indexes[idx]] for idx in range(bs)])  # [bs, k, d128]
-                #
-                #     # sim over n_cls
-                #     proto = torch.zeros(self.valid_out_dim, *slots.shape[-2:]).to(slots.device)      # [n_cls, k5, d128]
-                #     for label in self.cls_stats.keys():
-                #         proto[label] = self.cls_stats[label].detach().clone()
-                #     proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
-                #     slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
-                #     cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-                #     sim = cos(slots_, proto_)  # [bs, n_cls, k]  each aligned-slot
-                #     sim = torch.mean(sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
-                #
-                #     p = 5
-                #     # sim = torch.softmax(sim ** p, dim=-1)
-                #     # 原文是sum over all n_cls ** p 作为这个label的overall correlation，然后再softmax over batch,
-                #     # 来做这个sample的reg系数
+                bs, t, k, d = slots.shape
+                if len(self.cls_stats) > 0:     # starting at 2nd task
+                    # align slots with proto and sim over n_cls
+                    proto = torch.zeros(len(self.cls_stats), *slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
+                    for label in self.cls_stats.keys():
+                        proto[label] = self.cls_stats[label].detach().clone()
+                    proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
+                    proto_ = proto_.unsqueeze(2)  # [1, n_cls, 1, k5, d128]
+                    slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
+                    slots_ = slots_.unsqueeze(3)  # [bs, 1, k5, 1, d128]
+                    cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                    sim = cos(slots_, proto_)  # [bs, n_cls, k, k]  each slot
+                    cost = 1 - sim
+                    batch_cost, index = hungarian_algorithm(
+                        cost.reshape(bs * n_cls, t * k, t * k))  # [bs*n_cls, k], [bs*n_cls, 2, k]
+                    batch_cost = batch_cost.reshape(bs, n_cls, t * k)
+                    indexes = index.reshape(bs, n_cls, 2, t * k)
+                    batch_sim = 1 - batch_cost
+                    aligned_sim = torch.mean(batch_sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
+
+                    p = 30
+                    aligned_sim = aligned_sim ** p
+
+                    # cal beta, sum over n_cls and softmax over batch
+                    beta = torch.softmax(torch.sum(aligned_sim, dim=1), dim=0)
+                else:
+                    beta = torch.ones(bs).to(out.device) / bs     # [bs]: as mean [1/bs, 1/bs,...]
 
                 # kl on response without target logits
                 # out [bs, 1, n_cls]
@@ -555,7 +554,6 @@ class SLOTPrompt(Prompt):
                 selected_out = torch.softmax(selected_out, dim=1)
                 # obtain old response
                 with torch.no_grad():
-                    bs, t, k, d = slots.shape
                     slots = slots.reshape(bs, t*k, d)
                     old_prompts = model.prompt.slot2prompt(slots, self.s2p_copy)    # [bs, e, p, d]
                     _, _, old_out = self.obtain_mo_matrix(
@@ -574,7 +572,8 @@ class SLOTPrompt(Prompt):
                     selected_old_out = selected_old_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
                     selected_old_out = torch.softmax(selected_old_out, dim=1)
                 # kl on selected_out and selected_old_out
-                s2p_loss = F.kl_div(torch.log(selected_out), selected_old_out, reduction='batchmean')
+                s2p_loss = beta * F.kl_div(torch.log(selected_out), selected_old_out, reduction='none').sum(dim=-1)
+                s2p_loss = s2p_loss.sum()
 
             self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
@@ -1347,7 +1346,7 @@ class SLOTPrompt(Prompt):
                  .format(time=batch_timer.toc()))
 
         # save statistics
-        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats_{t}.pkl')
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
         print('=> Saving statistics to:', stats_path)
         with open(stats_path, 'wb') as f:
             pickle.dump(self.cls_stats, f)
