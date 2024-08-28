@@ -516,7 +516,8 @@ class SLOTPrompt(Prompt):
                 bs, t, k, d = slots.shape
                 if len(self.cls_stats) > 0:     # starting at 2nd task
                     # align slots with proto and sim over n_cls
-                    proto = torch.zeros(len(self.cls_stats), *slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
+                    n_old_cls = len(self.cls_stats)
+                    proto = torch.zeros(n_old_cls, *slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
                     for label in self.cls_stats.keys():
                         proto[label] = self.cls_stats[label].detach().clone()
                     proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
@@ -527,9 +528,9 @@ class SLOTPrompt(Prompt):
                     sim = cos(slots_, proto_)  # [bs, n_cls, k, k]  each slot
                     cost = 1 - sim
                     batch_cost, index = hungarian_algorithm(
-                        cost.reshape(bs * n_cls, t * k, t * k))  # [bs*n_cls, k], [bs*n_cls, 2, k]
-                    batch_cost = batch_cost.reshape(bs, n_cls, t * k)
-                    indexes = index.reshape(bs, n_cls, 2, t * k)
+                        cost.reshape(bs * n_old_cls, t * k, t * k))  # [bs*n_cls, k], [bs*n_cls, 2, k]
+                    batch_cost = batch_cost.reshape(bs, n_old_cls, t * k)
+                    # indexes = index.reshape(bs, n_old_cls, 2, t * k)
                     batch_sim = 1 - batch_cost
                     aligned_sim = torch.mean(batch_sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
 
