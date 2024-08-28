@@ -514,6 +514,7 @@ class SLOTPrompt(Prompt):
                 s2p_loss = torch.mean(s2p_loss)
             elif self.t > 0 and reg_mode == 'response':
                 bs, t, k, d = slots.shape
+                slots = slots.reshape(bs, t * k, d)
                 if len(self.cls_stats) > 0:     # starting at 2nd task
                     # align slots with proto and sim over n_cls
                     n_old_cls = len(self.cls_stats)
@@ -524,11 +525,11 @@ class SLOTPrompt(Prompt):
                     proto_ = proto_.unsqueeze(2)  # [1, n_cls, 1, k5, d128]
                     slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
                     slots_ = slots_.unsqueeze(3)  # [bs, 1, k5, 1, d128]
-                    print('proto_', proto_.shape)
-                    print('slots_', slots_.shape)
+                    # print('proto_', proto_.shape)
+                    # print('slots_', slots_.shape)
                     cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
                     sim = cos(slots_, proto_)  # [bs, n_cls, k, k]  each slot
-                    print('sim', sim.shape)
+                    # print('sim', sim.shape)
                     cost = 1 - sim
                     batch_cost, index = hungarian_algorithm(
                         cost.reshape(bs * n_old_cls, t * k, t * k))  # [bs*n_cls, k], [bs*n_cls, 2, k]
