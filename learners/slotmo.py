@@ -548,6 +548,7 @@ class SLOTPrompt(Prompt):
 
                 # kl on response without target logits
                 # out [bs, 1, n_cls]
+                tau = 3
                 # remove target logits
                 selected_out = out.reshape(bs, n_cls)
                 mask = torch.arange(n_cls).expand(bs, n_cls).to(targets.device) != targets.unsqueeze(1)
@@ -556,7 +557,7 @@ class SLOTPrompt(Prompt):
                 # mask = 1 - y_one_hot
                 # selected_out = torch.stack([selected_out[bi][mask[bi]] for bi in range(bs)])      # [bs, n_cls-1]
                 selected_out = selected_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
-                selected_out = torch.softmax(selected_out, dim=1)
+                selected_out = torch.softmax(selected_out / tau, dim=1)
                 # obtain old response
                 with torch.no_grad():
                     slots = slots.reshape(bs, t*k, d)
@@ -575,9 +576,10 @@ class SLOTPrompt(Prompt):
                     selected_old_out = old_out.reshape(bs, n_cls)
                     selected_old_out = selected_old_out[mask].view(bs, n_cls - 1)
                     selected_old_out = selected_old_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
-                    selected_old_out = torch.softmax(selected_old_out, dim=1)
+                    selected_old_out = torch.softmax(selected_old_out / 3, dim=1)
                 # kl on selected_out and selected_old_out
-                s2p_loss = beta * F.kl_div(torch.log(selected_out), selected_old_out, reduction='none').sum(dim=-1)
+                s2p_loss = (tau ** 2) * F.kl_div(torch.log(selected_out), selected_old_out, reduction='none')
+                s2p_loss = beta * s2p_loss.sum(dim=-1)
                 s2p_loss = s2p_loss.sum()
 
             self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
