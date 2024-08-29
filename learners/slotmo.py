@@ -41,6 +41,7 @@ class SLOTPrompt(Prompt):
         self.train_dataset = None
         self.t = 0
         self.epoch = 0
+        self.epochs = 0     # total epoch in this task
 
         # load aux
         # aux_dataset = dataloaders.CGQA(
@@ -242,6 +243,7 @@ class SLOTPrompt(Prompt):
             else:
                 schedule = schedule[self.t]
             epochs = schedule[0]        # phase I
+            self.epochs = epochs
             for epoch in range(epochs):
                 self.epoch = epoch
 
@@ -417,7 +419,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False, learn_slots=False):
+    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, coeff=1.0):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -496,102 +498,107 @@ class SLOTPrompt(Prompt):
             # ce with heuristic
             out[:, :, :self.last_valid_out_dim] = -float('inf')
 
-            # regularization loss on slot2prompt mapping
-            # selection: ['weights', 'response']
-            reg_mode = 'response'
-            s2p_loss = torch.zeros(1).mean()
-            if self.t > 0 and reg_mode == 'weights':
-                # s2p_loss = torch.stack([
-                #     F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
-                #              F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='batchmean')
-                #     for k, v in model.prompt.s2p.named_parameters()
-                # ])
-                s2p_state_dict = copy.deepcopy(self.s2p_copy.state_dict())
-                s2p_loss = torch.stack([
-                    torch.norm(v - s2p_state_dict[k], p=2)
-                    for k, v in model.prompt.s2p.named_parameters()
-                ])
-                s2p_loss = torch.mean(s2p_loss)
-            elif self.t > 0 and reg_mode == 'response':
-                bs, t, k, d = slots.shape
-                slots = slots.reshape(bs, t * k, d)
-                if len(self.cls_stats) > 0:     # starting at 2nd task
-                    # align slots with proto and sim over n_cls
-                    n_old_cls = len(self.cls_stats)
-                    proto = torch.zeros(n_old_cls, *slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
-                    for label in self.cls_stats.keys():
-                        proto[label] = self.cls_stats[label].detach().clone()
-                    proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
-                    proto_ = proto_.unsqueeze(2)  # [1, n_cls, 1, k5, d128]
-                    slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
-                    slots_ = slots_.unsqueeze(3)  # [bs, 1, k5, 1, d128]
-                    # print('proto_', proto_.shape)
-                    # print('slots_', slots_.shape)
-                    cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-                    sim = cos(slots_, proto_)  # [bs, n_cls, k, k]  each slot
-                    # print('sim', sim.shape)
-                    cost = 1 - sim
-                    batch_cost, index = hungarian_algorithm(
-                        cost.reshape(bs * n_old_cls, t * k, t * k))  # [bs*n_cls, k], [bs*n_cls, 2, k]
-                    batch_cost = batch_cost.reshape(bs, n_old_cls, t * k)
-                    # indexes = index.reshape(bs, n_old_cls, 2, t * k)
-                    batch_sim = 1 - batch_cost
-                    aligned_sim = torch.mean(batch_sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
+            if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
+                # regularization loss on slot2prompt mapping
+                # selection: ['weights', 'response']
+                reg_mode = 'response'
+                s2p_loss = torch.zeros(1).mean()
+                if self.t > 0 and reg_mode == 'weights':
+                    # s2p_loss = torch.stack([
+                    #     F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
+                    #              F.softmax(self.s2p_state_dict[k].flatten(), dim=0), reduction='batchmean')
+                    #     for k, v in model.prompt.s2p.named_parameters()
+                    # ])
+                    s2p_state_dict = copy.deepcopy(self.s2p_copy.state_dict())
+                    s2p_loss = torch.stack([
+                        torch.norm(v - s2p_state_dict[k], p=2)
+                        for k, v in model.prompt.s2p.named_parameters()
+                    ])
+                    s2p_loss = torch.mean(s2p_loss)
+                elif self.t > 0 and reg_mode == 'response':
+                    bs, t, k, d = slots.shape
+                    slots = slots.reshape(bs, t * k, d)
+                    if len(self.cls_stats) > 0:     # starting at 2nd task
+                        # align slots with proto and sim over n_cls
+                        n_old_cls = len(self.cls_stats)
+                        proto = torch.zeros(n_old_cls, *slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
+                        for label in self.cls_stats.keys():
+                            proto[label] = self.cls_stats[label].detach().clone()
+                        proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
+                        proto_ = proto_.unsqueeze(2)  # [1, n_cls, 1, k5, d128]
+                        slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
+                        slots_ = slots_.unsqueeze(3)  # [bs, 1, k5, 1, d128]
+                        # print('proto_', proto_.shape)
+                        # print('slots_', slots_.shape)
+                        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                        sim = cos(slots_, proto_)  # [bs, n_cls, k, k]  each slot
+                        # print('sim', sim.shape)
+                        cost = 1 - sim
+                        batch_cost, index = hungarian_algorithm(
+                            cost.reshape(bs * n_old_cls, t * k, t * k))  # [bs*n_cls, k], [bs*n_cls, 2, k]
+                        batch_cost = batch_cost.reshape(bs, n_old_cls, t * k)
+                        # indexes = index.reshape(bs, n_old_cls, 2, t * k)
+                        batch_sim = 1 - batch_cost
+                        aligned_sim = torch.mean(batch_sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
 
-                    p = 30
-                    aligned_sim = aligned_sim ** p
+                        p = 30
+                        aligned_sim = aligned_sim ** p
 
-                    # cal beta, sum over n_cls and softmax over batch
-                    beta = torch.softmax(torch.sum(aligned_sim, dim=1), dim=0)
-                else:
-                    beta = torch.ones(bs).to(out.device) / bs     # [bs]: as mean [1/bs, 1/bs,...]
+                        # cal beta, sum over n_cls and softmax over batch
+                        beta = torch.softmax(torch.sum(aligned_sim, dim=1), dim=0)
+                    else:
+                        beta = torch.ones(bs).to(out.device) / bs     # [bs]: as mean [1/bs, 1/bs,...]
 
-                # kl on response without target logits
-                # out [bs, 1, n_cls]
-                tau = 3
-                # remove target logits
-                selected_out = out.reshape(bs, n_cls)
-                mask = torch.arange(n_cls).expand(bs, n_cls).to(targets.device) != targets.unsqueeze(1)
-                selected_out = selected_out[mask].view(bs, n_cls - 1)
-                # y_one_hot = F.one_hot(targets, num_classes=n_cls)
-                # mask = 1 - y_one_hot
-                # selected_out = torch.stack([selected_out[bi][mask[bi]] for bi in range(bs)])      # [bs, n_cls-1]
-                selected_out = selected_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
-                selected_out = torch.softmax(selected_out / tau, dim=1)
-                # obtain old response
-                with torch.no_grad():
-                    slots = slots.reshape(bs, t*k, d)
-                    old_prompts = model.prompt.slot2prompt(slots, self.s2p_copy)    # [bs, e, p, d]
-                    _, _, old_out = self.obtain_mo_matrix(
-                        None, prompts=old_prompts.unsqueeze(1),     # [bs, 1, e, p, d]
-                        train=True,
-                        samples=inputs,
-                        labels=targets,
-                        group_by_labels=False,
-                        return_features=True,
-                    )
-                    old_out = old_out[:, :, :self.valid_out_dim]
-                    # ce with heuristic
-                    old_out[:, :, :self.last_valid_out_dim] = -float('inf')
-                    selected_old_out = old_out.reshape(bs, n_cls)
-                    selected_old_out = selected_old_out[mask].view(bs, n_cls - 1)
-                    selected_old_out = selected_old_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
-                    selected_old_out = torch.softmax(selected_old_out / 3, dim=1)
-                # kl on selected_out and selected_old_out
-                s2p_loss = (tau ** 2) * F.kl_div(torch.log(selected_out), selected_old_out, reduction='none')
-                s2p_loss = beta * s2p_loss.sum(dim=-1)
-                s2p_loss = s2p_loss.sum()
+                    # kl on response without target logits
+                    # out [bs, 1, n_cls]
+                    tau = 3
+                    # remove target logits
+                    selected_out = out.reshape(bs, n_cls)
+                    mask = torch.arange(n_cls).expand(bs, n_cls).to(targets.device) != targets.unsqueeze(1)
+                    selected_out = selected_out[mask].view(bs, n_cls - 1)
+                    # y_one_hot = F.one_hot(targets, num_classes=n_cls)
+                    # mask = 1 - y_one_hot
+                    # selected_out = torch.stack([selected_out[bi][mask[bi]] for bi in range(bs)])      # [bs, n_cls-1]
+                    selected_out = selected_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
+                    selected_out = torch.softmax(selected_out / tau, dim=1)
+                    # obtain old response
+                    with torch.no_grad():
+                        slots = slots.reshape(bs, t*k, d)
+                        old_prompts = model.prompt.slot2prompt(slots, self.s2p_copy)    # [bs, e, p, d]
+                        _, _, old_out = self.obtain_mo_matrix(
+                            None, prompts=old_prompts.unsqueeze(1),     # [bs, 1, e, p, d]
+                            train=True,
+                            samples=inputs,
+                            labels=targets,
+                            group_by_labels=False,
+                            return_features=True,
+                        )
+                        old_out = old_out[:, :, :self.valid_out_dim]
+                        # ce with heuristic
+                        old_out[:, :, :self.last_valid_out_dim] = -float('inf')
+                        selected_old_out = old_out.reshape(bs, n_cls)
+                        selected_old_out = selected_old_out[mask].view(bs, n_cls - 1)
+                        selected_old_out = selected_old_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
+                        selected_old_out = torch.softmax(selected_old_out / 3, dim=1)
+                    # kl on selected_out and selected_old_out
+                    s2p_loss = (tau ** 2) * F.kl_div(torch.log(selected_out), selected_old_out, reduction='none')
+                    s2p_loss = beta * s2p_loss.sum(dim=-1)
+                    s2p_loss = s2p_loss.sum()
 
-            self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
-            self.epoch_log['scaler']['Idx'].append(self.epoch)
-            self.epoch_log['scaler']['Value'].append(s2p_loss.item())
+                self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-            coeff = 1.0
-            total_loss = loss + coeff * s2p_loss
-            total_loss.backward()
+                total_loss = loss + coeff * s2p_loss
+                total_loss.backward()
 
-            if self.debug_mode:
-                print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
+                if self.debug_mode:
+                    print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
+
+            else:
+                s2p_loss = torch.zeros(1).mean()
+                total_loss = loss
+                total_loss.backward()
 
             # step
             self.optimizer.step()
