@@ -830,9 +830,6 @@ class SLOTPrompt(Prompt):
         If addition is not None: [num, h...], append and return [obj, pop+num]
         If train is False, do not use -inf to mask past tasks' logits
         """
-        if self.n_opt_slots <= 0:
-            return None
-
         def sampling(n_obj, min_samples=10):
             """Sample and check whether number of list of samples contains at least min_samples
             is larger than n_obj, and return cat-ed samples and labels.
