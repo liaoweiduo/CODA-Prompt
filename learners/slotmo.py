@@ -420,7 +420,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, coeff=1.0, p=30):
+    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, coeff=1.0, p=30, tau=3):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -551,7 +551,6 @@ class SLOTPrompt(Prompt):
 
                     # kl on response without target logits
                     # out [bs, 1, n_cls]
-                    tau = 3
                     # remove target logits
                     selected_out = out.reshape(bs, n_cls)
                     mask = torch.arange(n_cls).expand(bs, n_cls).to(targets.device) != targets.unsqueeze(1)
