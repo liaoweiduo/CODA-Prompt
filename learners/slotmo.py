@@ -51,8 +51,9 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary(aux_dataset)
         # self.aux = Auxiliary()
 
-        # mo
-        self.n_opt_slots = int(self.config['prompt_param'][1][3])               # num of slots considered to be opted 5
+        # self.n_opt_slots = int(self.config['prompt_param'][1][3])          # num of slots considered to be opted 5
+        self.coeff = float(self.config['prompt_param'][1][3])
+        self.p = int(self.config['prompt_param'][1][3])
 
         try:
             prompt = self.model.module.prompt
@@ -359,7 +360,7 @@ class SLOTPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output, reg_loss = self.update_model(x, y)  # , task
+                    loss, output, reg_loss = self.update_model(x, y, coeff=self.coeff, p=self.p)  # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -419,7 +420,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, coeff=1.0):
+    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, coeff=1.0, p=30):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -541,7 +542,6 @@ class SLOTPrompt(Prompt):
                         batch_sim = 1 - batch_cost
                         aligned_sim = torch.mean(batch_sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
 
-                        p = 30
                         aligned_sim = aligned_sim ** p
 
                         # cal beta, sum over n_cls and softmax over batch
