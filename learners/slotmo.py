@@ -230,10 +230,6 @@ class SLOTPrompt(Prompt):
                 self.s2p_copy = copy.deepcopy(model.prompt.s2p)
 
             self.log(f'Phase I： training slots')
-            if self.reset_optimizer:  # Reset optimizer before learning each task
-                self.log('Optimizer is reset')
-                self.init_optimizer(t=self.t, target='slot', phase=0)
-
             losses = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
@@ -245,71 +241,77 @@ class SLOTPrompt(Prompt):
                 schedule = schedule[self.t]
             epochs = schedule[0]        # phase I
             self.epochs = epochs
-            for epoch in range(epochs):
-                self.epoch = epoch
 
-                if epoch > 0: self.scheduler.step()
-                for param_group in self.optimizer.param_groups:
-                    self.log('LR:', param_group['lr'])
-                batch_timer.tic()
-                for i, sample in enumerate(train_loader):
-                    self.batch_idx = i
+            if epochs > 1:      # do not do phase I if not assign epochs to it.
+                if self.reset_optimizer:  # Reset optimizer before learning each task
+                    self.log('Optimizer is reset')
+                    self.init_optimizer(t=self.t, target='slot', phase=0)
 
-                    concepts = None
-                    if train_dataset.return_concepts:
-                        x, y, concepts, task = sample
-                    else:
-                        x, y, task = sample
+                for epoch in range(epochs):
+                    self.epoch = epoch
 
-                    # verify in train mode
-                    self.model.train()
-
-                    # send data to gpu
-                    if self.gpu:
-                        x = x.cuda()
-                        y = y.cuda()
-                        # if concepts is not None:
-                        #     concepts = concepts.cuda()      # [bs, 224, 224]
-                        # task = task.cuda()
-
-                    # # debug
-                    # print(f'x shape: {x.shape}, y: {y}, task: {task}')
-
-                    # model update
-                    loss, output, _ = self.update_model(x, y, learn_slots=True)
-
-                    # measure elapsed time
-                    batch_time.update(batch_timer.toc())
+                    if epoch > 0: self.scheduler.step()
+                    for param_group in self.optimizer.param_groups:
+                        self.log('LR:', param_group['lr'])
                     batch_timer.tic()
+                    for i, sample in enumerate(train_loader):
+                        self.batch_idx = i
 
-                    # measure accuracy and record loss
-                    y = y.detach()
-                    losses.update(loss, y.size(0))
-                    batch_timer.tic()
+                        concepts = None
+                        if train_dataset.return_concepts:
+                            x, y, concepts, task = sample
+                        else:
+                            x, y, task = sample
 
-                # eval update
-                self.log(
-                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
-                self.log(
-                    ' * Loss {loss.avg:.3f} | '
-                    'Time {time:.3f}s ({i} batches)'.format(
-                        loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
+                        # verify in train mode
+                        self.model.train()
 
-                # reset
-                losses = AverageMeter()
+                        # send data to gpu
+                        if self.gpu:
+                            x = x.cuda()
+                            y = y.cuda()
+                            # if concepts is not None:
+                            #     concepts = concepts.cuda()      # [bs, 224, 224]
+                            # task = task.cuda()
 
-                # validation recon loss
-                if val_loader is not None:
-                    val_recon_loss = self.validation(val_loader, slot_recon_loss=True)
-                    # log
-                    self.epoch_log['scaler']['Tag'].append(f'val_recon_loss')
-                    self.epoch_log['scaler']['Idx'].append(self.epoch)
-                    self.epoch_log['scaler']['Value'].append(val_recon_loss)
+                        # # debug
+                        # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
-                # if self.epoch == 0:
-                if self.epoch % 10 == 0:
-                    '''nvidia-smi'''
-                    self.log(os.system('nvidia-smi'))
+                        # model update
+                        loss, output, _ = self.update_model(x, y, learn_slots=True)
+
+                        # measure elapsed time
+                        batch_time.update(batch_timer.toc())
+                        batch_timer.tic()
+
+                        # measure accuracy and record loss
+                        y = y.detach()
+                        losses.update(loss, y.size(0))
+                        batch_timer.tic()
+
+                    # eval update
+                    self.log(
+                        'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
+                    self.log(
+                        ' * Loss {loss.avg:.3f} | '
+                        'Time {time:.3f}s ({i} batches)'.format(
+                            loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
+
+                    # reset
+                    losses = AverageMeter()
+
+                    # validation recon loss
+                    if val_loader is not None:
+                        val_recon_loss = self.validation(val_loader, slot_recon_loss=True)
+                        # log
+                        self.epoch_log['scaler']['Tag'].append(f'val_recon_loss')
+                        self.epoch_log['scaler']['Idx'].append(self.epoch)
+                        self.epoch_log['scaler']['Value'].append(val_recon_loss)
+
+                    # if self.epoch == 0:
+                    if self.epoch % 10 == 0:
+                        '''nvidia-smi'''
+                        self.log(os.system('nvidia-smi'))
 
             self.log(f'Phase II： training slots')
             if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -500,7 +502,8 @@ class SLOTPrompt(Prompt):
             # ce with heuristic
             out[:, :, :self.last_valid_out_dim] = -float('inf')
 
-            if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
+            # if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
+            if True:
                 # regularization loss on slot2prompt mapping
                 # selection: ['weights', 'response']
                 reg_mode = 'response'
@@ -520,7 +523,7 @@ class SLOTPrompt(Prompt):
                 elif self.t > 0 and reg_mode == 'response':
                     bs, t, k, d = slots.shape
                     slots = slots.reshape(bs, t * k, d)
-                    if len(self.cls_stats) > 0:     # starting at 2nd task
+                    if len(self.cls_stats) > 0:
                         # align slots with proto and sim over n_cls
                         n_old_cls = len(self.cls_stats)
                         proto = torch.zeros(n_old_cls, *slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
@@ -550,17 +553,41 @@ class SLOTPrompt(Prompt):
                     else:
                         beta = torch.ones(bs).to(out.device) / bs     # [bs]: as mean [1/bs, 1/bs,...]
 
+                    if self.debug_mode:
+                        print(f'beta: {beta}')
+
                     # kl on response without target logits
                     # out [bs, 1, n_cls]
                     # remove target logits
                     selected_out = out.reshape(bs, n_cls)
+
+                    if self.debug_mode:
+                        print(f'selected_out {selected_out.shape}: {selected_out[0]}')
+
                     mask = torch.arange(n_cls).expand(bs, n_cls).to(targets.device) != targets.unsqueeze(1)
+
+                    if self.debug_mode:
+                        print(f'targets {targets.shape}: {targets[0]}')
+                        print(f'mask {mask.shape}: {mask[0]}')
+
                     selected_out = selected_out[mask].view(bs, n_cls - 1)
+
+                    if self.debug_mode:
+                        print(f'selected_out {selected_out.shape}: {selected_out[0]}')
+
                     # y_one_hot = F.one_hot(targets, num_classes=n_cls)
                     # mask = 1 - y_one_hot
                     # selected_out = torch.stack([selected_out[bi][mask[bi]] for bi in range(bs)])      # [bs, n_cls-1]
                     selected_out = selected_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
+
+                    if self.debug_mode:
+                        print(f'selected_out {selected_out.shape}: {selected_out[0]}')
+
                     selected_out = torch.softmax(selected_out / tau, dim=1)
+
+                    if self.debug_mode:
+                        print(f'selected_out after softmax {selected_out.shape}: {selected_out[0]}')
+
                     # obtain old response
                     with torch.no_grad():
                         slots = slots.reshape(bs, t*k, d)
@@ -577,13 +604,37 @@ class SLOTPrompt(Prompt):
                         # ce with heuristic
                         old_out[:, :, :self.last_valid_out_dim] = -float('inf')
                         selected_old_out = old_out.reshape(bs, n_cls)
+
+                        if self.debug_mode:
+                            print(f'selected_old_out {selected_old_out.shape}: {selected_old_out[0]}')
+
                         selected_old_out = selected_old_out[mask].view(bs, n_cls - 1)
+
+                        if self.debug_mode:
+                            print(f'selected_old_out {selected_old_out.shape}: {selected_old_out[0]}')
+
                         selected_old_out = selected_old_out[:, self.last_valid_out_dim:]    # [bs, 10-1class]
+
+                        if self.debug_mode:
+                            print(f'selected_old_out {selected_old_out.shape}: {selected_old_out[0]}')
+
                         selected_old_out = torch.softmax(selected_old_out / 3, dim=1)
+
+                        if self.debug_mode:
+                            print(f'selected_old_out after softmax {selected_old_out.shape}: {selected_old_out[0]}')
+
                     # kl on selected_out and selected_old_out
                     s2p_loss = (tau ** 2) * F.kl_div(torch.log(selected_out), selected_old_out, reduction='none')
+
+                    if self.debug_mode:
+                        print(f's2p_loss {s2p_loss.shape}: {s2p_loss[0]}')
+
                     s2p_loss = beta * s2p_loss.sum(dim=-1)
                     s2p_loss = s2p_loss.sum()
+
+                    if self.debug_mode:
+                        print(f's2p_loss {s2p_loss.shape}: {s2p_loss}')
+
 
                 self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
