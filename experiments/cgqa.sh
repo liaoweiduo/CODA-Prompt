@@ -28,15 +28,28 @@ mkdir -p $OUTDIR
 #    arg 5 = p
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
+#LEARNERTYPE=slotmo
+#LEARNERNAME=SLOTPrompt
+#LOGNAME=slot-k5-recon-klresponse-beta-lr1e-4
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --prompt_param 100 8 5 0.01 30 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-LOGNAME=slot-k5-recon-klresponse-beta-tau3-lr1e-4-debug
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 5 0.01 30 \
-    --debug_mode 1 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
+for coeff in 0.001 0.005 0.01
+do
+  for p in 1 5 30
+  do
+    LOGNAME=slot-k5-recon-klresponse-beta-coeff${coeff}-p${p}-lr1e-4
+    python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+        --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+        --prompt_param 100 8 5 $coeff $p \
+        --log_dir ${OUTDIR}/${LOGNAME}
+    date
+  done
+done
 
 # PMO-Prompt
 #
