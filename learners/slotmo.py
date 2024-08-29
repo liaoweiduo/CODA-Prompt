@@ -322,6 +322,7 @@ class SLOTPrompt(Prompt):
             else:
                 schedule = schedule[self.t]
             epochs = schedule[1]        # phase II
+            self.epochs = epochs
 
             losses = AverageMeter()
             reg_losses = AverageMeter()
