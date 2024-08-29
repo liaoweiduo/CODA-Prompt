@@ -56,8 +56,8 @@ def get_args(argv):
     args = parser.parse_args(argv)
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     config.update(vars(args))
-    if config['debug_mode'] == 1:
-        config['batch_size'] = 16
+    # if config['debug_mode'] == 1:
+    #     config['batch_size'] = 16
     return argparse.Namespace(**config)
 
 # want to save everything printed to outfile

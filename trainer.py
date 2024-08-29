@@ -108,8 +108,8 @@ class Trainer:
                                      first_split_size=args.first_split_size // 10,
                                      return_concepts=return_concepts       # mute for normal
                                      )
-        if args.debug_mode == 1:
-            self.train_dataset.debug_mode()     # use val datasets to avoid large train set loading
+        # if args.debug_mode == 1:
+        #     self.train_dataset.debug_mode()     # use val datasets to avoid large train set loading
         self.test_dataset  = Dataset(args.dataroot, train=False, lab = True, tasks=self.tasks,
                                      download_flag=False, transform=test_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
