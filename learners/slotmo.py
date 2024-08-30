@@ -96,12 +96,13 @@ class SLOTPrompt(Prompt):
 
         return model
 
-    def load_model(self, filename, drop_last=False):
+    def load_model(self, filename, drop_last=False, from_outside=False):
+        ## from_outside to enable load pretrained model for the 1-st task.
         # # random init pool
         # if self.pool is None:
         #     self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
 
-        if self.t == 0:     # 1-st task load from pretrained one
+        if self.t == 0 and from_outside:     # 1-st task load from pretrained one
             model_name = 'slot-k5-recon-klresponse-beta-tau3-lr1e-4'
             filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
             print(f'redirect loading model from {filename}.')
@@ -217,7 +218,7 @@ class SLOTPrompt(Prompt):
         flag = False     # True -> slot attn is already trained
         if not self.overwrite:
             try:
-                flag = self.load_model(model_save_dir)
+                flag = self.load_model(model_save_dir, from_outside=True)
                 need_train = flag       # True if no expert_predictor trained
             except:
                 pass
@@ -318,7 +319,7 @@ class SLOTPrompt(Prompt):
                         '''nvidia-smi'''
                         self.log(os.system('nvidia-smi'))
 
-            self.log(f'Phase II： training slots')
+            self.log(f'Phase II： training slot2prompt mapping and classifier')
             if self.reset_optimizer:  # Reset optimizer before learning each task
                 self.log('Optimizer is reset')
                 self.init_optimizer(t=self.t, target='/slot', phase=1)
@@ -549,7 +550,7 @@ class SLOTPrompt(Prompt):
                         batch_cost = batch_cost.reshape(bs, n_old_cls, t * k)
                         # indexes = index.reshape(bs, n_old_cls, 2, t * k)
                         batch_sim = 1 - batch_cost
-                        aligned_sim = torch.mean(batch_sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
+                        aligned_sim = torch.sum(batch_sim, dim=-1)  # [bs, n_cls] sim over aligned-slot
 
                         aligned_sim = aligned_sim ** p
 

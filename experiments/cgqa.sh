@@ -38,17 +38,14 @@ mkdir -p $OUTDIR
 #date
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-for coeff in 0.001 0.005 0.01
+for coeff in 0.0001 0.0003 0.0005 0.0007 0.0009
 do
-  for p in 1 5 30
-  do
-    LOGNAME=slot-k5-recon-klresponse-beta-coeff${coeff}-p${p}-lr1e-4
-    python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-        --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-        --prompt_param 100 8 5 $coeff $p \
-        --log_dir ${OUTDIR}/${LOGNAME}
-    date
-  done
+LOGNAME=slot-k5-recon-klresponse-beta-coeff${coeff}-p30-lr1e-4
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+    --prompt_param 100 8 5 $coeff 30 \
+    --log_dir ${OUTDIR}/${LOGNAME}
+date
 done
 
 # PMO-Prompt
