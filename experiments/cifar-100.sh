@@ -8,7 +8,7 @@ N_CLASS=200
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0'
+GPUID='0 1 2 3'
 CONFIG=configs/cifar-100_prompt.yaml
 CONFIG_SLOT=configs/cifar-100_slot.yaml
 CONFIG_FT=configs/cifar-100_ft.yaml
