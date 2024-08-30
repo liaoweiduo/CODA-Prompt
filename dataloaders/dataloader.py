@@ -17,7 +17,7 @@ class iDataset(data.Dataset):
     def __init__(self, root,
                 train=True, transform=None,
                 download_flag=False, lab=True, swap_dset = None, 
-                tasks=None, seed=-1, rand_split=False, validation=False, kfolds=5):
+                tasks=None, seed=-1, rand_split=False, validation=False, kfolds=5, **kwargs):
 
         # process rest of args
         self.root = os.path.expanduser(root)
