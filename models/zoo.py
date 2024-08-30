@@ -1438,7 +1438,7 @@ class DualPrompt(nn.Module):
     def handle_q(self, q):
         return q
 
-    def forward(self, x_querry, l, x_block, train=False, task_id=None):
+    def forward(self, x_querry, l, x_block, train=False, task_id=None, **kwargs):
 
         # e prompts
         e_valid = False
