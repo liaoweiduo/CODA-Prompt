@@ -215,7 +215,7 @@ class CODAPromptCond(Prompt):
                 for i, sample in enumerate(train_loader):
 
                     concepts = None
-                    if train_dataset.return_concepts:
+                    if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
                         x, y, concepts, task = sample
                     else:
                         x, y, task = sample
