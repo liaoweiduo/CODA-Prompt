@@ -8,8 +8,8 @@ OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
 GPUID='0'   # '0 1 2 3'
-CONFIG=configs/cgqa_prompt.yaml
-#CONFIG=configs/cgqa_prompt_old.yaml
+CONFIG=configs/cgqa_slot.yaml
+#CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
 

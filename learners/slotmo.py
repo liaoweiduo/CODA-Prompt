@@ -509,7 +509,7 @@ class SLOTPrompt(Prompt):
             out[:, :, :self.last_valid_out_dim] = -float('inf')
 
             # if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
-            if True:
+            if coeff > 0.0:
                 # regularization loss on slot2prompt mapping
                 # selection: ['weights', 'response']
                 reg_mode = 'response'
