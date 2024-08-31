@@ -8,8 +8,8 @@ OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
 GPUID='0'   # '0 1 2 3'
-CONFIG=configs/cgqa_slot.yaml
-#CONFIG=configs/cgqa_prompt.yaml
+CONFIG_SLOT=configs/cgqa_slot.yaml
+CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
 OVERWRITE=0
 
@@ -41,7 +41,7 @@ LEARNERNAME=SLOTPrompt
 for coeff in 0.0001 0.0003 0.0005 0.0007 0.0009
 do
 LOGNAME=slot-k5-recon-klresponse-beta-coeff${coeff}-p30-lr1e-4
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 100 8 5 $coeff 30 \
     --log_dir ${OUTDIR}/${LOGNAME}
