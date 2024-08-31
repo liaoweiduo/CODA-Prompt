@@ -7,7 +7,8 @@ N_CLASS=30
 OUTDIR=outputs/${DATASET}/3-task
 
 # hard coded inputs
-GPUID='0'   # '0 1 2 3'
+GPUID='0 1 2 3'   # '0 1 2 3'
+CONFIG_SLOT=configs/cobj_slot.yaml
 CONFIG=configs/cobj_prompt.yaml
 REPEAT=1
 OVERWRITE=0
@@ -68,13 +69,13 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#LEARNERNAME=CODAPrompt
-#LOGNAME=coda-p-full-e10
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 8 0.0 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#
+LEARNERNAME=CODAPrompt
+LOGNAME=coda-p
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name ${LEARNERNAME} \
+    --prompt_param 100 8 0.0 \
+    --log_dir ${OUTDIR}/${LOGNAME}
+
 #for mode in sys pro non noc
 #do
 #  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
@@ -95,11 +96,11 @@ mkdir -p $OUTDIR
 #    --prompt_param 21 8 0.0 \
 #    --oracle_flag --upper_bound_flag \
 # -mtl
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name CODAPromptCond \
-    --prompt_param 20 8 0.0 \
-    --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/cobj-coda-cond-FPS20-normalattn-oracle-epoch10-cheating-mtl-1
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPromptCond \
+#    --prompt_param 20 8 0.0 \
+#    --oracle_flag --upper_bound_flag \
+#    --log_dir ${OUTDIR}/cobj-coda-cond-FPS20-normalattn-oracle-epoch10-cheating-mtl-1
 
 
 # DualPrompt
@@ -108,12 +109,12 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-#LEARNERNAME=DualPrompt
-#LOGNAME=dual-prompt
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name ${LEARNERNAME} \
-#    --prompt_param 10 20 6 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
+LEARNERNAME=DualPrompt
+LOGNAME=dual-prompt
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name ${LEARNERNAME} \
+    --prompt_param 10 20 6 \
+    --log_dir ${OUTDIR}/${LOGNAME}
 #
 #for mode in sys pro non noc
 #do
@@ -132,12 +133,12 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-#LEARNERNAME=L2P
-#LOGNAME=l2p++
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name ${LEARNERNAME} \
-#    --prompt_param 30 20 -1 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
+LEARNERNAME=L2P
+LOGNAME=l2p++
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name ${LEARNERNAME} \
+    --prompt_param 30 20 -1 \
+    --log_dir ${OUTDIR}/${LOGNAME}
 #
 #for mode in sys pro non noc
 #do
