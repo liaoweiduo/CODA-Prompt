@@ -512,7 +512,7 @@ class SLOTPrompt(Prompt):
             if coeff > 0.0:
                 # regularization loss on slot2prompt mapping
                 # selection: ['weights', 'response']
-                reg_mode = 'response'
+                reg_mode = 'weights'
                 s2p_loss = torch.zeros(1).mean()
                 if self.t > 0 and reg_mode == 'weights':
                     # s2p_loss = torch.stack([
