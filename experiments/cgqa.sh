@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0 1 2 3'   # '0 1 2 3'
+GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=1
