@@ -172,21 +172,29 @@ class SLOTPrompt(Prompt):
         if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
             # if fewshot testing self.config['mode'], only learn classifier: model.last
             params_to_opt = list(last.parameters())
+            names = [key for key, param in last.named_parameters()]
         elif target == 'last':
             params_to_opt = list(last.parameters())
+            names = [key for key, param in last.named_parameters()]
         elif target == 'prompt':
             params_to_opt = list(prompt.parameters())
+            names = [key for key, param in prompt.named_parameters()]
         elif target == 'expert':
             params_to_opt = list(prompt.expert_predictor.parameters())
+            names = [key for key, param in prompt.expert_predictor.named_parameters()]
         elif target == 'slot':
             params_to_opt = list(prompt.slot_attn.parameters())
+            names = [key for key, param in prompt.slot_attn.named_parameters()]
         elif target == '/slot':
             params_to_opt = [p for k, p in list(prompt.named_parameters()) + list(last.named_parameters()) if 'slot_attn' not in k]
+            names = [key for key, param in prompt.named_parameters() if 'slot_attn' not in key] + [key for key, param in last.named_parameters()]
         else:
             params_to_opt = list(prompt.parameters()) + list(last.parameters())
+            names = [key for key, param in prompt.named_parameters()] + [key for key, param in last.named_parameters()]
 
         print('******************* init optimizer **********************')
         print(f'optimizer params: {"all" if target is None else target} len {len(params_to_opt)}')
+        print(f'{names}')
 
         optimizer_arg = {'params':params_to_opt,
                          'lr':lr,
