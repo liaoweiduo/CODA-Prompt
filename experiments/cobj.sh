@@ -22,7 +22,7 @@ mkdir -p $OUTDIR
 #
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-for coeff in 0.001 0.003 0.005 0.007 0.009
+for coeff in 0.02 0.04 0.06 0.08 0.1
 do
 LOGNAME=slot-k5-recon-l2weight-coeff${coeff}-lr1e-4
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
