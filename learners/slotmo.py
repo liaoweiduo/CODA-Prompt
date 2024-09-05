@@ -106,10 +106,10 @@ class SLOTPrompt(Prompt):
             model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
             filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
             print(f'redirect loading model from {filename}.')
-        elif self.config['dataset'] == 'COBJ' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
-            model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
-            filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
-            print(f'redirect loading model from {filename}.')
+        # elif self.config['dataset'] == 'COBJ' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
+        #     model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
+        #     filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
+        #     print(f'redirect loading model from {filename}.')
 
         state_dict = torch.load(filename + 'class.pth')
         # complete with/without module.
