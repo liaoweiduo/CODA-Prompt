@@ -29,6 +29,7 @@ def create_args():
                         help="activate learner specific settings for debug_mode")
     parser.add_argument('--repeat', type=int, default=1, help="Repeat the experiment N times")
     parser.add_argument('--overwrite', type=int, default=0, metavar='N', help='Train regardless of whether saved model exists')
+    parser.add_argument('--lr', type=float, default=0.001, dest='LR', help="lr")
 
     # CL Args          
     parser.add_argument('--oracle_flag', default=False, action='store_true',
