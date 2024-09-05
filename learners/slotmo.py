@@ -53,7 +53,7 @@ class SLOTPrompt(Prompt):
 
         # self.n_opt_slots = int(self.config['prompt_param'][1][3])          # num of slots considered to be opted 5
         self.coeff = float(self.config['prompt_param'][1][3])
-        # self.p = int(self.config['prompt_param'][1][3])
+        # self.p = int(self.config['prompt_param'][1][4])
 
         try:
             prompt = self.model.module.prompt
@@ -102,10 +102,10 @@ class SLOTPrompt(Prompt):
         # if self.pool is None:
         #     self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
 
-        if self.config['dataset'] == 'CGQA' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
-            model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
-            filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
-            print(f'redirect loading model from {filename}.')
+        # if self.config['dataset'] == 'CGQA' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
+        #     model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
+        #     filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
+        #     print(f'redirect loading model from {filename}.')
         # elif self.config['dataset'] == 'COBJ' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
         #     model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
         #     filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
