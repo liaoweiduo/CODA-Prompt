@@ -53,7 +53,7 @@ class SLOTPrompt(Prompt):
 
         # self.n_opt_slots = int(self.config['prompt_param'][1][3])          # num of slots considered to be opted 5
         self.coeff = float(self.config['prompt_param'][1][3])
-        self.p = int(self.config['prompt_param'][1][3])
+        # self.p = int(self.config['prompt_param'][1][3])
 
         try:
             prompt = self.model.module.prompt
@@ -148,7 +148,9 @@ class SLOTPrompt(Prompt):
 
     # sets model optimizers
     def init_optimizer(self, t=0, target=None, schedule=None, phase=0):
-        if t >= len(self.config['lr']):
+        if type(self.config['lr']) is float:
+            lr = self.config['lr']
+        elif t >= len(self.config['lr']):
             lr = self.config['lr'][-1]
         else:
             lr = self.config['lr'][t]
@@ -381,7 +383,7 @@ class SLOTPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output, reg_loss = self.update_model(x, y, coeff=self.coeff, p=self.p)  # , task
+                    loss, output, reg_loss = self.update_model(x, y, coeff=self.coeff)  # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())

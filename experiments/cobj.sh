@@ -20,14 +20,25 @@ mkdir -p $OUTDIR
 
 # SLOT-Prompt
 #
+# prompt parameter args:
+#    arg 1 = prompt component pool size, no use
+#    arg 2 = prompt length
+#    arg 3 = num of slots extracted from one img
+#    arg 4 = coeff for regularization
+#    arg 5 = lr
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-for coeff in 0.02 0.04 0.06 0.08 0.1
+#LOGNAME=slot-k5-recon-l2weight-coeff${coeff}-lr1e-4
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --prompt_param 100 8 5 0.05 30 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+for lr in 0.0001 0.0005 0.001 0.005
 do
-LOGNAME=slot-k5-recon-l2weight-coeff${coeff}-lr1e-4
+LOGNAME=slot-k5-recon-l2weight-coeff0.05-lr${lr}
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 5 $coeff 30 \
+    --prompt_param 100 8 5 0.05 ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 done

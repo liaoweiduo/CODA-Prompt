@@ -25,17 +25,9 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = num of slots extracted from one img
 #    arg 4 = coeff for regularization
-#    arg 5 = p
+#    arg 5 = lr
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
-#LEARNERTYPE=slotmo
-#LEARNERNAME=SLOTPrompt
-#LOGNAME=slot-k5-recon-klresponse-beta-lr1e-4
-#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 8 5 0.01 30 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#date
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
 for coeff in 0.02 0.04 0.06 0.08 0.1
@@ -43,7 +35,7 @@ do
 LOGNAME=slot-k5-recon-l2weight-coeff${coeff}-lr1e-4
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 5 $coeff 30 \
+    --prompt_param 100 8 5 $coeff 0.0001 \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
 done
