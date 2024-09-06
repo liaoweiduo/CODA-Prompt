@@ -7,7 +7,7 @@ N_CLASS=30
 OUTDIR=outputs/${DATASET}/3-task
 
 # hard coded inputs
-GPUID='0'   # '0 1 2 3'
+GPUID='0 1 2 3'   # '0 1 2 3'
 CONFIG_SLOT=configs/cobj_slot.yaml
 CONFIG=configs/cobj_prompt.yaml
 REPEAT=3
@@ -25,23 +25,18 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = num of slots extracted from one img
 #    arg 4 = coeff for regularization
-LEARNERTYPE=slotmo
-LEARNERNAME=SLOTPrompt
-#LOGNAME=slot-k5-recon-l2weight-coeff${coeff}-lr1e-4
+#LEARNERTYPE=slotmo
+#LEARNERNAME=SLOTPrompt
+##for lr in 0.0001 0.0005 0.001 0.005
+##do
+#LOGNAME=slot-k5-recon-l2weight-coeff0.05-lr0.0005
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 8 5 0.05 30 \
+#    --prompt_param 100 8 5 0.05 \
+#    --lr 0.0005 \
 #    --log_dir ${OUTDIR}/${LOGNAME}
-#for lr in 0.0001 0.0005 0.001 0.005
-#do
-LOGNAME=slot-k5-recon-l2weight-coeff0.05-lr0.0005
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 5 0.05 \
-    --lr 0.0005 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
-#done
+#date
+##done
 
 # CODA-P-Replay
 #
@@ -115,13 +110,13 @@ date
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-#LEARNERNAME=DualPrompt
-#LOGNAME=dual-prompt
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name ${LEARNERNAME} \
-#    --prompt_param 10 20 6 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#
+LEARNERNAME=DualPrompt
+LOGNAME=dual-prompt
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name ${LEARNERNAME} \
+    --prompt_param 10 20 6 \
+    --log_dir ${OUTDIR}/${LOGNAME}
+
 #for mode in sys pro non noc
 #do
 #  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
@@ -139,13 +134,13 @@ date
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-#LEARNERNAME=L2P
-#LOGNAME=l2p++
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name ${LEARNERNAME} \
-#    --prompt_param 30 20 -1 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#
+LEARNERNAME=L2P
+LOGNAME=l2p++
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name ${LEARNERNAME} \
+    --prompt_param 30 20 -1 \
+    --log_dir ${OUTDIR}/${LOGNAME}
+
 #for mode in sys pro non noc
 #do
 #  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
