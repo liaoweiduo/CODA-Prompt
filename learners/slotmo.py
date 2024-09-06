@@ -328,8 +328,8 @@ class SLOTPrompt(Prompt):
                         self.epoch_log['scaler']['Idx'].append(self.epoch)
                         self.epoch_log['scaler']['Value'].append(val_recon_loss)
 
-                    # if self.epoch == 0:
-                    if self.epoch % 10 == 0:
+                    # if self.epoch % 10 == 0:
+                    if self.epoch == 0:
                         '''nvidia-smi'''
                         self.log(os.system('nvidia-smi'))
 
@@ -420,8 +420,8 @@ class SLOTPrompt(Prompt):
                     self.epoch_log['scaler']['Idx'].append(self.epoch)
                     self.epoch_log['scaler']['Value'].append(val_acc)
 
-                # if self.epoch == 0:
-                if self.epoch % 10 == 0:
+                # if self.epoch % 10 == 0:
+                if self.epoch == 0:
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
 
