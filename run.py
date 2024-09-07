@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 import os
 import sys
+from datetime import datetime
 import argparse
 import torch
 import numpy as np
@@ -74,7 +75,7 @@ class Logger(object):
         self.log = open(name, "a")
 
     def write(self, message):
-        self.terminal.write(message)
+        self.terminal.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {message}")
         self.log.write(message)  
 
     def flush(self):
