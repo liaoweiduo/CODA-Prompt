@@ -40,9 +40,13 @@ class SlotPrompt(nn.Module):
             SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim)])
 
         # output setting
+        self.selector_mode = 'gate'
         self.s2p = nn.ModuleList([
-            nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),
-            nn.Linear(key_dim, len(self.e_layers) * self.e_p_length * self.emb_d)   # [64 -> 12*8*768]
+            # nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),
+            nn.Linear(key_dim, 1) if self.selector_mode == 'gate'
+            else nn.Linear(key_dim, key_dim),
+            nn.Sequential(nn.Linear(key_dim, 2*key_dim), nn.ReLU(inplace=True),
+                          nn.Linear(2*key_dim, len(self.e_layers) * self.e_p_length * self.emb_d))   # [64 -> 12*8*768]
         ])
 
         # prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
@@ -193,11 +197,15 @@ class SlotPrompt(nn.Module):
         bs, k, h = slots.shape
         if s2p is None:
             s2p = self.s2p
-        slot_map = s2p[0]          # [self.key_d -> self.key_d]
+        slot_map = s2p[0]          # [self.key_d -> self.key_d] or -> 1
         prompt_map = s2p[1]        # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
 
-        weighted_slots = slot_map(slots)
-        weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
+        if self.selector_mode == 'gate':
+            weights = F.sigmoid(slot_map(slots))        # -> [bs, k, 1]
+            weighted_slots = torch.sum(weights * slots, dim=1)     # -> [bs, h]
+        else:       # use dense
+            weighted_slots = slot_map(slots)
+            weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
         prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
         # [bs, e, p, d]
 
