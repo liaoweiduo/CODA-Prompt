@@ -3,13 +3,13 @@ first_split_size: 10
 other_split_size: 10
 schedule:
 - [100, 50]
-- [50, 50]
+- [100, 50]
 schedule_type: cosine
 batch_size: 32
 optimizer: Adam
-#lr:
-#- 0.0001
-#- 0.0001
+lr:
+- 0.0005
+- 0.0005
 momentum: 0.9
 weight_decay: 0
 model_type: zoo

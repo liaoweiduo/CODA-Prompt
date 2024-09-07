@@ -29,7 +29,7 @@ def create_args():
                         help="activate learner specific settings for debug_mode")
     parser.add_argument('--repeat', type=int, default=1, help="Repeat the experiment N times")
     parser.add_argument('--overwrite', type=int, default=0, metavar='N', help='Train regardless of whether saved model exists')
-    parser.add_argument('--lr', type=float, default=0.001, dest='lr', help="lr")
+    # parser.add_argument('--lr', type=float, default=0.001, help="lr")
 
     # CL Args          
     parser.add_argument('--oracle_flag', default=False, action='store_true',
@@ -40,6 +40,12 @@ def create_args():
     parser.add_argument('--DW', default=False, action='store_true', help='dataset balancing')
     parser.add_argument('--prompt_param', nargs="+", type=float, default=[1, 1, 1],
                          help="e prompt pool size, e prompt length, g prompt length")
+
+    # Slot Args
+    parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots')
+    parser.add_argument('--slot_pre_learn_model', type=str, default='none',
+                        help="The model name to the pre-learned slot attn model.")
+    parser.add_argument('--slot_lr', type=float, default=0.001, help="slot lr")
 
     # CFST Args
     parser.add_argument('--mode', type=str, default='continual',

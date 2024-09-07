@@ -27,16 +27,24 @@ mkdir -p $OUTDIR
 #    arg 4 = coeff for regularization
 #LEARNERTYPE=slotmo
 #LEARNERNAME=SLOTPrompt
-##for lr in 0.0001 0.0005 0.001 0.005
-##do
-#LOGNAME=slot-k5-recon-l2weight-coeff0.05-lr0.0005
+#for slot_lr in 0.0001 0.0005 0.001 0.005
+#do
+#LOGNAME=slot-k10-recon-slot_lr${slot_lr}
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 8 5 0.05 \
-#    --lr 0.0005 \
+#    --prompt_param 100 8 10 0.05 \
+#    --slot_lr ${slot_lr} \
+#    --only_learn_slot \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #date
-##done
+#done
+##LOGNAME=slot-k10-l2weight-coeff0.05
+##python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+##    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+##    --prompt_param 100 8 10 0.05 \
+##    --slot_lr ${slot_lr} \
+##    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
+##    --log_dir ${OUTDIR}/${LOGNAME}
 
 # CODA-P-Replay
 #
@@ -70,12 +78,12 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#LEARNERNAME=CODAPrompt
-#LOGNAME=coda-p
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 8 0.0 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
+LEARNERNAME=CODAPrompt
+LOGNAME=coda-p
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name ${LEARNERNAME} \
+    --prompt_param 100 8 0.0 \
+    --log_dir ${OUTDIR}/${LOGNAME}
 
 #for mode in sys pro non noc
 #do
@@ -110,12 +118,12 @@ mkdir -p $OUTDIR
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-LEARNERNAME=DualPrompt
-LOGNAME=dual-prompt
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name ${LEARNERNAME} \
-    --prompt_param 10 20 6 \
-    --log_dir ${OUTDIR}/${LOGNAME}
+#LEARNERNAME=DualPrompt
+#LOGNAME=dual-prompt
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name ${LEARNERNAME} \
+#    --prompt_param 10 20 6 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
 
 #for mode in sys pro non noc
 #do

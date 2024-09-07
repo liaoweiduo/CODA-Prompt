@@ -18,6 +18,7 @@ class Trainer:
     def __init__(self, args, seed, metric_keys, save_keys):
 
         # process inputs
+        self.args = args
         self.seed = seed
         self.metric_keys = metric_keys
         self.save_keys = save_keys
@@ -148,6 +149,10 @@ class Trainer:
             'mode': args.mode,
             'seed': self.seed,
             'log_dir': args.log_dir,
+            # slot training args
+            'only_learn_slot': args.only_learn_slot,
+            'slot_pre_learn_model': args.slot_pre_learn_model,
+            'slot_lr': args.slot_lr,
         }
         # pmo settings
         if len(args.prompt_param) > 3:
@@ -155,6 +160,7 @@ class Trainer:
                 'aux_root': args.dataroot,  # no use, use train dataset instead
                 'num_aux_sampling': 8,
             })
+
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
@@ -166,8 +172,16 @@ class Trainer:
         # eval
         self.test_dataset.load_dataset(t_index, train=True)
         test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
+        if self.args.only_learn_slot:
+            if local:
+                return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task,
+                                               slot_recon_loss=True)
+            else:
+                return self.learner.validation(test_loader, task_metric=task,
+                                               slot_recon_loss=True)
+
         if local:
-            return self.learner.validation(test_loader, task_in = self.tasks_logits[t_index], task_metric=task)
+            return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
         else:
             return self.learner.validation(test_loader, task_metric=task)
 

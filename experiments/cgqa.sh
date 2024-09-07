@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
-REPEAT=3
+REPEAT=1
 OVERWRITE=0
 
 ###############################################################
@@ -29,17 +29,26 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-#for coeff in 0.02 0.04 0.06 0.08 0.1
-#for lr in 0.0001 0.0005 0.001 0.005
-#do
-LOGNAME=slot-k5-recon-l2weight-coeff0.05-lr0.0005
+for slot_lr in 0.0001 0.0005 0.001 0.005
+do
+LOGNAME=slot-k10-recon-slot_lr${slot_lr}
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 5 0.05 \
-    --lr 0.0005 \
+    --prompt_param 100 8 10 0.05 \
+    --slot_lr ${slot_lr} \
+    --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
-#done
+done
+
+#LOGNAME=slot-k10-l2weight-coeff0.05
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --prompt_param 100 8 10 0.05 \
+#    --slot_lr ${slot_lr} \
+#    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+
 
 # PMO-Prompt
 #

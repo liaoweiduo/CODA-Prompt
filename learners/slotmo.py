@@ -96,44 +96,63 @@ class SLOTPrompt(Prompt):
 
         return model
 
-    def load_model(self, filename, drop_last=False, from_outside=False):
-        ## from_outside to enable load pretrained model for the 1-st task.
-        # # random init pool
-        # if self.pool is None:
-        #     self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
-
-        # if self.config['dataset'] == 'CGQA' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
-        #     model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
-        #     filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
-        #     print(f'redirect loading model from {filename}.')
-        # elif self.config['dataset'] == 'COBJ' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
-        #     model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
-        #     filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
-        #     print(f'redirect loading model from {filename}.')
-
-        state_dict = torch.load(filename + 'class.pth')
-        # complete with/without module.
-        for key in list(state_dict.keys()):
-            if 'module' in key:
-                state_dict[key[7:]] = state_dict[key]
-            else:
-                state_dict[f'module.{key}'] = state_dict[key]
-        if drop_last:
-            del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            del state_dict['last.weight']; del state_dict['last.bias']
-            # if 'module.last.weight' in state_dict:
-            #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            # else:
-            #     del state_dict['last.weight']; del state_dict['last.bias']
-            # self.model.load_state_dict(state_dict, strict=False)
-
+    def load_model(self, filename, drop_last=False, task_id=-1, from_outside=False, slot_pre_learn_model='none'):
         flag = False        # True if need to further train
-        # for k in state_dict.keys():
-        #     if 'expert_predictor' in k:
-        #         flag = False
+        # if slot_pre_learn_model is not none, load slots
+        if slot_pre_learn_model != 'none':
+            filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
+                        self.config['slot_pre_learn_model'] + f'/models/repeat-1/task-{task_id}/')
+            print(f'redirect loading slot model from {filename}.')
+            state_dict = torch.load(filename + 'class.pth')
+            # complete with/without module and collect slot
+            for key in list(state_dict.keys()):
+                if 'slot_attn' in key:
+                    if 'module' in key:
+                        state_dict[key[7:]] = state_dict[key]
+                    else:
+                        state_dict[f'module.{key}'] = state_dict[key]
+                else:
+                    del state_dict[f'{key}']
+            self.model.load_state_dict(state_dict, strict=False)
+            self.log(f'=> Load Done with params {list(state_dict.keys())}')
+        else:
+            ## from_outside to enable load pretrained model for the 1-st task.
+            # # random init pool
+            # if self.pool is None:
+            #     self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
 
-        self.model.load_state_dict(state_dict, strict=False)
-        self.log('=> Load Done')
+            # if self.config['dataset'] == 'CGQA' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
+            #     model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
+            #     filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
+            #     print(f'redirect loading model from {filename}.')
+            # elif self.config['dataset'] == 'COBJ' and self.t == 0 and from_outside:     # 1-st task load from pretrained one
+            #     model_name = 'slot-k5-recon-l2weight-coeff0.02-lr1e-4'
+            #     filename = '/'.join(self.config['log_dir'].split('/')[:-1]) + '/' + model_name + '/models/repeat-1/task-1/'
+            #     print(f'redirect loading model from {filename}.')
+
+            state_dict = torch.load(filename + 'class.pth')
+            # complete with/without module.
+            for key in list(state_dict.keys()):
+                if 'module' in key:
+                    state_dict[key[7:]] = state_dict[key]
+                else:
+                    state_dict[f'module.{key}'] = state_dict[key]
+            if drop_last:
+                del state_dict['module.last.weight']; del state_dict['module.last.bias']
+                del state_dict['last.weight']; del state_dict['last.bias']
+                # if 'module.last.weight' in state_dict:
+                #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
+                # else:
+                #     del state_dict['last.weight']; del state_dict['last.bias']
+                # self.model.load_state_dict(state_dict, strict=False)
+
+            # for k in state_dict.keys():
+            #     if 'expert_predictor' in k:
+            #         flag = False
+
+            self.model.load_state_dict(state_dict, strict=False)
+            self.log('=> Load Done')
+
         if self.gpu:
             self.model = self.model.cuda()
         self.model.eval()
@@ -231,8 +250,11 @@ class SLOTPrompt(Prompt):
         need_train = True
         flag = False     # True -> slot attn is already trained
         if not self.overwrite:
+            # load slot model if specified
+            flag = self.load_model(model_save_dir, task_id=self.t,
+                                   slot_pre_learn_model=self.config['slot_pre_learn_model'])
             try:
-                flag = self.load_model(model_save_dir, from_outside=True)
+                flag = self.load_model(model_save_dir, task_id=self.t, from_outside=True)
                 need_train = flag       # True if no expert_predictor trained
             except:
                 pass
@@ -249,25 +271,112 @@ class SLOTPrompt(Prompt):
                 self.log(f'record s2p weights')
                 self.s2p_copy = copy.deepcopy(model.prompt.s2p)
 
-            self.log(f'Phase I： training slots')
-            losses = AverageMeter()
-            batch_time = AverageMeter()
-            batch_timer = Timer()
+            if self.config['only_learn_slot'] or self.config['slot_pre_learn_model'] != 'none':
+                self.log(f'Phase I： training slots')
+                losses = AverageMeter()
+                batch_time = AverageMeter()
+                batch_timer = Timer()
 
-            schedule = self.config['schedule']
-            if self.t >= len(schedule):
-                schedule = schedule[-1]
-            else:
-                schedule = schedule[self.t]
-            epochs = schedule[0]        # phase I
-            self.epochs = epochs
+                schedule = self.config['schedule']
+                if self.t >= len(schedule):
+                    schedule = schedule[-1]
+                else:
+                    schedule = schedule[self.t]
+                epochs = schedule[0]        # phase I
+                self.epochs = epochs
 
-            if epochs > 1:      # do not do phase I if not assign epochs to it.
+                if epochs > 1:      # do not do phase I if not assign epochs to it.
+                    if self.reset_optimizer:  # Reset optimizer before learning each task
+                        self.log('Optimizer is reset')
+                        self.init_optimizer(t=self.t, target='slot', phase=0)
+
+                    for epoch in range(epochs):
+                        self.epoch = epoch
+
+                        if epoch > 0: self.scheduler.step()
+                        for param_group in self.optimizer.param_groups:
+                            self.log('LR:', param_group['lr'])
+                        batch_timer.tic()
+                        for i, sample in enumerate(train_loader):
+                            self.batch_idx = i
+
+                            concepts = None
+                            if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
+                                x, y, concepts, task = sample
+                            else:
+                                x, y, task = sample
+
+                            # verify in train mode
+                            self.model.train()
+
+                            # send data to gpu
+                            if self.gpu:
+                                x = x.cuda()
+                                y = y.cuda()
+                                # if concepts is not None:
+                                #     concepts = concepts.cuda()      # [bs, 224, 224]
+                                # task = task.cuda()
+
+                            # # debug
+                            # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                            # model update
+                            loss, output, _ = self.update_model(x, y, learn_slots=True)
+
+                            # measure elapsed time
+                            batch_time.update(batch_timer.toc())
+                            batch_timer.tic()
+
+                            # measure accuracy and record loss
+                            y = y.detach()
+                            losses.update(loss, y.size(0))
+                            batch_timer.tic()
+
+                        # eval update
+                        self.log(
+                            'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
+                        self.log(
+                            ' * Loss {loss.avg:.3f} | '
+                            'Time {time:.3f}s ({i} batches)'.format(
+                                loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
+
+                        # reset
+                        losses = AverageMeter()
+
+                        # validation recon loss
+                        if val_loader is not None:
+                            val_recon_loss = self.validation(val_loader, slot_recon_loss=True)
+                            # log
+                            self.epoch_log['scaler']['Tag'].append(f'val_recon_loss')
+                            self.epoch_log['scaler']['Idx'].append(self.epoch)
+                            self.epoch_log['scaler']['Value'].append(val_recon_loss)
+
+                        # if self.epoch % 10 == 0:
+                        if self.epoch == 0:
+                            '''nvidia-smi'''
+                            self.log(os.system('nvidia-smi'))
+
+            if not self.config['only_learn_slot']:
+                self.log(f'Phase II： training slot2prompt mapping and classifier')
                 if self.reset_optimizer:  # Reset optimizer before learning each task
                     self.log('Optimizer is reset')
-                    self.init_optimizer(t=self.t, target='slot', phase=0)
+                    self.init_optimizer(t=self.t, target='/slot', phase=1)
 
-                for epoch in range(epochs):
+                schedule = self.config['schedule']
+                if self.t >= len(schedule):
+                    schedule = schedule[-1]
+                else:
+                    schedule = schedule[self.t]
+                epochs = schedule[1]        # phase II
+                self.epochs = epochs
+
+                losses = AverageMeter()
+                reg_losses = AverageMeter()
+                acc = AverageMeter()
+                batch_time = AverageMeter()
+                batch_timer = Timer()
+
+                for epoch in range(epochs):       # self.config['schedule'][-1]
                     self.epoch = epoch
 
                     if epoch > 0: self.scheduler.step()
@@ -298,7 +407,7 @@ class SLOTPrompt(Prompt):
                         # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                         # model update
-                        loss, output, _ = self.update_model(x, y, learn_slots=True)
+                        loss, output, reg_loss = self.update_model(x, y, coeff=self.coeff)  # , task
 
                         # measure elapsed time
                         batch_time.update(batch_timer.toc())
@@ -306,7 +415,9 @@ class SLOTPrompt(Prompt):
 
                         # measure accuracy and record loss
                         y = y.detach()
+                        accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                         losses.update(loss, y.size(0))
+                        reg_losses.update(reg_loss, y.size(0))
                         batch_timer.tic()
 
                     # eval update
@@ -314,116 +425,29 @@ class SLOTPrompt(Prompt):
                         'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                     self.log(
                         ' * Loss {loss.avg:.3f} | '
+                        'Reg Loss {reg_loss.avg:.3f} | '
+                        'Train Acc {acc.avg:.3f} | '
                         'Time {time:.3f}s ({i} batches)'.format(
-                            loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
+                            loss=losses, reg_loss=reg_losses, acc=acc,
+                            time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                     # reset
                     losses = AverageMeter()
+                    reg_losses = AverageMeter()
+                    acc = AverageMeter()
 
-                    # validation recon loss
+                    # validation
                     if val_loader is not None:
-                        val_recon_loss = self.validation(val_loader, slot_recon_loss=True)
+                        val_acc = self.validation(val_loader)
                         # log
-                        self.epoch_log['scaler']['Tag'].append(f'val_recon_loss')
+                        self.epoch_log['scaler']['Tag'].append(f'val_acc')
                         self.epoch_log['scaler']['Idx'].append(self.epoch)
-                        self.epoch_log['scaler']['Value'].append(val_recon_loss)
+                        self.epoch_log['scaler']['Value'].append(val_acc)
 
                     # if self.epoch % 10 == 0:
                     if self.epoch == 0:
                         '''nvidia-smi'''
                         self.log(os.system('nvidia-smi'))
-
-            self.log(f'Phase II： training slot2prompt mapping and classifier')
-            if self.reset_optimizer:  # Reset optimizer before learning each task
-                self.log('Optimizer is reset')
-                self.init_optimizer(t=self.t, target='/slot', phase=1)
-
-            schedule = self.config['schedule']
-            if self.t >= len(schedule):
-                schedule = schedule[-1]
-            else:
-                schedule = schedule[self.t]
-            epochs = schedule[1]        # phase II
-            self.epochs = epochs
-
-            losses = AverageMeter()
-            reg_losses = AverageMeter()
-            acc = AverageMeter()
-            batch_time = AverageMeter()
-            batch_timer = Timer()
-
-            for epoch in range(epochs):       # self.config['schedule'][-1]
-                self.epoch = epoch
-
-                if epoch > 0: self.scheduler.step()
-                for param_group in self.optimizer.param_groups:
-                    self.log('LR:', param_group['lr'])
-                batch_timer.tic()
-                for i, sample in enumerate(train_loader):
-                    self.batch_idx = i
-
-                    concepts = None
-                    if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
-                        x, y, concepts, task = sample
-                    else:
-                        x, y, task = sample
-
-                    # verify in train mode
-                    self.model.train()
-
-                    # send data to gpu
-                    if self.gpu:
-                        x = x.cuda()
-                        y = y.cuda()
-                        # if concepts is not None:
-                        #     concepts = concepts.cuda()      # [bs, 224, 224]
-                        # task = task.cuda()
-
-                    # # debug
-                    # print(f'x shape: {x.shape}, y: {y}, task: {task}')
-
-                    # model update
-                    loss, output, reg_loss = self.update_model(x, y, coeff=self.coeff)  # , task
-
-                    # measure elapsed time
-                    batch_time.update(batch_timer.toc())
-                    batch_timer.tic()
-
-                    # measure accuracy and record loss
-                    y = y.detach()
-                    accumulate_acc(output, y, task, acc, topk=(self.top_k,))
-                    losses.update(loss, y.size(0))
-                    reg_losses.update(reg_loss, y.size(0))
-                    batch_timer.tic()
-
-                # eval update
-                self.log(
-                    'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
-                self.log(
-                    ' * Loss {loss.avg:.3f} | '
-                    'Reg Loss {reg_loss.avg:.3f} | '
-                    'Train Acc {acc.avg:.3f} | '
-                    'Time {time:.3f}s ({i} batches)'.format(
-                        loss=losses, reg_loss=reg_losses, acc=acc,
-                        time=batch_time.avg*len(train_loader), i=len(train_loader)))
-
-                # reset
-                losses = AverageMeter()
-                reg_losses = AverageMeter()
-                acc = AverageMeter()
-
-                # validation
-                if val_loader is not None:
-                    val_acc = self.validation(val_loader)
-                    # log
-                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                    self.epoch_log['scaler']['Idx'].append(self.epoch)
-                    self.epoch_log['scaler']['Value'].append(val_acc)
-
-                # if self.epoch % 10 == 0:
-                if self.epoch == 0:
-                    '''nvidia-smi'''
-                    self.log(os.system('nvidia-smi'))
 
         self.log(f'Phase III: update correlation for labels')
         self.collect_statistics(train_loader, train_dataset)

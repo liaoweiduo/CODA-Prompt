@@ -45,7 +45,9 @@ class SlotAttention(nn.Module):
         self.decoder = nn.Sequential(
             nn.Linear(self.key_d, self.key_d * 2, bias=True),
             nn.ReLU(inplace=True),
-            nn.Linear(self.key_d * 2, self.emb_d, bias=True)
+            nn.Linear(self.key_d * 2, self.emb_d, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.emb_d, self.emb_d, bias=True),
         )
 
     def forward(self, features):
