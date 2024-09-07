@@ -165,12 +165,15 @@ class SLOTPrompt(Prompt):
 
     # sets model optimizers
     def init_optimizer(self, t=0, target=None, schedule=None, phase=0):
-        if type(self.config['lr']) is float:
-            lr = self.config['lr']
-        elif t >= len(self.config['lr']):
-            lr = self.config['lr'][-1]
+        if phase == 0:
+            lr = self.config['slot_lr']
         else:
-            lr = self.config['lr'][t]
+            if type(self.config['lr']) is float:
+                lr = self.config['lr']
+            elif t >= len(self.config['lr']):
+                lr = self.config['lr'][-1]
+            else:
+                lr = self.config['lr'][t]
 
         if schedule is None:
             schedule = self.schedule

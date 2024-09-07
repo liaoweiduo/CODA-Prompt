@@ -70,13 +70,14 @@ def get_args(argv):
 
 # want to save everything printed to outfile
 class Logger(object):
-    def __init__(self, name):
+    def __init__(self, name, mode='a'):
         self.terminal = sys.stdout
-        self.log = open(name, "a")
+        self.log = open(name, mode)
 
     def write(self, message):
-        self.terminal.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {message}")
-        self.log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {message}")
+        self.terminal.write(f"{message}")
+        self.log.write(f"{message}")
+        # self.log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {message}")
 
     def flush(self):
         self.log.flush()
@@ -92,7 +93,7 @@ if __name__ == '__main__':
     log_out = args.log_dir + '/output.log'
     sys.stdout = Logger(log_out)
     log_err = args.log_dir + '/err.log'
-    sys.stderr = Logger(log_err)
+    sys.stderr = Logger(log_err, 'w')
 
     # save args
     with open(args.log_dir + '/args.yaml', 'w') as yaml_file:
