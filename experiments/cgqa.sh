@@ -53,7 +53,7 @@ done
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
 #    --prompt_param 8 10 0.05 \
 #    --slot_lr ${slot_lr} \
-#    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
+#    --slot_pre_learn_model {slot-k10-recon-slot_lrxxxx} \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 
 

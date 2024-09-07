@@ -246,14 +246,14 @@ class SLOTPrompt(Prompt):
 
         # try to load model
         need_train = True
-        flag = False     # True -> slot attn is already trained
         if not self.overwrite:
             # load slot model if specified
-            flag = self.load_model(model_save_dir, task_id=self.t,
-                                   slot_pre_learn_model=self.config['slot_pre_learn_model'])
+            if self.config['slot_pre_learn_model'] != 'none':       # raise exp if no slot trained but train prompt
+                flag = self.load_model(model_save_dir, task_id=self.t,
+                                       slot_pre_learn_model=self.config['slot_pre_learn_model'])
             try:
                 flag = self.load_model(model_save_dir, task_id=self.t, from_outside=True)
-                need_train = flag       # True if no expert_predictor trained
+                need_train = flag
             except:
                 pass
 

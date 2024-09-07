@@ -76,7 +76,7 @@ class Logger(object):
 
     def write(self, message):
         self.terminal.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {message}")
-        self.log.write(message)  
+        self.log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]: {message}")
 
     def flush(self):
         self.log.flush()
@@ -97,6 +97,7 @@ if __name__ == '__main__':
     # save args
     with open(args.log_dir + '/args.yaml', 'w') as yaml_file:
         yaml.dump(vars(args), yaml_file, default_flow_style=False)
+    print(vars(args))
     
     metric_keys = ['acc','time',]
     save_keys = ['global', 'pt', 'pt-local']
