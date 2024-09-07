@@ -34,7 +34,7 @@ for run_id in 0 1 2 3; do
 slot_lr=${slot_lrs[${run_id}]}
 seed=${seeds[${run_id}]}
 LOGNAME=slot-k10-recon-slot_lr${slot_lr}
-mkdir -p ${OUTDIR}/${LOGNAME}
+mkdir -p ${OUTDIR}/${LOGNAME}/runlog
 time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 docker run -d --rm --runtime=nvidia --gpus device=${seed} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
@@ -44,7 +44,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --prompt_param 8 10 0.05 \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
-    --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog_learn_slot_${time}.out 2>&1
+    --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog/runlog_learn_slot_${time}.out 2>&1
 done
 #LOGNAME=slot-k10-l2weight-coeff0.05
 #mkdir -p ${OUTDIR}/${LOGNAME}
@@ -54,7 +54,7 @@ done
 #    --prompt_param 8 10 0.05 \
 #    --slot_lr ${slot_lr} \
 #    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
-#    --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog_learn_prompt_${time}.out 2>&1
+#    --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog/runlog_learn_prompt_${time}.out 2>&1
 
 
 # PMO-Prompt
