@@ -15,7 +15,7 @@ weight_decay: 0
 model_type: zoo
 model_name: vit_pt_imnet
 max_task: 3     # -1 for all
-#dataroot: data
+#dataroot: ../datasets
 workers: 4
 validation: False
 train_aug: True

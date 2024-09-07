@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
-REPEAT=3
+REPEAT=1
 OVERWRITE=0
 
 ###############################################################
@@ -27,26 +27,31 @@ mkdir -p $OUTDIR
 #    arg 4 = coeff for regularization
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
-#LEARNERTYPE=slotmo
-#LEARNERNAME=SLOTPrompt
-#for slot_lr in 0.0001 0.0005 0.001 0.005
-#do
-#LOGNAME=slot-k10-recon-slot_lr${slot_lr}
+LEARNERTYPE=slotmo
+LEARNERNAME=SLOTPrompt
+slot_lrs=(0.0001 0.0005 0.001 0.005)
+seeds=(0 1 2 3)
+for run_id in 0 1 2 3; do
+slot_lr=${slot_lrs[${run_id}]}
+seed=${seeds[${run_id}]}
+LOGNAME=slot-k10-recon-slot_lr${slot_lr}
+docker run -d --rm --runtime=nvidia -gpus device=${seed} \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+    --prompt_param 100 8 10 0.05 \
+    --slot_lr ${slot_lr} \
+    --only_learn_slot \
+    --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog_learn_slot.out 2>&1
+done
+#LOGNAME=slot-k10-l2weight-coeff0.05
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
 #    --prompt_param 100 8 10 0.05 \
 #    --slot_lr ${slot_lr} \
-#    --only_learn_slot \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#date
-#done
-##LOGNAME=slot-k10-l2weight-coeff0.05
-##python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-##    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-##    --prompt_param 100 8 10 0.05 \
-##    --slot_lr ${slot_lr} \
-##    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
-##    --log_dir ${OUTDIR}/${LOGNAME}
+#    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
+#    --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog_learn_prompt.out 2>&1
 
 
 # PMO-Prompt
@@ -69,34 +74,6 @@ mkdir -p $OUTDIR
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #date
 
-# CODA-P-Replay
-#
-# prompt parameter args:
-#    arg 1 = prompt component pool size
-#    arg 2 = prompt length
-#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#LEARNERNAME=CODAPromptR
-#LOGNAME=coda-p-r-0-ortho
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 8 0.0 \
-#    --memory 0 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#date
-
-#LEARNERNAME=CODAPrompt
-#LOGNAME=coda-p-r-0-ortho
-#for mode in sys pro sub non noc
-#do
-#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#      --learner_type prompt --learner_name ${LEARNERNAME} \
-#      --prompt_param 100 8 0.0 \
-#      --memory 0 \
-#      --log_dir ${OUTDIR}/${LOGNAME} \
-#      --mode ${mode}
-#  date
-#done
-
 # CODA-P
 #
 # prompt parameter args:
@@ -108,46 +85,16 @@ mkdir -p $OUTDIR
 #    --prompt_param 100 8 0.0 \
 #    --log_dir ${OUTDIR}/coda
 
-
-# PATCH-P
-#
-# prompt parameter args:
-#    arg 1 = prompt component pool size     20 for fixed prompt size
-#    arg 2 = prompt length
-#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#    --prompt_param 21 8 0.0 \
-#    --oracle_flag --upper_bound_flag \
-# -mtl
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name PATCHPrompt \
-#    --prompt_param 21 2 0.0 \
-#    --oracle_flag --upper_bound_flag \
-#    --log_dir ${OUTDIR}/coda-cond-ip-FPS21-normalattn-oracle-threshold_6-epoch30-mtl
-
-# CODA-P-COND
-#
-# prompt parameter args:
-#    arg 1 = prompt component pool size     20 for fixed prompt size
-#    arg 2 = prompt length
-#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#    --prompt_param 21 8 0.0 \
-#    --oracle_flag --upper_bound_flag \
-# -mtl
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPromptCond \
-#    --prompt_param 21 8 0.0 \
-#    --log_dir ${OUTDIR}/coda-cond-FPS21-normalattn-oracle-epoch5-cheating-first30-1
-
 # DualPrompt
 #
 # prompt parameter args:
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name DualPrompt \
-    --prompt_param 10 20 6 \
-    --log_dir ${OUTDIR}/dual-prompt
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name DualPrompt \
+#    --prompt_param 10 20 6 \
+#    --log_dir ${OUTDIR}/dual-prompt
 
 # L2P++
 #
@@ -155,7 +102,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name L2P \
-    --prompt_param 30 20 -1 \
-    --log_dir ${OUTDIR}/l2p++
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name L2P \
+#    --prompt_param 30 20 -1 \
+#    --log_dir ${OUTDIR}/l2p++
