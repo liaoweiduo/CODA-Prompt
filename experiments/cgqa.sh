@@ -21,10 +21,9 @@ mkdir -p $OUTDIR
 # SLOT-Prompt
 #
 # prompt parameter args:
-#    arg 1 = prompt component pool size, no use
-#    arg 2 = prompt length
-#    arg 3 = num of slots extracted from one img
-#    arg 4 = coeff for regularization
+#    arg 1 = prompt length
+#    arg 2 = num of slots extracted from one img
+#    arg 3 = coeff for regularization
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
@@ -35,24 +34,24 @@ for run_id in 0 1 2 3; do
 slot_lr=${slot_lrs[${run_id}]}
 seed=${seeds[${run_id}]}
 LOGNAME=slot-k10-recon-slot_lr${slot_lr}
-mkdir ${OUTDIR}/${LOGNAME}
+mkdir -p ${OUTDIR}/${LOGNAME}
 time=$(date +"%y-%m-%d-%H-%M-%S-%N")
-docker run -d --rm --runtime=nvidia -gpus device=${seed} \
+docker run -d --rm --runtime=nvidia --gpus device=${seed} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   --shm-size 8G liaoweiduo/coda:2.0_sklearn \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 10 0.05 \
+    --prompt_param 8 10 0.05 \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog_learn_slot_${time}.out 2>&1
 done
 #LOGNAME=slot-k10-l2weight-coeff0.05
-#mkdir ${OUTDIR}/${LOGNAME}
+#mkdir -p ${OUTDIR}/${LOGNAME}
 #time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 100 8 10 0.05 \
+#    --prompt_param 8 10 0.05 \
 #    --slot_lr ${slot_lr} \
 #    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
 #    --log_dir ${OUTDIR}/${LOGNAME} > ${OUTDIR}/${LOGNAME}/runlog_learn_prompt_${time}.out 2>&1

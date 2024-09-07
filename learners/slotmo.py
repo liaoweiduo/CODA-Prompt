@@ -51,9 +51,7 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary(aux_dataset)
         # self.aux = Auxiliary()
 
-        # self.n_opt_slots = int(self.config['prompt_param'][1][3])          # num of slots considered to be opted 5
-        self.coeff = float(self.config['prompt_param'][1][3])
-        # self.p = int(self.config['prompt_param'][1][4])
+        self.coeff = float(self.config['prompt_param'][1][2])
 
         try:
             prompt = self.model.module.prompt

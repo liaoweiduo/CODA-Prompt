@@ -21,7 +21,7 @@ class SlotPrompt(nn.Module):
         self.n_tasks = n_tasks
 
         # prompt basic param
-        self.e_p_length = int(prompt_param[1])  # 8
+        self.e_p_length = int(prompt_param[0])  # 8
         self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         # self.e_layers = [0, 1, 2, 3, 4]
         # [] for no prompt.
@@ -32,10 +32,10 @@ class SlotPrompt(nn.Module):
         self.FPS = True         # if True, continually learning one slot attn
 
         # slot basic param
-        # self.e_pool_size = int(prompt_param[0])  # 100
+        # self.e_pool_size = int(prompt_param[0])  # 100 no use for slots
         # self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
         # self.pool_init_idx = 0
-        self.n_slots = int(prompt_param[2])     # n_slots:10   number of slots for one extraction
+        self.n_slots = int(prompt_param[1])     # n_slots:10   number of slots for one extraction
         self.slot_attn = torch.nn.ModuleList([
             SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim)])
 
