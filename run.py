@@ -90,6 +90,8 @@ if __name__ == '__main__':
     if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
     log_out = args.log_dir + '/output.log'
     sys.stdout = Logger(log_out)
+    log_err = args.log_dir + '/err.log'
+    sys.stderr = Logger(log_err)
 
     # save args
     with open(args.log_dir + '/args.yaml', 'w') as yaml_file:
@@ -189,6 +191,6 @@ if __name__ == '__main__':
             print(mkey, ' | mean:', avg_metrics[mkey]['global'][-1,:r+1].mean(), 'std:', avg_metrics[mkey]['global'][-1,:r+1].std())
 
         '''nvidia-smi'''
-        print(os.system('nvidia-smi'))
+        os.system('nvidia-smi')     # vir sys.out and not write to log file
 
 

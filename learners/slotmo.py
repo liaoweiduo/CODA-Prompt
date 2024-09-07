@@ -352,7 +352,7 @@ class SLOTPrompt(Prompt):
                         # if self.epoch % 10 == 0:
                         if self.epoch == 0:
                             '''nvidia-smi'''
-                            self.log(os.system('nvidia-smi'))
+                            os.system('nvidia-smi')
 
             if not self.config['only_learn_slot']:
                 self.log(f'Phase II： training slot2prompt mapping and classifier')
@@ -445,7 +445,7 @@ class SLOTPrompt(Prompt):
                     # if self.epoch % 10 == 0:
                     if self.epoch == 0:
                         '''nvidia-smi'''
-                        self.log(os.system('nvidia-smi'))
+                        os.system('nvidia-smi')
 
         self.log(f'Phase III: update correlation for labels')
         self.collect_statistics(train_loader, train_dataset)
