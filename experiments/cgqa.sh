@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
-REPEAT=1
+REPEAT=3
 OVERWRITE=0
 
 ###############################################################
@@ -27,27 +27,26 @@ mkdir -p $OUTDIR
 #    arg 4 = coeff for regularization
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
-LEARNERTYPE=slotmo
-LEARNERNAME=SLOTPrompt
-for slot_lr in 0.0001 0.0005 0.001 0.005
-do
-LOGNAME=slot-k10-recon-slot_lr${slot_lr}
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 10 0.05 \
-    --slot_lr ${slot_lr} \
-    --only_learn_slot \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
-done
-
-#LOGNAME=slot-k10-l2weight-coeff0.05
+#LEARNERTYPE=slotmo
+#LEARNERNAME=SLOTPrompt
+#for slot_lr in 0.0001 0.0005 0.001 0.005
+#do
+#LOGNAME=slot-k10-recon-slot_lr${slot_lr}
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
 #    --prompt_param 100 8 10 0.05 \
 #    --slot_lr ${slot_lr} \
-#    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
+#    --only_learn_slot \
 #    --log_dir ${OUTDIR}/${LOGNAME}
+#date
+#done
+##LOGNAME=slot-k10-l2weight-coeff0.05
+##python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+##    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+##    --prompt_param 100 8 10 0.05 \
+##    --slot_lr ${slot_lr} \
+##    --slot_pre_learn_model slot-k10-recon-slot_lrxxxx \
+##    --log_dir ${OUTDIR}/${LOGNAME}
 
 
 # PMO-Prompt
@@ -145,10 +144,10 @@ done
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name DualPrompt \
-#    --prompt_param 10 20 6 \
-#    --log_dir ${OUTDIR}/dual-prompt
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name DualPrompt \
+    --prompt_param 10 20 6 \
+    --log_dir ${OUTDIR}/dual-prompt
 
 # L2P++
 #
@@ -156,7 +155,7 @@ done
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name L2P \
-#    --prompt_param 30 20 -1 \
-#    --log_dir ${OUTDIR}/l2p++
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name L2P \
+    --prompt_param 30 20 -1 \
+    --log_dir ${OUTDIR}/l2p++
