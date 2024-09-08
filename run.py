@@ -62,8 +62,9 @@ def create_args():
 def get_args(argv):
     parser=create_args()
     args = parser.parse_args(argv)
-    config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
-    config.update(vars(args))
+    config = vars(args)
+    config_yaml = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
+    config.update(config_yaml)      # make yaml overwrite args
     # if config['debug_mode'] == 1:
     #     config['batch_size'] = 16
     return argparse.Namespace(**config)
