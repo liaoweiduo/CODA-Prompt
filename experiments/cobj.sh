@@ -27,7 +27,7 @@ mkdir -p $OUTDIR
 #    arg 4 = coeff for regularization
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-slot_lrs=(0.0001 0.0005 0.001 0.005)
+slot_lrs=(0.00001 0.00003 0.00005 0.00007)
 devices=(4 5 6 7)
 for run_id in 0 1 2 3; do
 slot_lr=${slot_lrs[${run_id}]}
