@@ -1286,6 +1286,8 @@ class SLOTPrompt(Prompt):
                     bs, t, e, p, d = prompts.shape
                     assert t == 1
 
+                    recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
+
                     if slot_recon_loss:
                         recon_losses.update(recon_loss, bs)
                         continue
