@@ -275,7 +275,7 @@ class SLOTPrompt(Prompt):
                 self.log(f'record s2p weights')
                 self.s2p_copy = copy.deepcopy(model.prompt.s2p)
 
-            if self.config['only_learn_slot'] or self.config['slot_pre_learn_model'] != 'none':
+            if self.config['only_learn_slot'] or self.config['slot_pre_learn_model'] == 'none':
                 self.log(f'Phase I： training slots')
                 losses = AverageMeter()
                 batch_time = AverageMeter()
