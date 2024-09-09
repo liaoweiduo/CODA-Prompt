@@ -30,8 +30,8 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-slot_lrs=(0.0002 0.0004 0.0006 0.0008)
-devices=(0 1 2 3)
+slot_lrs=(0.0003)
+devices=(3)   # (0 1 2 3)
 for run_id in 0 1 2 3; do
 slot_lr=${slot_lrs[${run_id}]}
 device=${devices[${run_id}]}
