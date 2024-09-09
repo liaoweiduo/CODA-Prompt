@@ -51,7 +51,10 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary(aux_dataset)
         # self.aux = Auxiliary()
 
-        self.coeff = float(self.config['prompt_param'][1][2])
+        self.weight_coeff = float(self.config['prompt_param'][1][2])
+        self.ccl_coeff = float(self.config['prompt_param'][1][3])
+        self.ccl_margin = float(self.config['prompt_param'][1][4])
+        self.ccl_tau = float(self.config['prompt_param'][1][5])
 
         try:
             prompt = self.model.module.prompt
@@ -372,7 +375,8 @@ class SLOTPrompt(Prompt):
                 self.epochs = epochs
 
                 losses = AverageMeter()
-                reg_losses = AverageMeter()
+                ccl_losses = AverageMeter()
+                s2p_losses = AverageMeter()
                 acc = AverageMeter()
                 batch_time = AverageMeter()
                 batch_timer = Timer()
@@ -408,7 +412,8 @@ class SLOTPrompt(Prompt):
                         # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                         # model update
-                        loss, output, reg_loss = self.update_model(x, y, coeff=self.coeff)  # , task
+                        loss, output, reg_loss_dict = self.update_model(x, y)  # , task
+                        ccl_loss, s2p_loss = reg_loss_dict['ccl_loss'], reg_loss_dict['s2p_loss']
 
                         # measure elapsed time
                         batch_time.update(batch_timer.toc())
@@ -418,7 +423,8 @@ class SLOTPrompt(Prompt):
                         y = y.detach()
                         accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                         losses.update(loss, y.size(0))
-                        reg_losses.update(reg_loss, y.size(0))
+                        ccl_losses.update(ccl_loss, y.size(0))
+                        s2p_losses.update(s2p_loss, y.size(0))
                         batch_timer.tic()
 
                     # eval update
@@ -426,15 +432,17 @@ class SLOTPrompt(Prompt):
                         'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                     self.log(
                         ' * Loss {loss.avg:.3f} | '
-                        'Reg Loss {reg_loss.avg:.3f} | '
+                        'CCL Loss {ccl_loss.avg:.3f} | '
+                        'S2P Loss {s2p_loss.avg:.3f} | '
                         'Train Acc {acc.avg:.3f} | '
                         'Time {time:.3f}s ({i} batches)'.format(
-                            loss=losses, reg_loss=reg_losses, acc=acc,
+                            loss=losses, ccl_loss=ccl_losses, s2p_loss=s2p_losses, acc=acc,
                             time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                     # reset
                     losses = AverageMeter()
-                    reg_losses = AverageMeter()
+                    ccl_losses = AverageMeter()
+                    s2p_losses = AverageMeter()
                     acc = AverageMeter()
 
                     # validation
@@ -468,7 +476,8 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, coeff=1.0, p=30, tau=3):
+    def update_model(self, inputs, targets, match_pool=False, learn_slots=False,
+                     p=30, tau=3):
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -503,56 +512,103 @@ class SLOTPrompt(Prompt):
             # prompts = prompts.reshape(bs, t*k, e, p, d)
             # prompts = prompts[:, -1]
 
-            # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
-            # for l in self.e_layers:
-            # with torch.no_grad():
-            mo_matrix, features, out = self.obtain_mo_matrix(
-                None, prompts=prompts,
-                train=True,
-                samples=inputs,
-                labels=targets,
-                group_by_labels=False,
-                return_features=True,
-            )  # [bs, 20]
+            # # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
+            # # for l in self.e_layers:
+            # # with torch.no_grad():
+            # mo_matrix, features, out = self.obtain_mo_matrix(
+            #     None, prompts=prompts,
+            #     train=True,
+            #     samples=inputs,
+            #     labels=targets,
+            #     group_by_labels=False,
+            #     return_features=True,
+            # )  # [bs, 20]
+            #
+            # if self.debug_mode:
+            #     print(f'mo_matrix {mo_matrix.shape}')
+            #
+            # sorted_mo_matrix, indexes = torch.sort(mo_matrix, dim=1)      # [bs, 1]
+            #
+            # '''log'''
+            # for obj_idx in range(sorted_mo_matrix.shape[0]):
+            #     for pop_idx in range(sorted_mo_matrix.shape[1]):
+            #         self.epoch_log['mo']['Tag'].append('loss')
+            #         self.epoch_log['mo']['Pop_id'].append(pop_idx)
+            #         self.epoch_log['mo']['Obj_id'].append(obj_idx)
+            #         self.epoch_log['mo']['Epoch_id'].append(self.epoch)
+            #         self.epoch_log['mo']['Inner_id'].append(0)
+            #         self.epoch_log['mo']['Value'].append(sorted_mo_matrix[obj_idx, pop_idx].item())
+            #
+            # loss = torch.mean(sorted_mo_matrix, dim=1)        # [bs]
+            # loss = torch.mean(loss)
+
+            prompts = prompts.reshape(bs * t, *prompts.shape[2:])  # [bs*t, ...]
+            assert t == 1
 
             if self.debug_mode:
-                print(f'mo_matrix {mo_matrix.shape}')
+                print('samples:', inputs.shape, 'prompts:', prompts.shape)
 
-            sorted_mo_matrix, indexes = torch.sort(mo_matrix, dim=1)      # [bs, 1]
+            loss = torch.zeros(1).mean()
+            # pen: penultimate features; train: same forward as batch training.
+            out, features = self.model(
+                inputs, q=prompts,
+                pen=True, train=True,
+                # register_blk=hard_l,
+                debug_mode=self.debug_mode)
+            # features: [bs, 768]
+            # out is logits: [bs, 100]
 
-            '''log'''
-            for obj_idx in range(sorted_mo_matrix.shape[0]):
-                for pop_idx in range(sorted_mo_matrix.shape[1]):
-                    self.epoch_log['mo']['Tag'].append('loss')
-                    self.epoch_log['mo']['Pop_id'].append(pop_idx)
-                    self.epoch_log['mo']['Obj_id'].append(obj_idx)
-                    self.epoch_log['mo']['Epoch_id'].append(self.epoch)
-                    self.epoch_log['mo']['Inner_id'].append(0)
-                    self.epoch_log['mo']['Value'].append(sorted_mo_matrix[obj_idx, pop_idx].item())
+            out = out[:, :self.valid_out_dim]       # [bs, 30]
+            n_cls = self.valid_out_dim
 
-            loss = torch.mean(sorted_mo_matrix, dim=1)        # [bs]
-            loss = torch.mean(loss)
-
-            # loss.backward(retain_graph=True)
+            # ce with heuristic
+            logits = out.clone()
+            logits[:, :self.last_valid_out_dim] = -float('inf')
+            # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+            # dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
+            # objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
+            ce_loss = self.criterion_fn(logits, targets.long()).mean()
+            loss = ce_loss
 
             if self.debug_mode:
-                print(f'loss: {loss.item()}')
+                print(f'ce_loss: {ce_loss.item()}')
 
             self.epoch_log['scaler']['Tag'].append('loss/ce_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
-            self.epoch_log['scaler']['Value'].append(loss.item())
+            self.epoch_log['scaler']['Value'].append(ce_loss.item())
 
-            out = out[:, :, :self.valid_out_dim]
-            bs, n_slots, n_cls = out.shape
-            # ce with heuristic
-            out[:, :, :self.last_valid_out_dim] = -float('inf')
+            # ccl loss
+            ccl_loss = torch.zeros(1).mean()
+            if self.ccl_coeff > 0 and self.t > 0:
+                for task in self.tasks[:self.t]:        # for each old task
+                    old_logits = out[task]
+
+                    if self.debug_mode:
+                        print('ccl loss: task:', task, 'old logits:', old_logits)
+
+                    flag = torch.max(logits, dim=1)[0] <= torch.max(old_logits, dim=1)[0] + self.ccl_margin       # [bs]
+                    taus = torch.ones_like(flag).float()
+                    taus[flag] = self.ccl_tau
+                    ground = F.softmax(old_logits/taus, dim=1).detach().clone()
+                    loss_ccl = -torch.sum(ground * torch.log(F.softmax(old_logits, dim=1)), dim=1).mean()
+                    ccl_loss = ccl_loss + loss_ccl.detach() / self.t
+                    loss = loss + self.ccl_coeff * loss_ccl / self.t
+
+            self.epoch_log['scaler']['Tag'].append('loss/ccl_loss')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(ccl_loss.item())
+
+            # out = out[:, :, :self.valid_out_dim]
+            # bs, n_slots, n_cls = out.shape
+            # # ce with heuristic
+            # out[:, :, :self.last_valid_out_dim] = -float('inf')
 
             # if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
-            if coeff > 0.0:
+            s2p_loss = torch.zeros(1).mean()
+            if self.weight_coeff > 0.0:
                 # regularization loss on slot2prompt mapping
                 # selection: ['weights', 'response']
                 reg_mode = 'weights'
-                s2p_loss = torch.zeros(1).mean()
                 if self.t > 0 and reg_mode == 'weights':
                     # s2p_loss = torch.stack([
                     #     F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
@@ -680,27 +736,22 @@ class SLOTPrompt(Prompt):
                     if self.debug_mode:
                         print(f's2p_loss {s2p_loss.shape}: {s2p_loss}')
 
+                loss = loss + self.weight_coeff * s2p_loss
 
                 self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-                total_loss = loss + coeff * s2p_loss
-                total_loss.backward()
+                # if self.debug_mode:
+                #     print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
 
-                if self.debug_mode:
-                    print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
-
-            else:
-                s2p_loss = torch.zeros(1).mean()
-                total_loss = loss
-                total_loss.backward()
+            loss.backward()
 
             # step
             self.optimizer.step()
 
-            out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [s, n_cls]
-            return loss.detach(), out, s2p_loss.detach()
+            out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [bs, n_cls]
+            return loss.detach(), out, {'ccl_loss': ccl_loss.detach(), 's2p_loss': s2p_loss.detach()}
 
     def update_model_f4m(self, inputs, targets, match_pool=False, learn_slots=False):
         self.optimizer.zero_grad()

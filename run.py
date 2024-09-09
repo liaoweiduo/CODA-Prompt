@@ -46,7 +46,7 @@ def create_args():
     parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots')
     parser.add_argument('--slot_pre_learn_model', type=str, default='none',
                         help="The model name to the pre-learned slot attn model.")
-    parser.add_argument('--slot_lr', type=float, default=0.001, help="slot lr")
+    parser.add_argument('--slot_lr', type=float, default=0.0003, help="slot lr")
 
     # CFST Args
     parser.add_argument('--mode', type=str, default='continual',
