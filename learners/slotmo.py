@@ -559,7 +559,7 @@ class SLOTPrompt(Prompt):
             # out is logits: [bs, 100]
 
             out = out[:, :self.valid_out_dim]       # [bs, 30]
-            bs, n_cls = out.shape()
+            bs, n_cls = out.shape
 
             # ce with heuristic
             logits = out.clone()
