@@ -102,7 +102,7 @@ class SLOTPrompt(Prompt):
         # if slot_pre_learn_model is not none, load slots
         if slot_pre_learn_model != 'none':
             filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
-                        self.config['slot_pre_learn_model'] + f'/models/repeat-1/task-{task_id}/')
+                        self.config['slot_pre_learn_model'] + f'/models/repeat-1/task-{task_id+1}/')
             print(f'redirect loading slot model from {filename}.')
             state_dict = torch.load(filename + 'class.pth')
             # complete with/without module and collect slot

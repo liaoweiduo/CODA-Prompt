@@ -39,7 +39,7 @@ docker run -d --rm --runtime=nvidia --gpus device=${device} \
   --shm-size 8G liaoweiduo/coda:2.0_sklearn \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 8 10 0.05 \
+    --prompt_param 8 10 0.05 1.0 0.1 1.2 \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
@@ -48,7 +48,7 @@ done
 #time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 8 10 0.05 \
+#    --prompt_param 8 10 0.05 1.0 0.1 1.2 \
 #    --slot_lr ${slot_lr} \
 #    --slot_pre_learn_model {slot-k10-recon-slot_lrxxxx} \
 #    --log_dir ${OUTDIR}/${LOGNAME}
