@@ -479,7 +479,10 @@ def _get_obj365_datasets(
         """generate train_list and test_list: list with img tuple (path, label)"""
         img_tuples = []
         for item in images:
-            instance_tuple = (item['image'], item['label'], item['concepts'])     # , item['boundingBox']
+            if 'concepts' in item.keys():
+                instance_tuple = (item['image'], item['label'], item['concepts'])     # , item['boundingBox']
+            else:
+                instance_tuple = (item['image'], item['label'])
             img_tuples.append(instance_tuple)
         return img_tuples
 
