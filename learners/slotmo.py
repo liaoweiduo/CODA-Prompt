@@ -254,7 +254,9 @@ class SLOTPrompt(Prompt):
         need_train = True
         if not self.overwrite:
             # load slot model if specified
-            if self.config['slot_pre_learn_model'] != 'none':       # raise exp if no slot trained but train prompt
+            if model_save_dir is not None and self.config['slot_pre_learn_model'] != 'none':
+                # raise exp if no slot trained but train prompt
+                # model_save_dir will be None if do compositional few-shot testing
                 flag = self.load_model(model_save_dir, task_id=self.t,
                                        slot_pre_learn_model=self.config['slot_pre_learn_model'])
             try:

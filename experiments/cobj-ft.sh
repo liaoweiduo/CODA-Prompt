@@ -1,15 +1,15 @@
 # bash experiments/imagenet-r.sh
 # experiment settings
-DATASET=CGQA
-N_CLASS=100
+DATASET=COBJ
+N_CLASS=30
 
 # save directory
-OUTDIR=outputs/${DATASET}/10-task
+OUTDIR=outputs/${DATASET}/3-task
 
 # hard coded inputs
 GPUID='0'   # '0 1 2 3'
-CONFIG_SLOT=configs/cgqa_slot.yaml
-CONFIG=configs/cgqa_prompt.yaml
+CONFIG_SLOT=configs/cobj_slot.yaml
+CONFIG=configs/cobj_prompt.yaml
 REPEAT=1
 OVERWRITE=0
 
@@ -51,7 +51,7 @@ do
   python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
       --learner_type prompt --learner_name CODAPrompt \
       --prompt_param 100 8 0.0 \
-      --log_dir ${OUTDIR}/coda \
+      --log_dir ${OUTDIR}/coda-p \
       --mode ${mode}
   date
 done
