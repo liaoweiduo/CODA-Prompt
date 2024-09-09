@@ -102,7 +102,7 @@ class SLOTPrompt(Prompt):
         # if slot_pre_learn_model is not none, load slots
         if slot_pre_learn_model != 'none':
             filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
-                        self.config['slot_pre_learn_model'] + f'/models/repeat-{self.seed+1}/task-{task_id+1}/')
+                        slot_pre_learn_model + f'/models/repeat-{self.seed+1}/task-{task_id+1}/')
             print(f'redirect loading slot model from {filename}.')
             state_dict = torch.load(filename + 'class.pth')
             # complete with/without module and collect slot
@@ -559,7 +559,7 @@ class SLOTPrompt(Prompt):
             # out is logits: [bs, 100]
 
             out = out[:, :self.valid_out_dim]       # [bs, 30]
-            n_cls = self.valid_out_dim
+            bs, n_cls = out.shape()
 
             # ce with heuristic
             logits = out.clone()
@@ -581,7 +581,7 @@ class SLOTPrompt(Prompt):
             ccl_loss = torch.zeros(1).mean()
             if self.ccl_coeff > 0 and self.t > 0:
                 for task in self.tasks[:self.t]:        # for each old task
-                    old_logits = out[task]
+                    old_logits = out[:, task]
 
                     if self.debug_mode:
                         print('ccl loss: task:', task, 'old logits:', old_logits)
