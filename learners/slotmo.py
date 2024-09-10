@@ -586,7 +586,7 @@ class SLOTPrompt(Prompt):
                     old_logits = out[:, task]
 
                     if self.debug_mode:
-                        print('ccl loss: task:', task, 'old logits:', old_logits)
+                        print('ccl loss: task:', task, f'old logits: {old_logits.shape}', old_logits[0])
 
                     mask = torch.max(logits, dim=1)[0] <= torch.max(old_logits, dim=1)[0] + self.ccl_margin       # [bs]
                     old_logits = old_logits[mask]       # filter samples with bias to old logits
