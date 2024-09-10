@@ -601,11 +601,11 @@ class SLOTPrompt(Prompt):
 
             # ccl loss
             ccl_loss = torch.zeros(1).mean().to(loss.device)
-            if self.ccl_coeff > 0 and self.t > 0 and self.epoch >= 5:
+            if self.ccl_coeff > 0 and self.t > 0:       # and self.epoch >= 5:
                 for task in self.tasks[:self.t]:        # for each old task
                     old_last_weight = model.last.weight[task]       # [10, 768]
                     old_last_bias = model.last.bias[task]           # [10]
-                    old_logits = features * old_last_weight.T.detach() + old_last_bias.detach()     # [bs, 10]
+                    old_logits = features @ old_last_weight.T.detach() + old_last_bias.detach()     # [bs, 10]
 
                     # old_logits = out[:, task]
 
