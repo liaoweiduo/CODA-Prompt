@@ -609,7 +609,8 @@ def _get_obj365_datasets(
         )
 
         datasets = {'dataset': dataset}
-        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple)
+        meta_info = {"img_list": img_list}
+        label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
     else:
         raise Exception(f'Un-implemented mode "{mode}".')
