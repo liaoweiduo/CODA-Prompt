@@ -64,6 +64,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 8 10 0.05 ${ccl_coeff} 0.1 1.2 \
     --slot_pre_learn_model slot-k10-recon-slot_lr0.0003 \
+    --debug_mode 1 \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 
