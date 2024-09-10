@@ -588,10 +588,13 @@ class SLOTPrompt(Prompt):
                     if self.debug_mode:
                         print('ccl loss: task:', task, 'old logits:', old_logits)
 
-                    flag = torch.max(logits, dim=1)[0] <= torch.max(old_logits, dim=1)[0] + self.ccl_margin       # [bs]
-                    taus = torch.ones_like(flag).float()
-                    taus[flag] = self.ccl_tau
-                    ground = F.softmax(old_logits/taus.unsqueeze(1), dim=1).detach().clone()
+                    mask = torch.max(logits, dim=1)[0] <= torch.max(old_logits, dim=1)[0] + self.ccl_margin       # [bs]
+                    old_logits = old_logits[mask]       # filter samples with bias to old logits
+
+                    # taus = torch.ones_like(flag).float()
+                    # taus[flag] = self.ccl_tau
+                    # taus = taus.unsqueeze(1)
+                    ground = F.softmax(old_logits/self.ccl_tau, dim=1).detach().clone()
                     loss_ccl = -torch.sum(ground * torch.log(F.softmax(old_logits, dim=1)), dim=1).mean()
                     ccl_loss = ccl_loss + loss_ccl.detach() / self.t
                     loss = loss + self.ccl_coeff * loss_ccl / self.t
