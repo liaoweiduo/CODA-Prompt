@@ -591,6 +591,9 @@ class SLOTPrompt(Prompt):
                     mask = torch.max(logits, dim=1)[0] <= torch.max(old_logits, dim=1)[0] + self.ccl_margin       # [bs]
                     old_logits = old_logits[mask]       # filter samples with bias to old logits
 
+                    if self.debug_mode:
+                        print('ccl loss: mask:', mask)
+
                     # taus = torch.ones_like(flag).float()
                     # taus[flag] = self.ccl_tau
                     # taus = taus.unsqueeze(1)
@@ -598,6 +601,11 @@ class SLOTPrompt(Prompt):
                     loss_ccl = -torch.sum(ground * torch.log(F.softmax(old_logits, dim=1)), dim=1).mean()
                     ccl_loss = ccl_loss + loss_ccl.detach() / self.t
                     loss = loss + self.ccl_coeff * loss_ccl / self.t
+
+                    if self.debug_mode:
+                        print(f'ccl loss: ground {ground.shape}:', ground[0])
+                        print(f'ccl loss: loss_ccl:', loss_ccl)
+
 
             self.epoch_log['scaler']['Tag'].append('loss/ccl_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
