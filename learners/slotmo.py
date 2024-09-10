@@ -581,7 +581,7 @@ class SLOTPrompt(Prompt):
 
             # ccl loss
             ccl_loss = torch.zeros(1).mean()
-            if self.ccl_coeff > 0 and self.t > 0:
+            if self.ccl_coeff > 0 and self.t > 0 and self.epoch >= 5:
                 for task in self.tasks[:self.t]:        # for each old task
                     old_logits = out[:, task]
 
@@ -594,6 +594,9 @@ class SLOTPrompt(Prompt):
                     if self.debug_mode:
                         print('ccl loss: mask:', mask)
 
+                    if mask.sum() == 0:         # no need to apply ccl
+                        continue
+
                     # taus = torch.ones_like(flag).float()
                     # taus[flag] = self.ccl_tau
                     # taus = taus.unsqueeze(1)
@@ -605,7 +608,6 @@ class SLOTPrompt(Prompt):
                     if self.debug_mode:
                         print(f'ccl loss: ground {ground.shape}:', ground[0])
                         print(f'ccl loss: loss_ccl:', loss_ccl)
-
 
             self.epoch_log['scaler']['Tag'].append('loss/ccl_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
