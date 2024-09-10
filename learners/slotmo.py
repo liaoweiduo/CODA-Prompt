@@ -194,28 +194,48 @@ class SLOTPrompt(Prompt):
             last = self.model.last
             prompt = self.model.prompt
 
+        params_to_opt, names = [], []
         if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
             # if fewshot testing self.config['mode'], only learn classifier: model.last
-            params_to_opt = list(last.parameters())
-            names = [key for key, param in last.named_parameters()]
+            for k, p in self.model.named_parameters():
+                if 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'last':
-            params_to_opt = list(last.parameters())
-            names = [key for key, param in last.named_parameters()]
+            for k, p in self.model.named_parameters():
+                if 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'prompt':
-            params_to_opt = list(prompt.parameters())
-            names = [key for key, param in prompt.named_parameters()]
+            for k, p in self.model.named_parameters():
+                if 'prompt' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'expert':
-            params_to_opt = list(prompt.expert_predictor.parameters())
-            names = [key for key, param in prompt.expert_predictor.named_parameters()]
+            for k, p in self.model.named_parameters():
+                if 'expert_' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'slot':
-            params_to_opt = list(prompt.slot_attn.parameters())
-            names = [key for key, param in prompt.slot_attn.named_parameters()]
+            for k, p in self.model.named_parameters():
+                if 'slot_attn' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == '/slot':
-            params_to_opt = [p for k, p in list(prompt.named_parameters()) + list(last.named_parameters()) if 'slot_attn' not in k]
-            names = [key for key, param in prompt.named_parameters() if 'slot_attn' not in key] + [key for key, param in last.named_parameters()]
+            for k, p in self.model.named_parameters():
+                if 'prompt' in k and 'slot_attn' not in k:
+                    params_to_opt.append(p)
+                    names.append(k)
+                elif 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
+                    # params_to_opt.append(p[self.task[t]])
+                    # names.append(f'{k}[{np.min(self.task[t])}-{self.task[t]}]')
         else:
-            params_to_opt = list(prompt.parameters()) + list(last.parameters())
-            names = [key for key, param in prompt.named_parameters()] + [key for key, param in last.named_parameters()]
+            for k, p in self.model.named_parameters():
+                if 'prompt' in k or 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
 
         print('******************* init optimizer **********************')
         print(f'optimizer params: {"all" if target is None else target} len {len(params_to_opt)}')
@@ -550,7 +570,7 @@ class SLOTPrompt(Prompt):
             if self.debug_mode:
                 print('samples:', inputs.shape, 'prompts:', prompts.shape)
 
-            loss = torch.zeros(1).mean()
+            # loss = torch.zeros(1).mean().to(prompts.device)
             # pen: penultimate features; train: same forward as batch training.
             out, features = self.model(
                 inputs, q=prompts,
@@ -580,10 +600,14 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Value'].append(ce_loss.item())
 
             # ccl loss
-            ccl_loss = torch.zeros(1).mean()
+            ccl_loss = torch.zeros(1).mean().to(loss.device)
             if self.ccl_coeff > 0 and self.t > 0 and self.epoch >= 5:
                 for task in self.tasks[:self.t]:        # for each old task
-                    old_logits = out[:, task]
+                    old_last_weight = model.last.weight[task]       # [10, 768]
+                    old_last_bias = model.last.bias[task]           # [10]
+                    old_logits = features * old_last_weight.T.detach() + old_last_bias.detach()     # [bs, 10]
+
+                    # old_logits = out[:, task]
 
                     if self.debug_mode:
                         print('ccl loss: task:', task, f'old logits: {old_logits.shape}', old_logits[0])
@@ -619,7 +643,7 @@ class SLOTPrompt(Prompt):
             # out[:, :, :self.last_valid_out_dim] = -float('inf')
 
             # if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
-            s2p_loss = torch.zeros(1).mean()
+            s2p_loss = torch.zeros(1).mean().to(loss.device)
             if self.weight_coeff > 0.0:
                 # regularization loss on slot2prompt mapping
                 # selection: ['weights', 'response']
