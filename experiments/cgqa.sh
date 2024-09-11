@@ -51,7 +51,7 @@ LEARNERNAME=SLOTPrompt
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 
-ccl_coeffs=(0.01 0.05 0.1 0.3)
+ccl_coeffs=(0.13 0.17 0.2 0.25)
 devices=(0 1 2 3)
 for run_id in 0 1 2 3; do
 ccl_coeff=${ccl_coeffs[${run_id}]}
