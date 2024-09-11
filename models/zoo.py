@@ -49,6 +49,12 @@ class SlotPrompt(nn.Module):
                           nn.Linear(2*key_dim, len(self.e_layers) * self.e_p_length * self.emb_d))   # [64 -> 12*8*768]
         ])
 
+        # for k, p in self.s2p.named_parameters():
+        #     if 'weight' in k:
+        #         nn.init.kaiming_uniform_(p, nonlinearity='linear')
+        #     if 'bias' in k:
+        #         nn.init.constant_(p, 0)
+
         # prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
         # # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
         # setattr(self, f's2p', prompt_map)

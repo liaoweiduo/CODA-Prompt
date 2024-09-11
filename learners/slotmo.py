@@ -605,7 +605,8 @@ class SLOTPrompt(Prompt):
                 for task in self.tasks[:self.t]:        # for each old task
                     old_last_weight = model.last.weight[task]       # [10, 768]
                     old_last_bias = model.last.bias[task]           # [10]
-                    old_logits = features @ old_last_weight.T.detach() + old_last_bias.detach()     # [bs, 10]
+                    old_logits = F.linear(features, old_last_weight.detach(), old_last_bias.detach())
+                    # old_logits = features @ old_last_weight.T.detach() + old_last_bias.detach()     # [bs, 10]
 
                     # old_logits = out[:, task]
 
