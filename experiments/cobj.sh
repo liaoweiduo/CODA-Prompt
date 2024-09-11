@@ -45,7 +45,7 @@ LEARNERNAME=SLOTPrompt
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 
-ccl_coeffs=(0.5 1 1.2 1.5)
+ccl_coeffs=(0.01 0.04 0.07 0.1)
 devices=(4 5 6 7)
 for run_id in 0 1 2 3; do
 ccl_coeff=${ccl_coeffs[${run_id}]}
@@ -58,6 +58,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 8 10 0.05 ${ccl_coeff} 0.1 1.2 \
     --slot_pre_learn_model slot-k10-recon-slot_lr0.0002 \
+    --t0_model_from slot-k10-ccl0-l2weight0.05 \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 

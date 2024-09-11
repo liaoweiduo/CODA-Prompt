@@ -1604,6 +1604,8 @@ class ViTZoo(nn.Module):
 
         # classifier
         self.last = nn.Linear(768, num_classes)
+        nn.init.kaiming_uniform_(self.last.weight, nonlinearity='linear')
+        nn.init.constant_(self.last.bias, 0)
 
         # create prompting module
         if self.prompt_flag == 'l2p':

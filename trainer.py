@@ -152,6 +152,7 @@ class Trainer:
             # slot training args
             'only_learn_slot': args.only_learn_slot,
             'slot_pre_learn_model': args.slot_pre_learn_model,
+            't0_model_from': args.t0_model_from,
             'slot_lr': args.slot_lr,
         }
         # pmo settings
