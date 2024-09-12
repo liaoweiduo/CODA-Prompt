@@ -143,7 +143,7 @@ class Slot2Prompt(nn.Module):
         self.e_layers = e_layers        # [0, 1, 2, 3, 4, 5]
         self.FPS = FPS
 
-        self.selector_mode = 'pk'     # [gate, mlp, attn]
+        self.selector_mode = 'attn'     # [gate, mlp, attn]
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
             self.slot_map = nn.ModuleList([
                 # nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),
