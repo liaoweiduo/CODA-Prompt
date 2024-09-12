@@ -21,10 +21,9 @@ mkdir -p $OUTDIR
 # SLOT-Prompt
 #
 # prompt parameter args:
-#    arg 1 = prompt component pool size, no use
+#    arg 1 = prompt component pool size
 #    arg 2 = prompt length
 #    arg 3 = num of slots extracted from one img
-#    arg 4 = coeff for regularization
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
 #slot_lrs=(0.0002 0.0003 0.0004 0.0006)
@@ -39,28 +38,30 @@ LEARNERNAME=SLOTPrompt
 #  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 8 10 0.05 1.0 0.1 1.2 \
+#    --prompt_param 30 8 10 0.0 1.0 0.1 1.2 \
 #    --slot_lr ${slot_lr} \
 #    --only_learn_slot \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 
-ccl_coeffs=(0.01 0.04 0.07 0.1)
+lrs=(0.0001 0.0005 0.001 0.005)
 devices=(4 5 6 7)
 for run_id in 0 1 2 3; do
-ccl_coeff=${ccl_coeffs[${run_id}]}
+lr=${lrs[${run_id}]}
 device=${devices[${run_id}]}
-LOGNAME=slot-k10-ccl${ccl_coeff}-l2weight0.05
+LOGNAME=slot-k10-p30-pk-lr${lr}
+#LOGNAME=slot-k10-p30-ccl${ccl_coeff}-l2weight0.05
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   --shm-size 8G liaoweiduo/coda:2.0_sklearn \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 8 10 0.05 ${ccl_coeff} 0.1 1.2 \
+    --prompt_param 30 8 10 0.0 0.0 0.1 1.2 \
     --slot_pre_learn_model slot-k10-recon-slot_lr0.0002 \
-    --t0_model_from slot-k10-ccl0-l2weight0.05 \
+    --lr ${lr} ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
+#    --t0_model_from slot-k10-p30-ccl0-l2weight0.05 \
 
 
 # CODA-P

@@ -127,3 +127,228 @@ def init_tensor(a, b=None, c=None, d=None, ortho=False):
     else:
         nn.init.xavier_uniform_(p)
     return p
+
+
+class Slot2Prompt(nn.Module):
+    def __init__(self, emb_d, n_tasks, e_pool_size, e_p_length, e_layers, FPS, key_dim=128):
+        super().__init__()
+        self.task_count = 0
+        self.emb_d = emb_d
+        self.key_d = key_dim
+        self.n_tasks = n_tasks
+
+        # prompt basic param
+        self.e_pool_size = e_pool_size  # 100
+        self.e_p_length = e_p_length    # 8
+        self.e_layers = e_layers        # [0, 1, 2, 3, 4, 5]
+        self.FPS = FPS
+
+        self.selector_mode = 'pk'     # [gate, mlp, attn]
+        if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
+            self.slot_map = nn.ModuleList([
+                # nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),
+                nn.Linear(key_dim, 1) if self.selector_mode == 'gate'
+                else nn.Linear(key_dim, key_dim),
+            ])
+            self.prompt_map = nn.ModuleList([
+                nn.Sequential(nn.Linear(key_dim, 2*key_dim), nn.ReLU(inplace=True),
+                              nn.Linear(2*key_dim, len(self.e_layers) * self.e_p_length * self.emb_d))   # [64 -> 12*8*768]
+            ])
+
+            # for k, p in self.s2p.named_parameters():
+            #     if 'weight' in k:
+            #         nn.init.kaiming_uniform_(p, nonlinearity='linear')
+            #     if 'bias' in k:
+            #         nn.init.constant_(p, 0)
+        elif self.selector_mode == 'attn':
+            # e prompt init
+            for e in self.e_layers:
+                # for model saving/loading simplicity, we init the full paramaters here
+                # however, please note that we reinit the new components at each task
+                # in the "spirit of continual learning", as we don't know how many tasks
+                # we will encounter at the start of the task sequence
+                #
+                # in the original paper, we used ortho init at the start - this modification is more
+                # fair in the spirit of continual learning and has little affect on performance
+                e_l = self.e_p_length
+                p = tensor_prompt(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
+                k = tensor_prompt(self.e_pool_size, self.key_d)  # [100, 128]
+                # a = tensor_prompt(self.e_pool_size, self.key_d)
+                p = self.gram_schmidt(p)
+                k = self.gram_schmidt(k)
+                # a = self.gram_schmidt(a)
+                setattr(self, f'e_p_{e}', p)
+                setattr(self, f'e_k_{e}', k)
+                # setattr(self, f'e_a_{e}', a)
+        else:
+            raise NotImplementedError
+
+    def new_task(self):
+        if not self.FPS:
+            if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
+                self.slot_map.append(
+                    nn.Linear(self.key_d, 1) if self.selector_mode == 'gate'
+                    else nn.Linear(self.key_d, self.key_d))
+                self.prompt_map.append(
+                    nn.Sequential(nn.Linear(self.key_d, 2*self.key_d), nn.ReLU(inplace=True),
+                                  nn.Linear(2*self.key_d, len(self.e_layers) * self.e_p_length * self.emb_d)))
+            else:
+                for e in self.e_layers:
+                    K = getattr(self, f'e_k_{e}')
+                    P = getattr(self, f'e_p_{e}')
+                    k = self.gram_schmidt(K)
+                    p = self.gram_schmidt(P)
+                    setattr(self, f'e_p_{e}', p)
+                    setattr(self, f'e_k_{e}', k)
+
+    def forward(self, slots, s2p=None, train=False):
+        # slots [bs, n20, h64]
+        bs, n, h = slots.shape
+        if s2p is None:
+            s2p = self
+        slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
+        prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
+
+        if self.selector_mode == 'gate':
+            weights = F.sigmoid(slot_map(slots))        # -> [bs, k, 1]
+            weighted_slots = torch.sum(weights * slots, dim=1)     # -> [bs, h]
+            prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
+            # [bs, e, l, d]
+        elif self.selector_mode == 'mlp':       # use dense
+            weighted_slots = slot_map(slots)
+            weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
+            prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
+            # [bs, e, l, d]
+        else:
+            prompts = []
+            for l in self.e_layers:
+                K = getattr(self, f'e_k_{l}')  # [100, h]
+                p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
+                if self.FPS:  # use all prompts
+                    s = 0
+                    f = self.e_pool_size
+                else:
+                    pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
+                    s = int(self.task_count * pt)  # 10 prompts for one task
+                    f = int((self.task_count + 1) * pt)
+
+                # freeze/control past tasks
+                if train:
+                    if self.task_count > 0:
+                        K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
+                        p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
+                    else:
+                        K = K[s:f]
+                        p = p[s:f]
+                else:
+                    K = K[0:f]
+                    p = p[0:f]
+
+                # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
+                # with attention and cosine sim
+                n_K = nn.functional.normalize(K, dim=1)
+                q = nn.functional.normalize(slots, dim=2)
+                aq_k = torch.einsum('bnh,kh->bnk', q, n_K)  # aq_k is cosine similarity [bs, n10, k30]
+                # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
+                P = torch.einsum('bnk,kld->bld', aq_k, p)   # wei-sum over k -> bnld -> sum over n -> bld
+                prompts.append(P)
+            prompts = torch.stack(prompts, dim=1)       # [bs, e, l, d]
+
+        # prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
+        # # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
+        # prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
+
+        return prompts
+
+    # code for this function is modified from:
+    # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
+    def gram_schmidt(self, vv):  # 施密特正交化
+
+        def projection(u, v):
+            denominator = (u * u).sum()
+
+            if denominator < 1e-8:
+                return None
+            else:
+                return (v * u).sum() / denominator * u
+
+        # check if the tensor is 3D and flatten the last two dimensions if necessary
+        is_3d = len(vv.shape) == 3
+        if is_3d:
+            shape_2d = copy.deepcopy(vv.shape)
+            vv = vv.view(vv.shape[0], -1)
+
+        # swap rows and columns
+        vv = vv.T
+
+        # process matrix size
+        nk = vv.size(1)
+        uu = torch.zeros_like(vv, device=vv.device)
+
+        # get starting point
+        if self.FPS:        # use all prompts
+            s = 0
+            f = self.e_pool_size
+        else:
+            pt = int(self.e_pool_size / (self.n_tasks))
+            s = int(self.task_count * pt)
+            f = int((self.task_count + 1) * pt)
+        if s > 0:
+            uu[:, 0:s] = vv[:, 0:s].clone()
+        for k in range(s, f):
+            redo = True
+            while redo:
+                redo = False
+                vk = torch.randn_like(vv[:, k]).to(vv.device)
+                uk = 0
+                for j in range(0, k):
+                    if not redo:
+                        uj = uu[:, j].clone()
+                        proj = projection(uj, vk)
+                        if proj is None:
+                            redo = True
+                            print('restarting!!!')
+                        else:
+                            uk = uk + proj
+                if not redo: uu[:, k] = vk - uk
+        for k in range(s, f):
+            uk = uu[:, k].clone()
+            uu[:, k] = uk / (uk.norm())
+
+        # undo swapping of rows and columns
+        uu = uu.T
+
+        # return from 2D
+        if is_3d:
+            uu = uu.view(shape_2d)
+
+        return torch.nn.Parameter(uu)
+
+    # def prompt_map_init(self, task_id):
+    #     for e in self.e_layers:
+    #         prompt_map = tensor_prompt(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
+    #         # setattr(self, f's2p_{task_id}_{e}', prompt_map)       # [bs, 64] @ [64, 8, 768] -> [bs, 8, 768]
+    #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
+
+    # def prompt_map_freeze(self, task_id):
+    #     for e in self.e_layers:
+    #         prompt_map = getattr(self, f's2p_{task_id}_{e}')
+    #         prompt_map.requires_grad = False
+    #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
+
+
+# note - ortho init has not been found to help l2p/dual prompt
+def tensor_prompt(a, b=None, c=None, d=None, ortho=False) -> torch.nn.Parameter:
+    if b is None:
+        p = torch.nn.Parameter(torch.FloatTensor(a), requires_grad=True)
+    elif c is None:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b), requires_grad=True)
+    elif d is None:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b, c), requires_grad=True)
+    else:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b, c, d), requires_grad=True)
+    if ortho:
+        nn.init.orthogonal_(p)
+    else:
+        nn.init.uniform_(p)
+    return p

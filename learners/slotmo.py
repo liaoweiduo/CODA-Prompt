@@ -51,10 +51,10 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary(aux_dataset)
         # self.aux = Auxiliary()
 
-        self.weight_coeff = float(self.config['prompt_param'][1][2])
-        self.ccl_coeff = float(self.config['prompt_param'][1][3])
-        self.ccl_margin = float(self.config['prompt_param'][1][4])
-        self.ccl_tau = float(self.config['prompt_param'][1][5])
+        self.weight_coeff = float(self.config['prompt_param'][1][3])
+        self.ccl_coeff = float(self.config['prompt_param'][1][4])
+        self.ccl_margin = float(self.config['prompt_param'][1][5])
+        self.ccl_tau = float(self.config['prompt_param'][1][6])
 
         try:
             prompt = self.model.module.prompt
@@ -610,7 +610,6 @@ class SLOTPrompt(Prompt):
                         print('ccl loss: task:', task, f'old logits: {old_logits.shape}', old_logits[0])
 
                     mask = torch.max(logits, dim=1)[0] <= torch.max(old_logits, dim=1)[0] + self.ccl_margin       # [bs]
-                    old_logits = old_logits[mask]       # filter samples with bias to old logits
 
                     if self.debug_mode:
                         print('ccl loss: mask:', mask)
@@ -618,10 +617,11 @@ class SLOTPrompt(Prompt):
                     if mask.sum() == 0:         # no need to apply ccl
                         continue
 
-                    # taus = torch.ones_like(flag).float()
-                    # taus[flag] = self.ccl_tau
-                    # taus = taus.unsqueeze(1)
-                    ground = F.softmax(old_logits/self.ccl_tau, dim=1).detach().clone()
+                    # old_logits = old_logits[mask]  # filter samples with bias to old logits
+                    taus = torch.ones_like(mask).float()
+                    taus[mask] = self.ccl_tau
+                    taus = taus.unsqueeze(1)
+                    ground = F.softmax(old_logits/taus, dim=1).detach().clone()
                     loss_ccl = -torch.sum(ground * torch.log(F.softmax(old_logits, dim=1)), dim=1).mean()
                     ccl_loss = ccl_loss + loss_ccl.detach() / self.t
                     loss = loss + self.ccl_coeff * loss_ccl / self.t
