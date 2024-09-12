@@ -3,7 +3,7 @@ first_split_size: 10
 other_split_size: 10
 schedule:
 - [100, 50]
-- [100, 50]
+- [100, 20]
 schedule_type: cosine
 batch_size: 32
 optimizer: Adam
@@ -14,7 +14,7 @@ momentum: 0.9
 weight_decay: 0
 model_type: zoo
 model_name: vit_pt_imnet
-max_task: 3     # -1 for all
+max_task: -1     # -1 for all
 #dataroot: ../datasets
 workers: 4
 validation: False

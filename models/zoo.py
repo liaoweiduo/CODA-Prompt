@@ -23,8 +23,8 @@ class SlotPrompt(nn.Module):
         # prompt basic param
         self.e_pool_size = int(prompt_param[0])  # 100
         self.e_p_length = int(prompt_param[1])  # 8
-        self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-        # self.e_layers = [0, 1, 2, 3, 4]
+        # self.e_layers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        self.e_layers = [0, 1, 2, 3, 4]
         # [] for no prompt.
         # prompt mapping init
         # self.prompt_map_init(self.task_count)
@@ -1541,6 +1541,7 @@ class ViTZoo(nn.Module):
             try:
                 from timm.models import vit_base_patch16_224
                 load_dict = vit_base_patch16_224(pretrained=True).state_dict()
+                print(f'Load vit_base_patch16_224 from timm.')
             except:
                 print(f'Load vit_base_patch16_224 from local file: '
                       f'{os.path.abspath("../checkpoints/vit_base_patch16_224.pth")}')

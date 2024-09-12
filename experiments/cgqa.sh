@@ -52,12 +52,12 @@ LEARNERNAME=SLOTPrompt
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 
-lrs=(0.0001 0.0005 0.001 0.005)
+lrs=(0.0005 0.001 0.005 0.01)
 devices=(0 1 2 3)
 for run_id in 0 1 2 3; do
 lr=${lrs[${run_id}]}
 device=${devices[${run_id}]}
-LOGNAME=slot-k10-p30-pk-lr${lr}
+LOGNAME=slot-k10-p30-5layers-attn-lr${lr}
 #LOGNAME=slot-k10-p30-ccl${ccl_coeff}-l2weight0.05
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
