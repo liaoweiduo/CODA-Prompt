@@ -206,15 +206,17 @@ class Slot2Prompt(nn.Module):
         bs, n, h = slots.shape
         if s2p is None:
             s2p = self
-        slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
-        prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
 
         if self.selector_mode == 'gate':
+            slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
+            prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
             weights = F.sigmoid(slot_map(slots))        # -> [bs, k, 1]
             weighted_slots = torch.sum(weights * slots, dim=1)     # -> [bs, h]
             prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
             # [bs, e, l, d]
         elif self.selector_mode == 'mlp':       # use dense
+            slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
+            prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
             weighted_slots = slot_map(slots)
             weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
             prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
@@ -222,9 +224,9 @@ class Slot2Prompt(nn.Module):
         else:
             prompts = []
             for l in self.e_layers:
-                K = getattr(self, f'e_k_{l}')  # [100, h]
-                p = getattr(self, f'e_p_{l}')  # [100, 8, 768]
-                if self.FPS:  # use all prompts
+                K = getattr(s2p, f'e_k_{l}')  # [100, h]
+                p = getattr(s2p, f'e_p_{l}')  # [100, 8, 768]
+                if s2p.FPS:  # use all prompts
                     s = 0
                     f = self.e_pool_size
                 else:
