@@ -1349,7 +1349,7 @@ class SLOTPrompt(Prompt):
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
                     if slot_recon_loss:
-                        recon_losses.update(recon_loss, bs)
+                        recon_losses.update(recon_loss.item(), bs)
                         continue
 
                     # forward all prompts
@@ -1430,7 +1430,7 @@ class SLOTPrompt(Prompt):
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
                     if slot_recon_loss:
-                        recon_losses.update(recon_loss, bs)
+                        recon_losses.update(recon_loss.item(), bs)
                         continue
 
                     if len(target) > 1:
