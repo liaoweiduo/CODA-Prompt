@@ -48,7 +48,7 @@ class AverageMeter(object):
                 assert self.top_k is not None
                 assert len(self.top_k) == len(self.val)
                 self.val = np.array(self.val)
-            self.sum += val * n
+            self.sum += self.val * n
             self.count += n
             self.avg = self.sum / self.count
 
