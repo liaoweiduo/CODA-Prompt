@@ -1337,7 +1337,7 @@ class SLOTPrompt(Prompt):
                     mk_task_pred = mk_task_pred.t()
                     correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
                     res = []
-                    for k in logit_task_mask_top_k:
+                    for k in range(logit_task_mask_top_k):
                         correct_k = correct[:k].reshape(-1).float().sum().item()
                         res.append(correct_k * 100.0 / bs)
                     mk_task_acc.update(res, bs)
@@ -1415,7 +1415,7 @@ class SLOTPrompt(Prompt):
                         task_ids[idx] = label_task_map[target[idx].item()]
                     mk_task_pred = mk_task_pred.t()
                     correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
-                    for k in logit_task_mask_top_k:
+                    for k in range(logit_task_mask_top_k):
                         correct_k = correct[:k].reshape(-1).float().sum().item()
                         mk_task_acc.update(correct_k * 100.0 / bs, bs)
 
