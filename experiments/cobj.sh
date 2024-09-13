@@ -26,9 +26,9 @@ mkdir -p $OUTDIR
 #    arg 3 = num of slots extracted from one img
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-slot_lrs=(0.0002)
-devices=(4)
-for run_id in 0; do
+slot_lrs=(0.0001 0.0004 0.007 0.001)
+devices=(4 5 6 7)
+for run_id in 0 1 2 3; do
 slot_lr=${slot_lrs[${run_id}]}
 device=${devices[${run_id}]}
 LOGNAME=slot-k10-recon-mk-slot_lr${slot_lr}
