@@ -55,6 +55,7 @@ class SlotAttention(nn.Module):
         slots, attn = self.forward_slots(features)
         # slots [bs, k20, d64], attn [bs, n196, k20]
 
+        # recon
         slot_features = self.ln_decoder(slots)
         slot_features = self.decoder(slot_features)     # [bs, k20, 768]
         slot_features = torch.einsum('bkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
@@ -141,7 +142,7 @@ class Slot2Prompt(nn.Module):
         self.e_pool_size = e_pool_size  # 100
         self.e_p_length = e_p_length    # 8
         self.e_layers = e_layers        # [0, 1, 2, 3, 4, 5]
-        self.FPS = FPS
+        self.FPS = FPS          # or can be True all the time?
 
         self.selector_mode = 'attn'     # [gate, mlp, attn]
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
@@ -171,9 +172,9 @@ class Slot2Prompt(nn.Module):
                 # in the original paper, we used ortho init at the start - this modification is more
                 # fair in the spirit of continual learning and has little affect on performance
                 e_l = self.e_p_length
-                p = tensor_prompt(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
-                k = tensor_prompt(self.e_pool_size, self.key_d)  # [100, 128]
-                # a = tensor_prompt(self.e_pool_size, self.key_d)
+                p = init_tensor(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
+                k = init_tensor(self.e_pool_size, self.key_d)  # [100, 128]
+                # a = init_tensor(self.e_pool_size, self.key_d)
                 p = self.gram_schmidt(p)
                 k = self.gram_schmidt(k)
                 # a = self.gram_schmidt(a)
@@ -328,7 +329,7 @@ class Slot2Prompt(nn.Module):
 
     # def prompt_map_init(self, task_id):
     #     for e in self.e_layers:
-    #         prompt_map = tensor_prompt(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
+    #         prompt_map = init_tensor(self.key_d, self.e_p_length, self.emb_d)  # [64, 8, 768]
     #         # setattr(self, f's2p_{task_id}_{e}', prompt_map)       # [bs, 64] @ [64, 8, 768] -> [bs, 8, 768]
     #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
 
@@ -337,20 +338,3 @@ class Slot2Prompt(nn.Module):
     #         prompt_map = getattr(self, f's2p_{task_id}_{e}')
     #         prompt_map.requires_grad = False
     #         setattr(self, f's2p_{task_id}_{e}', prompt_map)
-
-
-# note - ortho init has not been found to help l2p/dual prompt
-def tensor_prompt(a, b=None, c=None, d=None, ortho=False) -> torch.nn.Parameter:
-    if b is None:
-        p = torch.nn.Parameter(torch.FloatTensor(a), requires_grad=True)
-    elif c is None:
-        p = torch.nn.Parameter(torch.FloatTensor(a, b), requires_grad=True)
-    elif d is None:
-        p = torch.nn.Parameter(torch.FloatTensor(a, b, c), requires_grad=True)
-    else:
-        p = torch.nn.Parameter(torch.FloatTensor(a, b, c, d), requires_grad=True)
-    if ortho:
-        nn.init.orthogonal_(p)
-    else:
-        nn.init.uniform_(p)
-    return p

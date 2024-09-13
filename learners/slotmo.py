@@ -88,8 +88,12 @@ class SLOTPrompt(Prompt):
 
     def create_model(self):
         cfg = self.config
-        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=self.prompt_param, use_vit_emb=False)
-        model.prompt.tasks = cfg['tasks']
+        n_task = self.prompt_param[0]
+        tasks = cfg['tasks']
+        prompt_parameters = self.prompt_param[1]
+        prompt_param = [[n_task, tasks], prompt_parameters]
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=prompt_param, use_vit_emb=False)
+
         # model.prompt.expert_predictor[0] = nn.Sequential(
         #     nn.Linear(len(cfg['tasks'][0]), len(cfg['tasks'][0])),
         #     nn.ReLU(inplace=True),
@@ -296,6 +300,7 @@ class SLOTPrompt(Prompt):
             if self.config['only_learn_slot'] or self.config['slot_pre_learn_model'] == 'none':
                 self.log(f'Phase I： training slots')
                 losses = AverageMeter()
+                mk_losses = AverageMeter()
                 batch_time = AverageMeter()
                 batch_timer = Timer()
 
@@ -343,7 +348,8 @@ class SLOTPrompt(Prompt):
                             # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                             # model update
-                            loss, output, _ = self.update_model(x, y, learn_slots=True)
+                            loss, output, loss_dict = self.update_model(x, y, learn_slots=True)
+                            mk_loss = loss_dict['mk_loss']
 
                             # measure elapsed time
                             batch_time.update(batch_timer.toc())
@@ -352,6 +358,7 @@ class SLOTPrompt(Prompt):
                             # measure accuracy and record loss
                             y = y.detach()
                             losses.update(loss, y.size(0))
+                            mk_losses.update(mk_loss, y.size(0))
                             batch_timer.tic()
 
                         # eval update
@@ -359,11 +366,14 @@ class SLOTPrompt(Prompt):
                             'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                         self.log(
                             ' * Loss {loss.avg:.3f} | '
+                            'MK Loss {mk_loss.avg:.3f} | '
                             'Time {time:.3f}s ({i} batches)'.format(
-                                loss=losses, time=batch_time.avg*len(train_loader), i=len(train_loader)))
+                                loss=losses, mk_loss=mk_losses,
+                                time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                         # reset
                         losses = AverageMeter()
+                        mk_losses = AverageMeter()
 
                         # validation recon loss
                         if val_loader is not None:
@@ -395,6 +405,7 @@ class SLOTPrompt(Prompt):
                 losses = AverageMeter()
                 ccl_losses = AverageMeter()
                 s2p_losses = AverageMeter()
+                mk_losses = AverageMeter()
                 acc = AverageMeter()
                 batch_time = AverageMeter()
                 batch_timer = Timer()
@@ -430,8 +441,9 @@ class SLOTPrompt(Prompt):
                         # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                         # model update
-                        loss, output, reg_loss_dict = self.update_model(x, y)  # , task
-                        ccl_loss, s2p_loss = reg_loss_dict['ccl_loss'], reg_loss_dict['s2p_loss']
+                        loss, output, loss_dict = self.update_model(x, y)  # , task
+                        ccl_loss, s2p_loss = loss_dict['ccl_loss'], loss_dict['s2p_loss']
+                        mk_loss = loss_dict['mk_loss']
 
                         # measure elapsed time
                         batch_time.update(batch_timer.toc())
@@ -442,6 +454,7 @@ class SLOTPrompt(Prompt):
                         accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                         losses.update(loss, y.size(0))
                         ccl_losses.update(ccl_loss, y.size(0))
+                        mk_losses.update(mk_loss, y.size(0))
                         s2p_losses.update(s2p_loss, y.size(0))
                         batch_timer.tic()
 
@@ -452,14 +465,16 @@ class SLOTPrompt(Prompt):
                         ' * Loss {loss.avg:.3f} | '
                         'CCL Loss {ccl_loss.avg:.3f} | '
                         'S2P Loss {s2p_loss.avg:.3f} | '
+                        'MK Loss {mk_loss.avg:.3f} | '
                         'Train Acc {acc.avg:.3f} | '
                         'Time {time:.3f}s ({i} batches)'.format(
-                            loss=losses, ccl_loss=ccl_losses, s2p_loss=s2p_losses, acc=acc,
+                            loss=losses, ccl_loss=ccl_losses, s2p_loss=s2p_losses, mk_loss=mk_losses, acc=acc,
                             time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                     # reset
                     losses = AverageMeter()
                     ccl_losses = AverageMeter()
+                    mk_losses = AverageMeter()
                     s2p_losses = AverageMeter()
                     acc = AverageMeter()
 
@@ -506,16 +521,37 @@ class SLOTPrompt(Prompt):
         q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
         prompts, slots, attn, recon_loss = q
 
+        # slot_attn_class_key
+        K = model.prompt.slot_attn_class_key        # [c100, h128]
+        s = self.last_valid_out_dim
+        f = self.valid_out_dim
+        K = K[:f]
+        if self.t > 0:
+            K = torch.cat((K[:s].detach().clone(),K[s:f]), dim=0)
+        n_K = nn.functional.normalize(K, dim=1)
+        # slots shape [bs, 1\T, k10, h128]
+        q = nn.functional.normalize(slots, dim=-1)
+        mk_logit = torch.einsum('btkh,ch->bc', q, n_K)  # sum over k -> wei-sum over h -> cos sim
+        mk_logit[:, :s] = -float('inf')
+
+        mk_loss = F.cross_entropy(mk_logit, targets.long())
+
+        self.epoch_log['scaler']['Tag'].append('loss/mk_loss')
+        self.epoch_log['scaler']['Idx'].append(self.epoch)
+        self.epoch_log['scaler']['Value'].append(mk_loss.item())
+
         if learn_slots:
             # only update slot attn
-            loss = torch.mean(torch.stack(recon_loss))       # list [1\T]
+            recon_loss = torch.mean(torch.stack(recon_loss))       # list [1\T]
 
             if self.debug_mode:
-                print(f'slot recon loss: {loss.item()}')
+                print(f'slot recon loss: {recon_loss.item()}')
 
             self.epoch_log['scaler']['Tag'].append('loss/slot_recon_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
-            self.epoch_log['scaler']['Value'].append(loss.item())
+            self.epoch_log['scaler']['Value'].append(recon_loss.item())
+
+            loss = recon_loss + mk_loss
 
             loss.backward()
 
@@ -523,7 +559,8 @@ class SLOTPrompt(Prompt):
             self.optimizer.step()
 
             logits = None
-            return loss.detach(), logits, None
+            return loss.detach(), logits, {'recon_loss': recon_loss.detach(), 'mk_loss': mk_loss.detach(),
+                                           'mk_logit': mk_logit.detach()}
 
         else:
             bs, t, e, p, d = prompts.shape      # no k
@@ -787,7 +824,9 @@ class SLOTPrompt(Prompt):
             self.optimizer.step()
 
             out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [bs, n_cls]
-            return loss.detach(), out, {'ccl_loss': ccl_loss.detach(), 's2p_loss': s2p_loss.detach()}
+            return (loss.detach(), out,
+                    {'ccl_loss': ccl_loss.detach(), 's2p_loss': s2p_loss.detach(),
+                     'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach()})
 
     def update_model_f4m(self, inputs, targets, match_pool=False, learn_slots=False):
         self.optimizer.zero_grad()
@@ -1226,6 +1265,8 @@ class SLOTPrompt(Prompt):
         # This function doesn't distinguish tasks.
         batch_timer = Timer()
         acc = AverageMeter()
+        mk_acc = AverageMeter()
+        mk_task_acc = AverageMeter(top_k=(1, 2, 3, 4, 5))
         recon_losses = AverageMeter()
         batch_timer.tic()
 
@@ -1235,6 +1276,10 @@ class SLOTPrompt(Prompt):
         # # load statistics for evaluating
         # self.load_statistics()
 
+        label_task_map = np.zeros(self.config['num_classes'])
+        for task_id, task in enumerate(self.tasks):
+            for ta in task:
+                label_task_map[ta] = task_id
         for i, sample in enumerate(dataloader):
             concepts = None
             if len(sample) == 3:
@@ -1265,8 +1310,37 @@ class SLOTPrompt(Prompt):
                     prompts, slots, attn, recon_loss = q
                     bs, t, e, p, d = prompts.shape
                     assert t == 1
-                    # bs, t, k, e, p, d = prompts.shape
-                    # prompts = prompts.reshape(bs, t * k, e, p, d)
+
+                    # slot_attn_class_key
+                    K = model.prompt.slot_attn_class_key  # [c100, h128]
+                    f = self.valid_out_dim
+                    K = K[:f]
+                    n_K = nn.functional.normalize(K, dim=1)
+                    # slots shape [bs, 1\T, k10, h128]
+                    query = nn.functional.normalize(slots, dim=-1)
+                    mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
+                    # sum over k -> wei-sum over h -> cos sim
+
+                    # determine logit_mask for classifier output
+                    logit_task_mask_top_k = self.config['logit_task_mask_top_k']
+
+                    # mk_class_acc
+                    mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
+
+                    task_ids = torch.empty_like(target)     # [bs]
+                    _, mk_pred = mk_logit.topk(logit_task_mask_top_k, 1, True, True)    # [bs, topk]
+                    mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
+                    for idx in range(bs):
+                        for idxx in range(logit_task_mask_top_k):
+                            mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
+                        task_ids[idx] = label_task_map[target[idx].item()]
+                    mk_task_pred = mk_task_pred.t()
+                    correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
+                    res = []
+                    for k in logit_task_mask_top_k:
+                        correct_k = correct[:k].reshape(-1).float().sum().item()
+                        res.append(correct_k * 100.0 / bs)
+                    mk_task_acc.update(res, bs)
 
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
@@ -1286,76 +1360,22 @@ class SLOTPrompt(Prompt):
                     out = out[:, :, :self.valid_out_dim]
                     # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
-                    # # apply mask for slots
-                    # out = out.reshape(bs, t, k, self.valid_out_dim)
-                    # out_min = torch.min(out)
-                    # for tt in range(t):
-                    #     # out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
-                    #     # random mask with mean -100
-                    #     out[:, tt, :, :self.tasks[tt][0]] = torch.rand_like(out[:, tt, :, :self.tasks[tt][0]]) + out_min - 100
-                    #     # out[:, tt, :, self.tasks[tt][-1]+1:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]+1:]) + out_min - 100
-                    # out = out.reshape(bs, t * k, self.valid_out_dim)
-                    # ## only retain classes in self.tasks
-                    # # masked_out = torch.ones_like(out) * (-float('inf'))
-                    # # out = out.reshape(bs, t, k, self.valid_out_dim)
-                    # # masked_out = masked_out.reshape(bs, t, k, self.valid_out_dim)
-                    # # for tt in range(t):
-                    # #     masked_out[:, tt, :, self.tasks[tt]] = out[:, tt, :, self.tasks[tt]]
-                    # # out = masked_out
-                    # # out = out.reshape(bs, t*k, self.valid_out_dim)
-
                     if self.debug_mode and i == 0:
                         print(f'out: {out[0, 0]}')
                         print(f'valid_out_dim: {self.valid_out_dim}')
 
-                    # # forward expert classifier
-                    # # features = features.reshape(bs, t, k, -1)
-                    # out = out.reshape(bs, t, k, self.valid_out_dim)
-                    # expert_predictor = model_single.prompt.expert_predictor
-                    # exp_out = []
-                    #
-                    # for tt in range(t):
-                    #     o = out[:, tt].reshape(-1, out.size(-1))       # [bs*k, valid_out_dim]
-                    #     exp_out.append(
-                    #         expert_predictor[tt](o[:, self.tasks[tt]]).reshape(bs, k, 2)
-                    #     )
-                    #     # exp_out.append(
-                    #     #     expert_predictor[tt](features[:, tt].reshape(-1, features.size(-1))).reshape(bs, k, 2)
-                    #     # )  # [bs, 10, 2]
-                    # exp_out = torch.stack(exp_out, dim=1)       # [bs, t, k, 2]
-                    # out = out.reshape(bs, t * k, self.valid_out_dim)
-                    #
-                    # # # predict based on cls_stats
-                    # # # [bs, 20, 768] -> [bs, 768]
-                    # # output = self.predict_mo(features)[:, :self.valid_out_dim]        # [bs, n_cls]
-                    #
-                    # # voting [bs, 20, 100] -> [bs, 100]
-                    # exp_out = torch.argmax(exp_out, dim=-1).reshape(bs, t*k)  # [bs, t*k10]
-                    # # # if no experts for 1 img, then use all experts
-                    # # exp_out[torch.sum(exp_out, dim=-1) == 0] = 1  # all 0 means no expert, use all experts: all 1
-                    # # change all 0 to -1
-                    # exp_out[exp_out == 0] = -1
+                    output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
 
-                    # bs, n_slots, n_cls = out.shape
-                    # # out = out.reshape(bs, t, k, n_cls)
-                    # # outinf = torch.ones_like(out) * -float('inf')
-                    # # tasks = self.config['tasks']
-                    # # for tid, task in enumerate(tasks):
-                    # #     out[:, tid, :, ]
-                    # out = torch.argmax(out, dim=-1)     # [bs, 20]
-                    # # out = (out * exp_out).long()     # apply expert mask, thus only experts' selection is positive.
-                    # output = torch.stack(
-                    #     [torch.sum(out == cls_id, dim=-1) for cls_id in range(n_cls)], dim=-1)  # [bs, n_cls]
-                    #
-                    # # output = torch.zeros(bs, n_cls).to(out.device)
-                    # # for cls_id in range(n_cls):
-                    # #     output[:, cls_id] = torch.sum(out == cls_id, dim=-1)
-                    #
-                    # # if self.debug_mode:
-                    # #     print(f'batch{i}: \noutput:{output}')
+                    # apply logit_task_mask_top_k on output
+                    logit = torch.zeros_like(output) * -float('inf')
+                    mk_task_pred = mk_task_pred.t()     # [bs, topk]
 
-                    output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [s, n_cls]
-                    acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
+                    for sample_id in range(bs):
+                        for task_id in range(logit_task_mask_top_k):
+                            ta = mk_task_pred[sample_id, task_id].item()
+                            logit[sample_id, self.tasks[ta]] = output[sample_id, self.tasks[ta]]
+
+                    acc = accumulate_acc(logit, target, task, acc, topk=(self.top_k,))
                 else:
                     mask = target >= task_in[0]
                     mask_ind = mask.nonzero().view(-1)
@@ -1372,6 +1392,32 @@ class SLOTPrompt(Prompt):
                     # # slots = model_single.prompt.match_pool(slots)
                     bs, t, e, p, d = prompts.shape
                     assert t == 1
+
+                    # slot_attn_class_key
+                    K = model.prompt.slot_attn_class_key  # [c100, h128]
+                    f = self.valid_out_dim
+                    K = K[:f]
+                    n_K = nn.functional.normalize(K, dim=1)
+                    # slots shape [bs, 1\T, k10, h128]
+                    query = nn.functional.normalize(slots, dim=-1)
+                    mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
+                    # sum over k -> wei-sum over h -> cos sim
+
+                    # mk_class_acc
+                    mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
+
+                    task_ids = torch.empty_like(target)     # [bs]
+                    _, mk_pred = mk_logit.topk(logit_task_mask_top_k, 1, True, True)    # [bs, topk]
+                    mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
+                    for idx in range(bs):
+                        for idxx in range(logit_task_mask_top_k):
+                            mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
+                        task_ids[idx] = label_task_map[target[idx].item()]
+                    mk_task_pred = mk_task_pred.t()
+                    correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
+                    for k in logit_task_mask_top_k:
+                        correct_k = correct[:k].reshape(-1).float().sum().item()
+                        mk_task_acc.update(correct_k * 100.0 / bs, bs)
 
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
@@ -1391,51 +1437,8 @@ class SLOTPrompt(Prompt):
                         )
                         out = out[:, :, :self.valid_out_dim]
 
-                        # # apply mask for slots
-                        # out = out.reshape(bs, t, k, self.valid_out_dim)
-                        # out_min = torch.min(out)
-                        # for tt in range(t):
-                        #     # out[:, tt, :, :self.tasks[tt][0]] = -float('inf')
-                        #     # random mask with mean -100
-                        #     out[:, tt, :, :self.tasks[tt][0]] = torch.rand_like(out[:, tt, :, :self.tasks[tt][0]]) + out_min - 100
-                        #     # out[:, tt, :, self.tasks[tt][-1]+1:] = torch.rand_like(out[:, tt, :, self.tasks[tt][-1]+1:]) + out_min - 100
-                        # out = out.reshape(bs, t * k, self.valid_out_dim)
-
-                        # # forward expert classifier
-                        # # features = features.reshape(bs, t, k, -1)
-                        # out = out.reshape(bs, t, k, self.valid_out_dim)
-                        # expert_predictor = model_single.prompt.expert_predictor
-                        # exp_out = []
-                        # for tt in range(t):
-                        #     o = out[:, tt].reshape(-1, out.size(-1))       # [bs*k, valid_out_dim]
-                        #     exp_out.append(
-                        #         expert_predictor[tt](o[:, self.tasks[tt]]).reshape(bs, k, 2)
-                        #     )  # [bs, 10, 2]
-                        #     # exp_out.append(
-                        #     #     expert_predictor[tt](features[:, tt].reshape(-1, features.size(-1))).reshape(bs, k, 2)
-                        #     # )  # [bs, 10, 2]
-                        # exp_out = torch.stack(exp_out, dim=1)  # [bs, t, k, 2]
-                        # out = out.reshape(bs, t * k, self.valid_out_dim)
-                        #
-                        # # # predict
-                        # # # [bs, 21, 768] -> [bs, 100]
-                        # # output = self.predict_mo(features)        # [bs, n_cls]
-                        #
-                        # # voting [bs, 20, 100] -> [bs, 100]
-                        # exp_out = torch.argmax(exp_out, dim=-1).reshape(bs, t*k)  # [bs, t*k10]
-                        # # # if no experts for 1 img, then use all experts
-                        # # exp_out[torch.sum(exp_out, dim=-1) == 0] = 1  # all 0 means no expert, use all experts: all 1
-                        # # change all 0 to -1
-                        # exp_out[exp_out == 0] = -1
-
                         if not task_global:
                             out = out[:, :, task_in]
-                        # bs, n_slots, n_cls = out.shape
-                        # out = torch.argmax(out, dim=-1)  # [bs, 20]
-                        # # out = (out * exp_out).long()     # apply expert mask, thus only experts' selection is positive.
-                        # output = torch.zeros(bs, n_cls).to(out.device)
-                        # for cls_id in range(n_cls):
-                        #     output[:, cls_id] = torch.sum(out == cls_id, dim=-1)
 
                         output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [s, n_cls]
                         if task_global:
@@ -1451,13 +1454,19 @@ class SLOTPrompt(Prompt):
 
         if slot_recon_loss:
             if verbal:
-                self.log(' * Val Recon Loss {recon_losses.avg:.3f}, Total time {time:.2f}'
-                         .format(recon_losses=recon_losses, time=batch_timer.toc()))
+                self.log(' * Val Recon Loss {recon_losses.avg:.3f}, '
+                         'MK Acc {mk_acc.avg:.3f}, '
+                         'Total time {time:.2f}\n'
+                         'MK Top1-5 Task Acc {mk_task_acc.avg}'
+                         .format(recon_losses=recon_losses, mk_acc=mk_acc, mk_task_acc=mk_task_acc, time=batch_timer.toc()))
             return recon_losses.avg
         else:
             if verbal:
-                self.log(' * Val Acc {acc.avg:.3f}, Total time {time:.2f}'
-                         .format(acc=acc, time=batch_timer.toc()))
+                self.log(' * Val Acc {acc.avg:.3f}, '
+                         'MK Acc {mk_acc.avg:.3f}, '
+                         'Total time {time:.2f}\n'
+                         'MK Top1-5 Task Acc {mk_task_acc.avg}'
+                         .format(acc=acc, mk_acc=mk_acc, mk_task_acc=mk_task_acc, time=batch_timer.toc()))
             return acc.avg
 
     def collect_statistics(self, train_loader, train_dataset, model=None):

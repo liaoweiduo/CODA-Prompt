@@ -13,12 +13,12 @@ import copy
 
 # Our Slot Prompt
 class SlotPrompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=128):
+    def __init__(self, emb_d, task_info, prompt_param, key_dim=128):
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d
         self.key_d = key_dim
-        self.n_tasks = n_tasks
+        self.n_tasks, self.tasks = task_info[0], task_info[1]
 
         # prompt basic param
         self.e_pool_size = int(prompt_param[0])  # 100
@@ -40,8 +40,11 @@ class SlotPrompt(nn.Module):
         self.slot_attn = torch.nn.ModuleList([
             SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim)])
 
+        # class key
+        self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
+
         # output setting
-        self.s2p = Slot2Prompt(emb_d, n_tasks, self.e_pool_size, self.e_p_length, self.e_layers, self.FPS)
+        self.s2p = Slot2Prompt(emb_d, self.n_tasks, self.e_pool_size, self.e_p_length, self.e_layers, self.FPS)
 
         # prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
         # # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
@@ -1633,6 +1636,22 @@ class ViTZoo(nn.Module):
             return out, prompt_loss
         else:
             return out
+
+
+def init_tensor(a, b=None, c=None, d=None, ortho=False):
+    if b is None:
+        p = torch.nn.Parameter(torch.FloatTensor(a), requires_grad=True)
+    elif c is None:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b), requires_grad=True)
+    elif d is None:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b, c), requires_grad=True)
+    else:
+        p = torch.nn.Parameter(torch.FloatTensor(a, b, c, d), requires_grad=True)
+    if ortho:
+        nn.init.orthogonal_(p)
+    else:
+        nn.init.xavier_uniform_(p)
+    return p
 
 
 def vit_pt_imnet(out_dim, block_division=None, prompt_flag='None', prompt_param=None, **kwargs):

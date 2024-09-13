@@ -154,6 +154,7 @@ class Trainer:
             'slot_pre_learn_model': args.slot_pre_learn_model,
             't0_model_from': args.t0_model_from,
             'slot_lr': args.slot_lr,
+            'logit_task_mask_top_k': args.logit_task_mask_top_k,
         }
         # pmo settings
         if len(args.prompt_param) > 3:
@@ -297,6 +298,7 @@ class Trainer:
                     debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='loss/mo_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='loss/s2p_loss', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler'], key='loss/mk_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='loss/ccl_loss', i=i, writer=writer, inner=True)
                     debugger.write_scaler(epoch_log['scaler'], key='loss/slot_recon_loss', i=i, writer=writer, inner=True)
                     # debugger.write_scaler(epoch_log['scaler'], key='val_acc_phase1', i=i, writer=writer, inner=True)

@@ -1,6 +1,6 @@
 import time
 import torch
-
+import numpy as np
 
 def accuracy(output, target, topk=(1,)):
     """Computes the precision@k for the specified values of k"""
@@ -26,8 +26,14 @@ def accuracy(output, target, topk=(1,)):
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
-    def __init__(self):
+    def __init__(self, top_k=None):
         self.reset()
+        self.top_k = top_k      # e.g., (1,2,3,4,5)
+
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
 
     def reset(self):
         self.val = 0
@@ -38,13 +44,17 @@ class AverageMeter(object):
     def update(self, val, n=1):
         if n > 0:
             self.val = val
+            if type(self.val) is list:
+                assert self.top_k is not None
+                assert len(self.top_k) == len(self.val)
+                self.val = np.array(self.val)
             self.sum += val * n
             self.count += n
-            self.avg = float(self.sum) / self.count
+            self.avg = np.round(self.sum / self.count, 3)
 
     def update_count(self, multiplier):
         self.count = self.count * multiplier
-        self.avg = float(self.sum) / self.count
+        self.avg = np.round(self.sum / self.count, 3)
 
 
 class Timer(object):
