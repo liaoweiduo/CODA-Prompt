@@ -50,11 +50,11 @@ class AverageMeter(object):
                 self.val = np.array(self.val)
             self.sum += val * n
             self.count += n
-            self.avg = np.round(self.sum / self.count, 3)
+            self.avg = self.sum / self.count
 
     def update_count(self, multiplier):
         self.count = self.count * multiplier
-        self.avg = np.round(self.sum / self.count, 3)
+        self.avg = self.sum / self.count
 
 
 class Timer(object):

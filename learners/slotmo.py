@@ -1452,6 +1452,7 @@ class SLOTPrompt(Prompt):
 
         model.train(orig_mode)
 
+        mk_task_acc.avg = np.array([np.round(v, 3) for v in mk_task_acc.avg])
         if slot_recon_loss:
             if verbal:
                 self.log(' * Val Recon Loss {recon_losses.avg:.3f}, '
