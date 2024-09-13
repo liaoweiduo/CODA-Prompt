@@ -34,27 +34,27 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-#slot_lrs=(0.0003)
-#devices=(3)   # (0 1 2 3)
-#for run_id in 0 1 2 3; do
-#slot_lr=${slot_lrs[${run_id}]}
-#device=${devices[${run_id}]}
-#LOGNAME=slot-k10-recon-slot_lr${slot_lr}
-#time=$(date +"%y-%m-%d-%H-%M-%S-%N")
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
-#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 30 8 10 0.0 1.0 0.1 1.2 \
-#    --slot_lr ${slot_lr} \
-#    --only_learn_slot \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#done
+slot_lrs=(0.0003)
+devices=(0)   # (0 1 2 3)
+for run_id in 0; do
+slot_lr=${slot_lrs[${run_id}]}
+device=${devices[${run_id}]}
+LOGNAME=slot-k10-recon-slot_lr${slot_lr}
+time=$(date +"%y-%m-%d-%H-%M-%S-%N")
+docker run -d --rm --runtime=nvidia --gpus device=${device} \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+    --prompt_param 30 8 10 0.0 1.0 0.1 1.2 \
+    --slot_lr ${slot_lr} \
+    --only_learn_slot \
+    --log_dir ${OUTDIR}/${LOGNAME}
+done
 
-lrs=(0.0005 0.001 0.005 0.01)
-devices=(0 1 2 3)
-for run_id in 0 1 2 3; do
+lrs=(0.001)
+devices=(0)
+for run_id in 0; do   # 0 1 2 3
 lr=${lrs[${run_id}]}
 device=${devices[${run_id}]}
 LOGNAME=slot-k10-p30-5layers-attn-lr${lr}

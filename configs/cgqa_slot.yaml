@@ -3,7 +3,7 @@ first_split_size: 10
 other_split_size: 10
 schedule:
 - [100, 50]
-- [100, 20]
+- [100, 50]
 schedule_type: cosine
 batch_size: 32
 optimizer: Adam
