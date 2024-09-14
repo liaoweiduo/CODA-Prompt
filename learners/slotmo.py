@@ -1408,7 +1408,12 @@ class SLOTPrompt(Prompt):
                         # sum over k -> wei-sum over h -> cos sim
 
                         # mk_class_acc
-                        mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
+                        if not task_global:
+                            mk_logit = mk_logit[:, task_in]
+                        if task_global:
+                            mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
+                        else:
+                            mk_acc = accumulate_acc(mk_logit, target - task_in[0], task, mk_acc, topk=(self.top_k,))
 
                         task_ids = torch.empty_like(target)     # [bs]
                         _, mk_pred = mk_logit.topk(collect_top_k[-1], 1, True, True)    # [bs, topk]
