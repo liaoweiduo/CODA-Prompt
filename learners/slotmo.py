@@ -1266,9 +1266,12 @@ class SLOTPrompt(Prompt):
         batch_timer = Timer()
         acc = AverageMeter()
         mk_acc = AverageMeter()
-        mk_task_acc = AverageMeter(top_k=(1, 2, 3, 4, 5))
+        collect_top_k = (1, 2, 3, 4, 5)
+        mk_task_acc = AverageMeter(top_k=collect_top_k)
         recon_losses = AverageMeter()
         batch_timer.tic()
+
+        logit_task_mask_top_k = self.config['logit_task_mask_top_k']
 
         orig_mode = model.training
         model.eval()
@@ -1320,10 +1323,6 @@ class SLOTPrompt(Prompt):
                     query = nn.functional.normalize(slots, dim=-1)
                     mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
                     # sum over k -> wei-sum over h -> cos sim
-
-                    # determine logit_mask for classifier output
-                    logit_task_mask_top_k = self.config['logit_task_mask_top_k']
-                    collect_top_k = (1, 2, 3, 4, 5)
 
                     # mk_class_acc
                     mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
