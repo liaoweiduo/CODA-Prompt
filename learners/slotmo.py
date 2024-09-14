@@ -1388,51 +1388,51 @@ class SLOTPrompt(Prompt):
                     mask_ind = mask.nonzero().view(-1)
                     input, target = input[mask_ind], target[mask_ind]
 
-                    q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
-                    prompts, slots, attn, recon_loss = q
-                    # bs, t, k, e, p, d = prompts.shape
-                    # prompts = prompts.reshape(bs, t * k, e, p, d)
-                    # # slots = model_single.prompt.match_pool(slots)
-                    bs, t, e, p, d = prompts.shape
-                    assert t == 1
-
-                    # slot_attn_class_key
-                    K = model.prompt.slot_attn_class_key  # [c100, h128]
-                    f = self.valid_out_dim
-                    K = K[:f]
-                    n_K = nn.functional.normalize(K, dim=1)
-                    # slots shape [bs, 1\T, k10, h128]
-                    query = nn.functional.normalize(slots, dim=-1)
-                    mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
-                    # sum over k -> wei-sum over h -> cos sim
-
-                    # mk_class_acc
-                    mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
-
-                    task_ids = torch.empty_like(target)     # [bs]
-                    _, mk_pred = mk_logit.topk(collect_top_k[-1], 1, True, True)    # [bs, topk]
-                    mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
-                    for idx in range(bs):
-                        for idxx in range(collect_top_k[-1]):
-                            mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
-                        task_ids[idx] = label_task_map[target[idx].item()]
-                    mk_task_pred = mk_task_pred.t()
-                    correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
-                    res = []
-                    for k in collect_top_k:
-                        # correct_k = correct[:k].reshape(-1).float().sum().item()
-                        correct_k = correct[:k].float().sum(dim=0)
-                        correct_k = (correct_k > 0).sum().item()
-                        res.append(correct_k * 100.0 / bs)
-                    mk_task_acc.update(res, bs)
-
-                    recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
-
-                    if slot_recon_loss:
-                        recon_losses.update(recon_loss.item(), bs)
-                        continue
-
                     if len(target) > 1:
+                        q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                        prompts, slots, attn, recon_loss = q
+                        # bs, t, k, e, p, d = prompts.shape
+                        # prompts = prompts.reshape(bs, t * k, e, p, d)
+                        # # slots = model_single.prompt.match_pool(slots)
+                        bs, t, e, p, d = prompts.shape
+                        assert t == 1
+
+                        # slot_attn_class_key
+                        K = model.prompt.slot_attn_class_key  # [c100, h128]
+                        f = self.valid_out_dim
+                        K = K[:f]
+                        n_K = nn.functional.normalize(K, dim=1)
+                        # slots shape [bs, 1\T, k10, h128]
+                        query = nn.functional.normalize(slots, dim=-1)
+                        mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
+                        # sum over k -> wei-sum over h -> cos sim
+
+                        # mk_class_acc
+                        mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
+
+                        task_ids = torch.empty_like(target)     # [bs]
+                        _, mk_pred = mk_logit.topk(collect_top_k[-1], 1, True, True)    # [bs, topk]
+                        mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
+                        for idx in range(bs):
+                            for idxx in range(collect_top_k[-1]):
+                                mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
+                            task_ids[idx] = label_task_map[target[idx].item()]
+                        mk_task_pred = mk_task_pred.t()
+                        correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
+                        res = []
+                        for k in collect_top_k:
+                            # correct_k = correct[:k].reshape(-1).float().sum().item()
+                            correct_k = correct[:k].float().sum(dim=0)
+                            correct_k = (correct_k > 0).sum().item()
+                            res.append(correct_k * 100.0 / bs)
+                        mk_task_acc.update(res, bs)
+
+                        recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
+
+                        if slot_recon_loss:
+                            recon_losses.update(recon_loss.item(), bs)
+                            continue
+
                         # forward all prompts
                         _, features, out = self.obtain_mo_matrix(
                             None, prompts=prompts,
