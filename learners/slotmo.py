@@ -1324,6 +1324,9 @@ class SLOTPrompt(Prompt):
                     mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
                     # sum over k -> wei-sum over h -> cos sim
 
+                    if self.debug_mode and i == 0:
+                        print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
+
                     # mk_class_acc
                     mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
 
@@ -1334,14 +1337,23 @@ class SLOTPrompt(Prompt):
                         for idxx in range(collect_top_k[-1]):
                             mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
                         task_ids[idx] = label_task_map[target[idx].item()]
+
+                    if self.debug_mode and i == 0:
+                        print(f'task_ids: {task_ids.shape} {task_ids[0]}'
+                              f'mk_task_pred: {mk_task_pred.shape} {mk_task_pred[0]}')
+
                     mk_task_pred = mk_task_pred.t()
                     correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
                     # correct: BOOL [topk, bs]
+
+                    if self.debug_mode and i == 0:
+                        print(f'correct: {correct.shape} {correct[0]}')
+
                     res = []
                     for k in collect_top_k:
                         # correct_k = correct[:k].reshape(-1).float().sum().item()
                         correct_k = correct[:k].float().sum(dim=0)
-                        correct_k = (correct_k > 0).sum().item()        # >0 for multiple correct
+                        correct_k = (correct_k > 0).sum().item()        # >0 -> True for multiple correct
                         res.append(correct_k * 100.0 / bs)
                     mk_task_acc.update(res, bs)
 
@@ -1377,6 +1389,9 @@ class SLOTPrompt(Prompt):
                         for task_id in range(logit_task_mask_top_k):
                             ta = mk_task_pred[sample_id, task_id].item()
                             logit[sample_id, self.tasks[ta]] = output[sample_id, self.tasks[ta]]
+
+                    if self.debug_mode and i == 0:
+                        print(f'masked logit: {logit.shape} {logit[0]}')
 
                     acc = accumulate_acc(logit, target, task, acc, topk=(self.top_k,))
                 else:
