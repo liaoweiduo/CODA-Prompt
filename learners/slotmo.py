@@ -1381,14 +1381,18 @@ class SLOTPrompt(Prompt):
 
                     output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
 
-                    # apply logit_task_mask_top_k on output
-                    logit = torch.zeros_like(output) * -float('inf')
-                    mk_task_pred = mk_task_pred.t()     # [bs, topk]
+                    if logit_task_mask_top_k > 0:
+                        # apply logit_task_mask_top_k on output
+                        logit = torch.zeros_like(output) * -float('inf')
+                        mk_task_pred = mk_task_pred.t()     # [bs, topk]
 
-                    for sample_id in range(bs):
-                        for task_id in range(logit_task_mask_top_k):
-                            ta = mk_task_pred[sample_id, task_id].item()
-                            logit[sample_id, self.tasks[ta]] = output[sample_id, self.tasks[ta]]
+                        for sample_id in range(bs):
+                            for task_id in range(logit_task_mask_top_k):
+                                ta = mk_task_pred[sample_id, task_id].item()
+                                logit[sample_id, self.tasks[ta]] = output[sample_id, self.tasks[ta]]
+
+                    else:
+                        logit = output
 
                     if self.debug_mode and i == 0:
                         print(f'masked logit: {logit.shape} {logit[0]}')
