@@ -1279,7 +1279,7 @@ class SLOTPrompt(Prompt):
         # # load statistics for evaluating
         # self.load_statistics()
 
-        label_task_map = np.zeros(self.config['num_classes'])
+        label_task_map = np.zeros(self.config['num_classes']).long()
         for task_id, task in enumerate(self.tasks):
             for ta in task:
                 label_task_map[ta] = task_id
