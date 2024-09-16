@@ -52,19 +52,19 @@ LEARNERNAME=SLOTPrompt
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 
-lrs=(0.0005 0.001 0.003 0.005)
+lrs=(0.0005 0.0007 0.001 0.002)
 devices=(0 1 2 3)
 for run_id in 0 1 2 3; do   # 0 1 2 3
 lr=${lrs[${run_id}]}
 device=${devices[${run_id}]}
-LOGNAME=slot-k10-coda-p30-l40-lr${lr}
+LOGNAME=slot-k10-coda-p100-l40-lr${lr}
 #LOGNAME=slot-k10-p30-ccl${ccl_coeff}-l2weight0.05
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   --shm-size 8G liaoweiduo/coda:2.0_sklearn \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 30 40 10 0.0 0.0 0.1 1.2 \
+    --prompt_param 100 40 10 0.0 0.0 0.1 1.2 \
     --slot_pre_learn_model slot-k10-recon-mk-slot_lr0.0001 \
     --lr ${lr} ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
