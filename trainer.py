@@ -179,6 +179,7 @@ class Trainer:
                 return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task,
                                                slot_recon_loss=True)
             else:
+
                 return self.learner.validation(test_loader, task_metric=task,
                                                slot_recon_loss=True)
 

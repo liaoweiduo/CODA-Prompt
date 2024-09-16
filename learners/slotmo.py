@@ -1266,7 +1266,7 @@ class SLOTPrompt(Prompt):
         batch_timer = Timer()
         acc = AverageMeter()
         mk_acc = AverageMeter()
-        collect_top_k = (1, 2, 3, 4, 5)
+        collect_top_k = (1, 3, 5, 7, 10)
         mk_task_acc = AverageMeter(top_k=collect_top_k)
         recon_losses = AverageMeter()
         batch_timer.tic()
@@ -1360,6 +1360,9 @@ class SLOTPrompt(Prompt):
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
                     if slot_recon_loss:
+                        # collect slot mean
+                        slot_mean = torch.mean(slots.reshape(bs, -1), dim=1)        # [bs]
+                        recon_loss = torch.mean(slot_mean)      # record slot mean
                         recon_losses.update(recon_loss.item(), bs)
                         continue
 
