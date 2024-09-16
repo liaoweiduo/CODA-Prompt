@@ -1361,7 +1361,7 @@ class SLOTPrompt(Prompt):
 
                     if slot_recon_loss:
                         # collect slot mean
-                        slot_mean = torch.mean(slots.reshape(bs, -1), dim=1)        # [bs]
+                        slot_mean = torch.mean(torch.abs(slots).reshape(bs, -1), dim=1)        # [bs]
                         recon_loss = torch.mean(slot_mean)      # record slot mean
                         recon_losses.update(recon_loss.item(), bs)
                         continue
