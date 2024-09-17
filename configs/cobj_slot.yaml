@@ -20,4 +20,4 @@ workers: 4
 validation: False
 train_aug: True
 rand_split: True
-logit_task_mask_top_k: 0
+logit_task_mask_top_k: 5
