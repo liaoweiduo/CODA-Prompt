@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
-REPEAT=1
+REPEAT=3
 OVERWRITE=0
 
 ###############################################################
@@ -20,56 +20,56 @@ mkdir -p $OUTDIR
 #mkdir -p ${OUTDIR}/${LOGNAME}/runlog
 #    > ${OUTDIR}/${LOGNAME}/runlog/runlog_learn_slot_${time}.out 2>&1
 
-# SLOT-Prompt
+## SLOT-Prompt
+##
+## prompt parameter args:
+##    arg 1 = prompt component pool size
+##    arg 2 = prompt length
+##    arg 3 = num of slots extracted from one img
+##    arg 3 = coeff for weights reg
+##    arg 4 = coeff for ccl
+##    arg 5 = margin for ccl
+##    arg 6 = tau for ccl
+##    --oracle_flag --upper_bound_flag \
+##    --debug_mode 1 \
+#LEARNERTYPE=slotmo
+#LEARNERNAME=SLOTPrompt
+##slot_lrs=(0.0001 0.0004 0.007 0.001)
+##devices=(0 1 2 3)
+##for run_id in 0 1 2 3; do
+##slot_lr=${slot_lrs[${run_id}]}
+##device=${devices[${run_id}]}
+##LOGNAME=slot-k10-recon-mk-slot_lr${slot_lr}
+##time=$(date +"%y-%m-%d-%H-%M-%S-%N")
+##docker run -d --rm --runtime=nvidia --gpus device=${device} \
+##  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+##  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
+##python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+##    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+##    --prompt_param 30 40 10 0.0 0.0 0.1 1.2 \
+##    --slot_lr ${slot_lr} \
+##    --only_learn_slot \
+##    --log_dir ${OUTDIR}/${LOGNAME}
+##done
 #
-# prompt parameter args:
-#    arg 1 = prompt component pool size
-#    arg 2 = prompt length
-#    arg 3 = num of slots extracted from one img
-#    arg 3 = coeff for weights reg
-#    arg 4 = coeff for ccl
-#    arg 5 = margin for ccl
-#    arg 6 = tau for ccl
-#    --oracle_flag --upper_bound_flag \
-#    --debug_mode 1 \
-LEARNERTYPE=slotmo
-LEARNERNAME=SLOTPrompt
-#slot_lrs=(0.0001 0.0004 0.007 0.001)
+#lrs=(0.00001 0.00005 0.0001 0.0002)
 #devices=(0 1 2 3)
-#for run_id in 0 1 2 3; do
-#slot_lr=${slot_lrs[${run_id}]}
+#for run_id in 0 1 2 3; do   # 0 1 2 3
+#lr=${lrs[${run_id}]}
 #device=${devices[${run_id}]}
-#LOGNAME=slot-k10-recon-mk-slot_lr${slot_lr}
-#time=$(date +"%y-%m-%d-%H-%M-%S-%N")
+#LOGNAME=slot-k10-coda-p100-l40-lr${lr}
+##LOGNAME=slot-k10-p30-ccl${ccl_coeff}-l2weight0.05
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 30 40 10 0.0 0.0 0.1 1.2 \
-#    --slot_lr ${slot_lr} \
-#    --only_learn_slot \
+#    --prompt_param 100 40 10 0.0 0.0 0.1 1.2 \
+#    --slot_pre_learn_model slot-k10-recon-mk-slot_lr0.0001 \
+#    --lr ${lr} ${lr} \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
-
-lrs=(0.00001 0.00005 0.0001 0.0002)
-devices=(0 1 2 3)
-for run_id in 0 1 2 3; do   # 0 1 2 3
-lr=${lrs[${run_id}]}
-device=${devices[${run_id}]}
-LOGNAME=slot-k10-coda-p100-l40-lr${lr}
-#LOGNAME=slot-k10-p30-ccl${ccl_coeff}-l2weight0.05
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 40 10 0.0 0.0 0.1 1.2 \
-    --slot_pre_learn_model slot-k10-recon-mk-slot_lr0.0001 \
-    --lr ${lr} ${lr} \
-    --log_dir ${OUTDIR}/${LOGNAME}
-done
-##    --t0_model_from slot-k10-p30-ccl0-l2weight0.05 \
+###    --t0_model_from slot-k10-p30-ccl0-l2weight0.05 \
 
 
 # PMO-Prompt
@@ -120,7 +120,7 @@ done
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name L2P \
-#    --prompt_param 10 10 -1 \
-#    --log_dir ${OUTDIR}/l2p++-p10-l10
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name L2P \
+    --prompt_param 10 10 -1 \
+    --log_dir ${OUTDIR}/l2p++-p10-l10
