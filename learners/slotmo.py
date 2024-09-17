@@ -1360,9 +1360,9 @@ class SLOTPrompt(Prompt):
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
                     if slot_recon_loss:
-                        # collect slot mean
-                        slot_mean = torch.mean(torch.abs(slots).reshape(bs, -1), dim=1)        # [bs]
-                        recon_loss = torch.mean(slot_mean)      # record slot mean
+                        # # collect slot mean
+                        # slot_mean = torch.mean(torch.abs(slots).reshape(bs, -1), dim=1)        # [bs]
+                        # recon_loss = torch.mean(slot_mean)      # record slot mean
                         recon_losses.update(recon_loss.item(), bs)
                         continue
 
@@ -1492,16 +1492,18 @@ class SLOTPrompt(Prompt):
                 self.log(' * Val Recon Loss {recon_losses.avg:.3f}, '
                          'MK Acc {mk_acc.avg:.3f}, '
                          'Total time {time:.2f}\n'
-                         'MK Top1-5 Task Acc {mk_task_acc.avg}'
-                         .format(recon_losses=recon_losses, mk_acc=mk_acc, mk_task_acc=mk_task_acc, time=batch_timer.toc()))
+                         'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
+                         .format(recon_losses=recon_losses, mk_acc=mk_acc, mk_task_acc=mk_task_acc,
+                                 time=batch_timer.toc(), collect_top_k=collect_top_k))
             return recon_losses.avg
         else:
             if verbal:
                 self.log(' * Val Acc {acc.avg:.3f}, '
                          'MK Acc {mk_acc.avg:.3f}, '
                          'Total time {time:.2f}\n'
-                         'MK Top1-5 Task Acc {mk_task_acc.avg}'
-                         .format(acc=acc, mk_acc=mk_acc, mk_task_acc=mk_task_acc, time=batch_timer.toc()))
+                         'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
+                         .format(acc=acc, mk_acc=mk_acc, mk_task_acc=mk_task_acc,
+                                 time=batch_timer.toc(), collect_top_k=collect_top_k))
             return acc.avg
 
     def collect_statistics(self, train_loader, train_dataset, model=None):
