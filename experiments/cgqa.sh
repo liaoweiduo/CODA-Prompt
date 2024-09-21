@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/10-task
 
 # hard coded inputs
-GPUID='0'   # '0 1 2 3'
+GPUID='0 1'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
 REPEAT=3
@@ -41,9 +41,10 @@ mkdir -p $OUTDIR
 ##device=${devices[${run_id}]}
 ##LOGNAME=slot-k10-recon-mk-slot_lr${slot_lr}
 ##time=$(date +"%y-%m-%d-%H-%M-%S-%N")
+## liaoweiduo/coda:2.0_sklearn
 ##docker run -d --rm --runtime=nvidia --gpus device=${device} \
 ##  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-##  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
+##  --shm-size 8G liaoweiduo/hide:2.0 \
 ##python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 ##    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
 ##    --prompt_param 30 40 10 0.0 0.0 0.1 1.2 \
@@ -61,7 +62,7 @@ mkdir -p $OUTDIR
 ##LOGNAME=slot-k10-p30-ccl${ccl_coeff}-l2weight0.05
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  --shm-size 8G liaoweiduo/coda:2.0_sklearn \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
 #    --prompt_param 100 40 10 0.0 0.0 0.1 1.2 \
@@ -98,10 +99,10 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPrompt \
-#    --prompt_param 100 40 0.0 \
-#    --log_dir ${OUTDIR}/coda-l40
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPrompt \
+    --prompt_param 100 40 0.0 \
+    --log_dir ${OUTDIR}/coda-imagenet-l40
 
 # DualPrompt
 #
@@ -109,10 +110,10 @@ mkdir -p $OUTDIR
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name DualPrompt \
-#    --prompt_param 10 40 10 \
-#    --log_dir ${OUTDIR}/dual-prompt-e40-g10
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name DualPrompt \
+    --prompt_param 10 40 10 \
+    --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10
 
 # L2P++
 #
@@ -123,4 +124,4 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name L2P \
     --prompt_param 10 10 -1 \
-    --log_dir ${OUTDIR}/l2p++-p10-l10
+    --log_dir ${OUTDIR}/l2p++-imagenet-p10-l10

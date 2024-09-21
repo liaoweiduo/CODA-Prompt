@@ -50,9 +50,9 @@ class SlotAttention(nn.Module):
             nn.Linear(self.emb_d, self.emb_d, bias=True),
         )
 
-    def forward(self, features):
+    def forward(self, features, temp=1.):
         # features: [bs, n196, 768]
-        slots, attn = self.forward_slots(features)
+        slots, attn = self.forward_slots(features, temp=temp)
         # slots [bs, k20, d64], attn [bs, n196, k20]
 
         # recon
@@ -65,7 +65,7 @@ class SlotAttention(nn.Module):
 
         return slots, attn, recon_loss
 
-    def forward_slots(self, features):
+    def forward_slots(self, features, temp=1.):
         # features [bs, 196, 768]
         bs = features.shape[0]
 
@@ -78,7 +78,7 @@ class SlotAttention(nn.Module):
         # iter
         k = self.k(features)    # [bs, 196, 64]
         v = self.v(features)    # [bs, 196, 64]
-        k = (self.key_d ** (-0.5)) * k
+        k = (self.key_d ** (-0.5) * temp) * k
 
         for t in range(self.n_iter):
             slots_prev = slots.clone()
@@ -144,7 +144,7 @@ class Slot2Prompt(nn.Module):
         self.e_layers = e_layers        # [0, 1, 2, 3, 4, 5]
         self.FPS = FPS          # or can be True all the time?
 
-        self.selector_mode = 'attn'     # [gate, mlp, attn]
+        self.selector_mode = 'attn'     # [gate, mlp, attn (coda-p)]
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
             self.slot_map = nn.ModuleList([
                 # nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),

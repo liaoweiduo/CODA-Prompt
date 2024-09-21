@@ -75,7 +75,7 @@ class SlotPrompt(nn.Module):
                 nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
             self.expert_predictor.append(new_exp_pre)
 
-    def handle_q(self, q, all=True, learn_slots=True):
+    def handle_q(self, q, all=True, learn_slots=True, temp=1.):
         # obtain slot-prompts
         if q is None:
             raise ValueError('q is None')
@@ -90,10 +90,10 @@ class SlotPrompt(nn.Module):
             T = [-1]
         for t in T:
             if learn_slots:
-                _slots, _attn, _recon_loss = self.slot_attn[t](q)
+                _slots, _attn, _recon_loss = self.slot_attn[t](q, temp=temp)
             else:
                 with torch.no_grad():       # this phase does not learn slot attn
-                    _slots, _attn = self.slot_attn[t].forward_slots(q)
+                    _slots, _attn = self.slot_attn[t].forward_slots(q, temp=temp)
                 _recon_loss = 0
             _prompts = self.s2p(_slots)
             prompts.append(_prompts)
@@ -1547,8 +1547,13 @@ class ViTZoo(nn.Module):
                 print(f'Load vit_base_patch16_224 from timm.')
             except:
                 print(f'Load vit_base_patch16_224 from local file: '
-                      f'{os.path.abspath("../checkpoints/vit_base_patch16_224.pth")}')
+                      f'{os.path.abspath("../checkpoints/vit_base_patch16_224.pth")}'
+                      # f'{os.path.abspath("../checkpoints/B_16-i21k-300ep-lr_0.001-aug_medium1-wd_0.1-do_0.0-sd_0.0--imagenet2012-steps_20k-lr_0.01-res_224.npz")}'
+                      )
+
                 load_dict = torch.load("../checkpoints/vit_base_patch16_224.pth")
+                # with np.load("../checkpoints/B_16-i21k-300ep-lr_0.001-aug_medium1-wd_0.1-do_0.0-sd_0.0--imagenet2012-steps_20k-lr_0.01-res_224.npz") as data:
+                #     load_dict = {key: data[key] for key in data.files}
 
             del load_dict['head.weight'];
             del load_dict['head.bias']

@@ -792,7 +792,7 @@ def draw_objs(objs, labels=None, ax=None, legend=False, ax_labels=None):
 
     return fig
 
-def draw_heatmap(data, verbose=True, ax=None, fmt=".2f"):
+def draw_heatmap(data, verbose=True, ax=None, fmt=".2f", cbar=True):
     """
     return a figure of heatmap.
     :param data: 2-D Numpy
@@ -804,7 +804,7 @@ def draw_heatmap(data, verbose=True, ax=None, fmt=".2f"):
     if verbose:
         sns.heatmap(data, cmap=plt.get_cmap('Greens'), annot=True, fmt=fmt, cbar=False, ax=ax)
     else:
-        sns.heatmap(data, cmap=plt.get_cmap('Greens'), cbar=True, ax=ax)
+        sns.heatmap(data, cmap=plt.get_cmap('Greens'), cbar=cbar, ax=ax)
     return fig
 
 

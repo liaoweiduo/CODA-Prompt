@@ -491,8 +491,11 @@ class SLOTPrompt(Prompt):
                         '''nvidia-smi'''
                         os.system('nvidia-smi')
 
-        self.log(f'Phase III: update correlation for labels')
-        self.collect_statistics(train_loader, train_dataset)
+        # self.log(f'Phase III: update correlation for labels')
+        # self.collect_statistics(train_loader, train_dataset)
+
+        self.log(f'Phase III: collect slot pool by k-means')
+        self.collect_slot_pool(train_loader, train_dataset)
 
         self.model.eval()
 
@@ -1505,6 +1508,13 @@ class SLOTPrompt(Prompt):
                          .format(acc=acc, mk_acc=mk_acc, mk_task_acc=mk_task_acc,
                                  time=batch_timer.toc(), collect_top_k=collect_top_k))
             return acc.avg
+
+    def collect_slot_pool(self, train_loader, train_dataset, model=None):
+        t = train_dataset.t
+        if model is None:
+            model = self.model
+
+
 
     def collect_statistics(self, train_loader, train_dataset, model=None):
         t = train_dataset.t
