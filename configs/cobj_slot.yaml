@@ -2,18 +2,16 @@ dataset: COBJ
 first_split_size: 10
 other_split_size: 10
 schedule:
-- [50, 50]
-- [50, 50]
+- [100, 50]
+- [100, 50]
 schedule_type: cosine
 batch_size: 32
-optimizer: SGD
-# Adam
+optimizer: Adam
 #lr:
 #- 0.0005
 #- 0.0005
 momentum: 0.9
-weight_decay: 0.0005
-# 0
+weight_decay: 0
 model_type: zoo
 model_name: vit_pt_imnet
 max_task: -1
