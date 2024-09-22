@@ -31,7 +31,7 @@ slot_lrs=(5e-3)
 devices=(4)
 for run_id in 0; do
 slot_lr=${slot_lrs[${run_id}]}
-device=${devices[${run_id}]}slot_lr
+device=${devices[${run_id}]}
 LOGNAME=slot-k10-recon-mk-SGD-slot_lr${slot_lr}
 ##time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
