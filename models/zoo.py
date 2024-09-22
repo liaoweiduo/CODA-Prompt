@@ -1541,19 +1541,19 @@ class ViTZoo(nn.Module):
                                           num_heads=12, ckpt_layer=0,
                                           drop_path_rate=0
                                           )
-            try:
-                from timm.models import vit_base_patch16_224
-                load_dict = vit_base_patch16_224(pretrained=True).state_dict()
-                print(f'Load vit_base_patch16_224 from timm.')
-            except:
-                print(f'Load vit_base_patch16_224 from local file: '
-                      f'{os.path.abspath("../checkpoints/vit_base_patch16_224.pth")}'
-                      # f'{os.path.abspath("../checkpoints/B_16-i21k-300ep-lr_0.001-aug_medium1-wd_0.1-do_0.0-sd_0.0--imagenet2012-steps_20k-lr_0.01-res_224.npz")}'
-                      )
-
-                load_dict = torch.load("../checkpoints/vit_base_patch16_224.pth")
-                # with np.load("../checkpoints/B_16-i21k-300ep-lr_0.001-aug_medium1-wd_0.1-do_0.0-sd_0.0--imagenet2012-steps_20k-lr_0.01-res_224.npz") as data:
-                #     load_dict = {key: data[key] for key in data.files}
+            # try:
+            from timm.models import vit_base_patch16_224
+            load_dict = vit_base_patch16_224(pretrained=True).state_dict()
+            print(f'Load vit_base_patch16_224 from timm.')
+            # except:
+            #     print(f'Load vit_base_patch16_224 from local file: '
+            #           f'{os.path.abspath("../checkpoints/vit_base_patch16_224.pth")}'
+            #           # f'{os.path.abspath("../checkpoints/B_16-i21k-300ep-lr_0.001-aug_medium1-wd_0.1-do_0.0-sd_0.0--imagenet2012-steps_20k-lr_0.01-res_224.npz")}'
+            #           )
+            #
+            #     load_dict = torch.load("../checkpoints/vit_base_patch16_224.pth")
+            #     # with np.load("../checkpoints/B_16-i21k-300ep-lr_0.001-aug_medium1-wd_0.1-do_0.0-sd_0.0--imagenet2012-steps_20k-lr_0.01-res_224.npz") as data:
+            #     #     load_dict = {key: data[key] for key in data.files}
 
             del load_dict['head.weight'];
             del load_dict['head.bias']
