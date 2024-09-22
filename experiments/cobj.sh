@@ -32,7 +32,7 @@ LEARNERNAME=SLOTPrompt
 #for run_id in 0; do
 #slot_lr=${slot_lrs[${run_id}]}
 #device=${devices[${run_id}]}
-LOGNAME=slot-k10-recon-mk-slot_lr1e-4
+LOGNAME=slot-k10-recon-mk-SGD-slot_lr5e-3
 ##time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
@@ -40,7 +40,7 @@ LOGNAME=slot-k10-recon-mk-slot_lr1e-4
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
     --prompt_param 30 40 10 0.0 0.0 0.1 1.2 \
-    --slot_lr 1e-4 \
+    --slot_lr 5e-3 \
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
 #done

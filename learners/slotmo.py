@@ -30,6 +30,8 @@ from models.losses import prototype_loss
 from mo_optimizers.functions_evaluation import fastNonDominatedSort
 import dataloaders
 
+from sklearn.cluster import k_means
+
 
 # Our PMO (Pool & Multi-Objective)
 class SLOTPrompt(Prompt):
@@ -493,6 +495,7 @@ class SLOTPrompt(Prompt):
 
         self.log(f'Phase III: update correlation for labels')
         self.collect_statistics(train_loader, train_dataset)
+        self.collect_slot_pool(train_loader, train_dataset)
 
         # self.log(f'Phase III: collect slot pool by k-means')
         # self.collect_slot_pool(train_loader, train_dataset)
@@ -533,7 +536,7 @@ class SLOTPrompt(Prompt):
             K = torch.cat((K[:s].detach().clone(),K[s:f]), dim=0)
         n_K = nn.functional.normalize(K, dim=1)
         # slots shape [bs, 1\T, k10, h128]
-        q = nn.functional.normalize(slots, dim=-1)
+        q = nn.functional.normalize(slots.detach(), dim=-1)     # mk do not affect slot recon learning
         mk_logit = torch.einsum('btkh,ch->bc', q, n_K)  # sum over k -> wei-sum over h -> cos sim
         mk_logit[:, :s] = -float('inf')
 
@@ -1510,11 +1513,54 @@ class SLOTPrompt(Prompt):
             return acc.avg
 
     def collect_slot_pool(self, train_loader, train_dataset, model=None):
-        t = train_dataset.t
+        task_id = train_dataset.t
         if model is None:
             model = self.model
+        batch_timer = Timer()
+        batch_timer.tic()
+        orig_mode = model.training
+        model.eval()
+        batch_timer.tic()
 
+        slots_collection = []
+        with torch.no_grad():
+            for i, sample in enumerate(train_loader):
+                if i*train_loader.batch_size > 100: # collect enough samples
+                    break
+                concepts = None
+                if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
+                    x, y, concepts, task = sample
+                else:
+                    x, y, task = sample
 
+                # send data to gpu
+                if self.gpu:
+                    x = x.cuda()
+                    y = y.cuda()
+
+                # get slots
+                q = model.obtain_q(x, all=not self.FPS, learn_slots=False)
+                _, slots, _, _ = q  # [bs, 1, k5, d128]
+                bs, t, k, d = slots.shape
+                slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
+                slots_collection.append(slots)
+            slots_collection = torch.cat(slots_collection, dim=0).reshape(-1, d)    # [100*k, d128]
+            slots_collection = slots_collection.cpu().numpy()
+
+            n_clusters = 50
+            slot_centers, _, _ = k_means(slots_collection, n_clusters=n_clusters, random_state=0)
+
+        model.train(orig_mode)
+
+        self.log(' * Collect slot_centers: Total time {time:.2f}'
+                 .format(time=batch_timer.toc()))
+
+        # save statistics
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_centers_{task_id}.pkl')
+        print('=> Saving statistics to:', stats_path)
+        with open(stats_path, 'wb') as f:
+            pickle.dump(slot_centers, f)
+        print('=> Save Done')
 
     def collect_statistics(self, train_loader, train_dataset, model=None):
         t = train_dataset.t
