@@ -491,11 +491,11 @@ class SLOTPrompt(Prompt):
                         '''nvidia-smi'''
                         os.system('nvidia-smi')
 
-        # self.log(f'Phase III: update correlation for labels')
-        # self.collect_statistics(train_loader, train_dataset)
+        self.log(f'Phase III: update correlation for labels')
+        self.collect_statistics(train_loader, train_dataset)
 
-        self.log(f'Phase III: collect slot pool by k-means')
-        self.collect_slot_pool(train_loader, train_dataset)
+        # self.log(f'Phase III: collect slot pool by k-means')
+        # self.collect_slot_pool(train_loader, train_dataset)
 
         self.model.eval()
 
