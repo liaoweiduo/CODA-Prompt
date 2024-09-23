@@ -12,7 +12,7 @@ import copy
 
 
 class SlotAttention(nn.Module):
-    def __init__(self, emb_d, n_slots, key_dim=128, n_iter=5):
+    def __init__(self, emb_d, n_slots, key_dim=128, n_iter=10):
         super().__init__()
         self.emb_d = emb_d          # emb for representation 768
         self.key_d = key_dim        # emb for slot: Dslot 64
@@ -52,7 +52,7 @@ class SlotAttention(nn.Module):
 
     def forward(self, features, temp=1.):
         # features: [bs, n196, 768]
-        slots, attn = self.forward_slots(features, temp=temp)
+        slots, attn, _ = self.forward_slots(features, temp=temp)
         # slots [bs, k20, d64], attn [bs, n196, k20]
 
         # recon
@@ -69,17 +69,20 @@ class SlotAttention(nn.Module):
         # features [bs, 196, 768]
         bs = features.shape[0]
 
+        iter_slots = []
+        iter_attn_vis = []
+
         # init
         features = self.ln_input(features)
         slots = torch.randn(bs, self.n_slots, self.key_d, device=self.log_sigma.device) * torch.exp(self.log_sigma) + self.mu
         # [bs, k, 64]
-        attn_vis = None
 
         # iter
         k = self.k(features)    # [bs, 196, 64]
         v = self.v(features)    # [bs, 196, 64]
         k = (self.key_d ** (-0.5) * temp) * k
 
+        attn_vis = None
         for t in range(self.n_iter):
             slots_prev = slots.clone()
             slots = self.ln_slot(slots)
@@ -111,7 +114,10 @@ class SlotAttention(nn.Module):
             ## slots += MLP(LayerNorm(slots))
             slots = slots + self.mlp(self.ln_output(slots))
 
-        return slots, attn_vis
+            iter_slots.append(slots.detach().clone())
+            iter_attn_vis.append(attn_vis.detach().clone())
+
+        return slots, attn_vis, {'slots': iter_slots, 'attns': iter_attn_vis}
 
 
 def init_tensor(a, b=None, c=None, d=None, ortho=False):

@@ -93,7 +93,7 @@ class SlotPrompt(nn.Module):
                 _slots, _attn, _recon_loss = self.slot_attn[t](q, temp=temp)
             else:
                 with torch.no_grad():       # this phase does not learn slot attn
-                    _slots, _attn = self.slot_attn[t].forward_slots(q, temp=temp)
+                    _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp)
                 _recon_loss = 0
             _prompts = self.s2p(_slots)
             prompts.append(_prompts)

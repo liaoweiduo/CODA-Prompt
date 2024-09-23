@@ -5,6 +5,7 @@ schedule:
 - [50, 50]
 - [50, 50]
 schedule_type: cosine
+slot_schedule_type: cosann
 batch_size: 32
 optimizer: Adam
 #lr:
