@@ -270,7 +270,7 @@ class SLOTPrompt(Prompt):
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule[phase], gamma=0.1)
         elif schedule_type == 'cosann':
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                self.optimizer, T_0=schedule[phase]/5, eta_min=lr/100)
+                self.optimizer, T_0=int(schedule[phase]/5), eta_min=lr/100)
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
