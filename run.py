@@ -49,6 +49,7 @@ def create_args():
     parser.add_argument('--t0_model_from', type=str, default='none',
                         help="The model name to warm-start from the 2nd task.")
     parser.add_argument('--slot_lr', type=float, default=0.0003, help="slot lr")
+    parser.add_argument('--slot_schedule_type', type=str, default='cosine')
 
     # CFST Args
     parser.add_argument('--mode', type=str, default='continual',

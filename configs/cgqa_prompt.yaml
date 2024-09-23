@@ -18,3 +18,4 @@ validation: False
 train_aug: True
 rand_split: True
 logit_task_mask_top_k: 10 # no use
+slot_schedule_type: cosann # no use
