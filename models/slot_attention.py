@@ -50,9 +50,9 @@ class SlotAttention(nn.Module):
             nn.Linear(self.emb_d, self.emb_d, bias=True),
         )
 
-    def forward(self, features, temp=1.):
+    def forward(self, features, temp=1., n_iter=None):
         # features: [bs, n196, 768]
-        slots, attn, _ = self.forward_slots(features, temp=temp)
+        slots, attn, _ = self.forward_slots(features, temp=temp, n_iter=n_iter)
         # slots [bs, k20, d64], attn [bs, n196, k20]
 
         # recon
