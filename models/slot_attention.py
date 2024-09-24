@@ -61,7 +61,8 @@ class SlotAttention(nn.Module):
         slot_features = torch.einsum('bkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
 
         # recon loss
-        recon_loss = F.mse_loss(slot_features, features)
+        recon_loss = F.mse_loss(slot_features, features, reduction='none')      # [bs, n196, 768]
+        recon_loss = torch.mean(torch.mean(recon_loss, dim=-1), dim=-1)     # [bs]
 
         return slots, attn, recon_loss
 
