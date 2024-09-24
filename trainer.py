@@ -270,7 +270,7 @@ class Trainer:
 
             # save temporary acc results
             for mkey in ['acc']:
-                save_file = temp_dir + mkey + '.csv'
+                save_file = temp_dir + mkey + f'_t{self.seed}.csv'
                 np.savetxt(save_file, np.asarray(temp_table[mkey]), delimiter=",", fmt='%.2f')  
 
             if avg_train_time is not None: avg_metrics['time']['global'][i] = avg_train_time

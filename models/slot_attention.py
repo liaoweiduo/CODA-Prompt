@@ -65,7 +65,7 @@ class SlotAttention(nn.Module):
 
         return slots, attn, recon_loss
 
-    def forward_slots(self, features, temp=1.):
+    def forward_slots(self, features, temp=1., n_iter=None):
         # features [bs, 196, 768]
         bs = features.shape[0]
 
@@ -83,7 +83,8 @@ class SlotAttention(nn.Module):
         k = (self.key_d ** (-0.5) * temp) * k
 
         attn_vis = None
-        for t in range(self.n_iter):
+        n_iter = self.n_iter if n_iter is None else n_iter
+        for t in range(n_iter):
             slots_prev = slots.clone()
             slots = self.ln_slot(slots)
             q = self.q(slots)       # [bs, k, 64]
