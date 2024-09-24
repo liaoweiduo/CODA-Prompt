@@ -91,6 +91,7 @@ class SlotPrompt(nn.Module):
         for t in T:
             if learn_slots:
                 _slots, _attn, _recon_loss = self.slot_attn[t](q, temp=temp, n_iter=n_iter)
+                _recon_loss = torch.mean(_recon_loss)
             else:
                 with torch.no_grad():       # this phase does not learn slot attn
                     _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp, n_iter=n_iter)
