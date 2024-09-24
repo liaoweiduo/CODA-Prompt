@@ -12,7 +12,7 @@ import copy
 
 
 class SlotAttention(nn.Module):
-    def __init__(self, emb_d, n_slots, key_dim=128, n_iter=10):
+    def __init__(self, emb_d, n_slots, key_dim=128, n_iter=3):
         super().__init__()
         self.emb_d = emb_d          # emb for representation 768
         self.key_d = key_dim        # emb for slot: Dslot 64

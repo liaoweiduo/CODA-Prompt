@@ -34,12 +34,12 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-slot_lrs=(1e-4 2e-4 3e-4)
+slot_lrs=(5e-5 1e-4 2e-4)
 devices=(0 1 2)
 for run_id in 0 1 2; do
 slot_lr=${slot_lrs[${run_id}]}
 device=${devices[${run_id}]}
-LOGNAME=slot_attn-k10-t10-recon-mk-cosann-slot_lr${slot_lr}
+LOGNAME=slot_attn-k10-t3-recon-mk-cosann-slot_lr${slot_lr}
 #time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 # liaoweiduo/coda:2.0_sklearn
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
