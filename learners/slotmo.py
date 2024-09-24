@@ -543,8 +543,8 @@ class SLOTPrompt(Prompt):
             K = torch.cat((K[:s].detach().clone(),K[s:f]), dim=0)
         n_K = nn.functional.normalize(K, dim=1)
         # slots shape [bs, 1\T, k10, h128]
-        q = nn.functional.normalize(slots, dim=-1)
-        # q = nn.functional.normalize(slots.detach(), dim=-1)     # mk do not affect slot recon learning
+        # q = nn.functional.normalize(slots, dim=-1)
+        q = nn.functional.normalize(slots.detach(), dim=-1)     # mk do not affect slot recon learning
         mk_logit = torch.einsum('btkh,ch->bc', q, n_K)  # sum over k -> wei-sum over h -> cos sim
         mk_logit[:, :s] = -float('inf')
 

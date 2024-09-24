@@ -12,7 +12,7 @@ import copy
 
 
 class SlotAttention(nn.Module):
-    def __init__(self, emb_d, n_slots, key_dim=128, n_iter=3):
+    def __init__(self, emb_d, n_slots, key_dim=128, n_iter=5, temp=2.):
         super().__init__()
         self.emb_d = emb_d          # emb for representation 768
         self.key_d = key_dim        # emb for slot: Dslot 64
@@ -20,6 +20,7 @@ class SlotAttention(nn.Module):
         # slot basic param
         self.n_slots = n_slots  # 5   number of slots
         self.n_iter = n_iter     # T
+        self.temp = temp
         self.attn_epsilon = 1e-8
         self.gru_d = self.key_d
 
@@ -41,7 +42,7 @@ class SlotAttention(nn.Module):
         )
 
         # slot decoder
-        self.ln_decoder = nn.LayerNorm(self.key_d)
+        # self.ln_decoder = nn.LayerNorm(self.key_d)      # ln for
         self.decoder = nn.Sequential(
             nn.Linear(self.key_d, self.key_d * 2, bias=True),
             nn.ReLU(inplace=True),
@@ -50,26 +51,29 @@ class SlotAttention(nn.Module):
             nn.Linear(self.emb_d, self.emb_d, bias=True),
         )
 
-    def forward(self, features, temp=1., n_iter=None):
+    def forward(self, features, temp=None, n_iter=None):
         # features: [bs, n196, 768]
         slots, attn, _ = self.forward_slots(features, temp=temp, n_iter=n_iter)
         # slots [bs, k20, d64], attn [bs, n196, k20]
 
         # recon
-        slot_features = self.ln_decoder(slots)
-        slot_features = self.decoder(slot_features)     # [bs, k20, 768]
+        # slot_features = self.ln_decoder(slots)
+        slot_features = self.decoder(slots)     # [bs, k20, 768]
         slot_features = torch.einsum('bkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
 
         # recon loss
+        features = self.ln_input(features)      # reconstruct features after ln
         recon_loss = F.mse_loss(slot_features, features, reduction='none')      # [bs, n196, 768]
         recon_loss = torch.mean(torch.mean(recon_loss, dim=-1), dim=-1)     # [bs]
 
         return slots, attn, recon_loss
 
-    def forward_slots(self, features, temp=1., n_iter=None):
+    def forward_slots(self, features, temp=None, n_iter=None):
         # features [bs, 196, 768]
         bs = features.shape[0]
 
+        n_iter = self.n_iter if n_iter is None else n_iter
+        temp = self.temp if temp is None else temp
         iter_slots = []
         iter_attn_vis = []
 
@@ -84,7 +88,6 @@ class SlotAttention(nn.Module):
         k = (self.key_d ** (-0.5) * temp) * k
 
         attn_vis = None
-        n_iter = self.n_iter if n_iter is None else n_iter
         for t in range(n_iter):
             slots_prev = slots.clone()
             slots = self.ln_slot(slots)
