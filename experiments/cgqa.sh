@@ -39,7 +39,7 @@ devices=(0 1 2)
 for run_id in 0 1 2; do
 slot_lr=${slot_lrs[${run_id}]}
 device=${devices[${run_id}]}
-LOGNAME=0-slot_attn-k10-nt5-temp2-recon-cosann-slot_lr${slot_lr}
+LOGNAME=0-slot_attn-k10-nt5-temp1-recon-slot_lr${slot_lr}
 #time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 # liaoweiduo/coda:2.0_sklearn
 docker run -d --rm --runtime=nvidia --gpus device=${device} \

@@ -32,7 +32,7 @@ devices=(4 5 6)
 for run_id in 0 1 2; do
 slot_lr=${slot_lrs[${run_id}]}
 device=${devices[${run_id}]}
-LOGNAME=0-slot_attn-k10-nt5-temp2-recon-cosann-slot_lr${slot_lr}
+LOGNAME=0-slot_attn-k10-nt5-temp1-recon-slot_lr${slot_lr}
 ##time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
