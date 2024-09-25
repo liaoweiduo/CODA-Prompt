@@ -2,10 +2,10 @@ dataset: CGQA
 first_split_size: 10
 other_split_size: 10
 schedule:
-- [50, 50]
-- [50, 50]
+- [20, 50]
+- [20, 50]
 schedule_type: cosine
-slot_schedule_type: cosann
+slot_schedule_type: cosine
 batch_size: 32
 optimizer: Adam
 #lr:
