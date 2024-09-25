@@ -142,7 +142,7 @@ def init_tensor(a, b=None, c=None, d=None, ortho=False):
 
 
 class Slot2Prompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, e_pool_size, e_p_length, e_layers, FPS, key_dim=128):
+    def __init__(self, emb_d, n_tasks, e_pool_size, e_p_length, e_layers, FPS, key_dim=128, temp=1.):
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d
@@ -154,6 +154,7 @@ class Slot2Prompt(nn.Module):
         self.e_p_length = e_p_length    # 8
         self.e_layers = e_layers        # [0, 1, 2, 3, 4, 5]
         self.FPS = FPS          # or can be True all the time?
+        self.temp = temp
 
         self.selector_mode = 'attn'     # [gate, mlp, attn]
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
@@ -186,9 +187,9 @@ class Slot2Prompt(nn.Module):
                 p = init_tensor(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
                 k = init_tensor(self.e_pool_size, self.key_d)  # [100, 128]
                 # a = init_tensor(self.e_pool_size, self.key_d)
-                p = self.gram_schmidt(p)
-                k = self.gram_schmidt(k)
-                # a = self.gram_schmidt(a)
+                # p = self.gram_schmidt(p)
+                # k = self.gram_schmidt(k)
+                # # a = self.gram_schmidt(a)
                 setattr(self, f'e_p_{e}', p)
                 setattr(self, f'e_k_{e}', k)
                 # setattr(self, f'e_a_{e}', a)
@@ -208,10 +209,10 @@ class Slot2Prompt(nn.Module):
                 for e in self.e_layers:
                     K = getattr(self, f'e_k_{e}')
                     P = getattr(self, f'e_p_{e}')
-                    k = self.gram_schmidt(K)
-                    p = self.gram_schmidt(P)
-                    setattr(self, f'e_p_{e}', p)
-                    setattr(self, f'e_k_{e}', k)
+                    # K = self.gram_schmidt(K)
+                    # P = self.gram_schmidt(P)
+                    setattr(self, f'e_p_{e}', P)
+                    setattr(self, f'e_k_{e}', K)
 
     def forward(self, slots, s2p=None, train=False):
         # slots [bs, n20, h64]

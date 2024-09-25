@@ -46,7 +46,9 @@ class SlotPrompt(nn.Module):
         self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
 
         # output setting
-        self.s2p = Slot2Prompt(emb_d, self.n_tasks, self.e_pool_size, self.e_p_length, self.e_layers, FPS=self.FPS)
+        self.s2p_temp = float(prompt_param[5])     # 1.2 temperature to control how sharp are slot attns
+        self.s2p = Slot2Prompt(emb_d, self.n_tasks, self.e_pool_size, self.e_p_length, self.e_layers,
+                               FPS=self.FPS, temp=self.s2p_temp)
 
         # prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
         # # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]

@@ -28,20 +28,22 @@ mkdir -p $OUTDIR
 #    arg 3 = num of slots extracted from one img
 #    arg 4 = num of iter to extract slots
 #    arg 5 = temperature to control how sharp are slot attns
-#    arg 6 = coeff for weights reg
-#    arg 7 = coeff for ccl
-#    arg 8 = margin for ccl
-#    arg 9 = tau for ccl
+#    arg 6 = temperature to control slot selection
+#    arg 7 = coeff for weights reg
+#    arg 8 = coeff for ccl
+#    arg 9 = margin for ccl
+#    arg 10 = tau for ccl
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-slot_lrs=(1e-4 2e-4 3e-4)
+slot_lrs=(5e-4 1e-4 2e-4)
+temp=1.5
 devices=(0 1 2)
 for run_id in 0 1 2; do
 slot_lr=${slot_lrs[${run_id}]}
 device=${devices[${run_id}]}
-LOGNAME=0-slot_attn-k10-nt5-temp1.2-recon-slot_lr${slot_lr}
+LOGNAME=0-slot_attn-k10-nt5-temp${temp}-recon-slot_lr${slot_lr}
 #time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 # liaoweiduo/coda:2.0_sklearn
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
@@ -50,7 +52,7 @@ docker run -d --rm --runtime=nvidia --gpus device=${device} \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 30 40 10 5 1.2 0.0 0.0 0.1 1.2 \
+    --prompt_param 30 40 10 5 ${temp} 1.0 0.0 0.0 0.1 1.2 \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}

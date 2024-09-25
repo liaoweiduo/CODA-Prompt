@@ -30,7 +30,8 @@ from models.losses import prototype_loss
 from mo_optimizers.functions_evaluation import fastNonDominatedSort
 import dataloaders
 
-from sklearn.cluster import k_means
+from sklearn.cluster import k_means, KMeans
+from sklearn.metrics import silhouette_score
 
 
 # Our PMO (Pool & Multi-Objective)
@@ -53,10 +54,10 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary(aux_dataset)
         # self.aux = Auxiliary()
 
-        self.weight_coeff = float(self.config['prompt_param'][1][5])
-        self.ccl_coeff = float(self.config['prompt_param'][1][6])
-        self.ccl_margin = float(self.config['prompt_param'][1][7])
-        self.ccl_tau = float(self.config['prompt_param'][1][8])
+        self.weight_coeff = float(self.config['prompt_param'][1][6])
+        self.ccl_coeff = float(self.config['prompt_param'][1][7])
+        self.ccl_margin = float(self.config['prompt_param'][1][8])
+        self.ccl_tau = float(self.config['prompt_param'][1][9])
 
         try:
             prompt = self.model.module.prompt
@@ -1283,6 +1284,7 @@ class SLOTPrompt(Prompt):
         collect_top_k = (1, 3, 5, 7, 10)
         mk_task_acc = AverageMeter(top_k=collect_top_k)
         recon_losses = AverageMeter()
+        silhouette_scores = AverageMeter()
         batch_timer.tic()
 
         logit_task_mask_top_k = self.config['logit_task_mask_top_k']
@@ -1377,6 +1379,23 @@ class SLOTPrompt(Prompt):
                         # # collect slot mean
                         # slot_mean = torch.mean(torch.abs(slots).reshape(bs, -1), dim=1)        # [bs]
                         # recon_loss = torch.mean(slot_mean)      # record slot mean
+
+                        # collect slot group average silhouette_score
+                        # slots [bs, t, k, h128]
+                        for bs_id in range(bs):
+                            slots = slots[bs_id, 0]  # [k10, h128]
+
+                            X = slots.detach().cpu().numpy()
+                            # Initialize the clusterer with n_clusters value and a random generator
+                            # seed of 10 for reproducibility.
+                            for n_clusters in [2, 4, 6]:
+                                clusterer = KMeans(n_clusters=n_clusters, random_state=10)
+                                cluster_labels = clusterer.fit_predict(X)  # np [k10]
+
+                                silhouette_avg = silhouette_score(X, cluster_labels)
+
+                                silhouette_scores.update(silhouette_avg, 1)
+
                         recon_losses.update(recon_loss.item(), bs)
                         continue
 
@@ -1503,11 +1522,13 @@ class SLOTPrompt(Prompt):
         mk_task_acc.avg = np.array([np.round(v, 3) for v in mk_task_acc.avg])
         if slot_recon_loss:
             if verbal:
-                self.log(' * Val Recon Loss(x1000) {recon_losses:.3f}, '
+                self.log(' * Val Recon Loss {recon_losses.avg:.3e}, '
+                         'Silhouette Score {silhouette_score.avg:.3f}, '
                          'MK Acc {mk_acc.avg:.3f}, '
                          'Total time {time:.2f}\n'
                          'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
-                         .format(recon_losses=recon_losses.avg*1000, mk_acc=mk_acc, mk_task_acc=mk_task_acc,
+                         .format(recon_losses=recon_losses, silhouette_score=silhouette_scores,
+                                 mk_acc=mk_acc, mk_task_acc=mk_task_acc,
                                  time=batch_timer.toc(), collect_top_k=collect_top_k))
             return recon_losses.avg
         else:
