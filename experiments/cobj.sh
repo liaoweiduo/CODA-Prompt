@@ -28,7 +28,7 @@ mkdir -p $OUTDIR
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
 slot_lrs=(5e-4 1e-4 2e-4)
-temp=1.5
+temp=0.5
 devices=(4 5 6)
 for run_id in 0 1 2; do
 slot_lr=${slot_lrs[${run_id}]}
