@@ -37,7 +37,7 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 LEARNERTYPE=slotmo
 LEARNERNAME=SLOTPrompt
-slot_lrs=(5e-4 1e-4 2e-4)
+slot_lrs=(5e-5 1e-4 2e-4)
 temp=0.5
 devices=(0 1 2)
 for run_id in 0 1 2; do
