@@ -1381,20 +1381,18 @@ class SLOTPrompt(Prompt):
                         # recon_loss = torch.mean(slot_mean)      # record slot mean
 
                         # collect slot group average silhouette_score
-                        # slots [bs, t, k, h128]
-                        for bs_id in range(bs):
-                            ith_slots = slots[bs_id, 0]  # [k10, h128]
+                        if i == 0: # only do it for the first batch
+                            # slots [bs, t, k, h128]
+                            collect_slots = slots.reshape(-1, slots.shape[-1])  # [bs*t*k10, h128]
 
-                            X = ith_slots.detach().cpu().numpy()
+                            X = collect_slots.detach().cpu().numpy()
                             # Initialize the clusterer with n_clusters value and a random generator
                             # seed of 10 for reproducibility.
-                            for n_clusters in [2, 4, 6]:
-                                clusterer = KMeans(n_clusters=n_clusters, random_state=10)
-                                cluster_labels = clusterer.fit_predict(X)  # np [k10]
-
-                                silhouette_avg = silhouette_score(X, cluster_labels)
-
-                                silhouette_scores.update(silhouette_avg, 1)
+                            n_clusters = 30
+                            clusterer = KMeans(n_clusters=n_clusters, random_state=10)
+                            cluster_labels = clusterer.fit_predict(X)  # np [k10]
+                            silhouette_avg = silhouette_score(X, cluster_labels)
+                            silhouette_scores.update(silhouette_avg, collect_slots.shape[0])
 
                         recon_losses.update(recon_loss.item(), bs)
                         continue
