@@ -1383,9 +1383,9 @@ class SLOTPrompt(Prompt):
                         # collect slot group average silhouette_score
                         # slots [bs, t, k, h128]
                         for bs_id in range(bs):
-                            slots = slots[bs_id, 0]  # [k10, h128]
+                            ith_slots = slots[bs_id, 0]  # [k10, h128]
 
-                            X = slots.detach().cpu().numpy()
+                            X = ith_slots.detach().cpu().numpy()
                             # Initialize the clusterer with n_clusters value and a random generator
                             # seed of 10 for reproducibility.
                             for n_clusters in [2, 4, 6]:
