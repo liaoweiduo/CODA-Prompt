@@ -2,7 +2,7 @@ dataset: COBJ
 first_split_size: 10
 other_split_size: 10
 schedule:
-- [20, 50]
+- [50, 50]
 - [20, 50]
 schedule_type: cosine
 slot_schedule_type: cosine
@@ -22,3 +22,6 @@ validation: False
 train_aug: True
 rand_split: True
 logit_task_mask_top_k: 0
+# slot param
+n_iter: 5
+temp: 1.2

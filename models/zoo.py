@@ -37,8 +37,10 @@ class SlotPrompt(nn.Module):
         # self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
         # self.pool_init_idx = 0
         self.n_slots = int(prompt_param[2])     # n_slots:10   number of slots for one extraction
+        self.n_iters = int(prompt_param[3])     # 5 num of iter to extract slots
+        self.temp = float(prompt_param[4])     # 1.2 temperature to control how sharp are slot attns
         self.slot_attn = torch.nn.ModuleList([
-            SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim)])
+            SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim, n_iter=self.n_iters, temp=self.temp)])
 
         # class key
         self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
@@ -63,7 +65,7 @@ class SlotPrompt(nn.Module):
         if not self.FPS:
             device = next(self.slot_attn[-1].parameters()).device
             new_attn = SlotAttention(self.emb_d, n_slots=self.n_slots, key_dim=self.key_d,
-                                     e_p_length=self.e_p_length, e_layers=self.e_layers).to(device)
+                                     n_iter=self.n_iters, temp=self.temp).to(device)
             new_attn.load_state_dict(self.slot_attn[-1].state_dict())     # init using last slot attn
             self.slot_attn.append(new_attn)
             # self.prompt_map_init(self.task_count)
