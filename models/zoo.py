@@ -40,7 +40,8 @@ class SlotPrompt(nn.Module):
         self.n_iters = int(prompt_param[3])     # 5 num of iter to extract slots
         self.temp = float(prompt_param[4])     # 1.2 temperature to control how sharp are slot attns
         self.slot_attn = torch.nn.ModuleList([
-            SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim, n_iter=self.n_iters, temp=self.temp)])
+            SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim,
+                          n_iter=self.n_iters, temp=self.temp)])
 
         # class key
         self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)

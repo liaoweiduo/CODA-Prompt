@@ -6,16 +6,18 @@ import torch.nn.functional as F
 import torch.nn.init as init
 import torchvision.models as models
 from torch.autograd import Variable
+from timm.models.layers import trunc_normal_
 from .vit import VisionTransformer
 import numpy as np
 import copy
 
 
 class SlotAttention(nn.Module):
-    def __init__(self, emb_d, n_slots, key_dim=128, n_iter=5, temp=1.):
+    def __init__(self, emb_d, n_slots, num_patches=196, key_dim=128, n_iter=5, temp=1.):
         super().__init__()
         self.emb_d = emb_d          # emb for representation 768
         self.key_d = key_dim        # emb for slot: Dslot 64
+        self.num_patches = num_patches      # warning: need to change for other backbone
 
         # slot basic param
         self.n_slots = n_slots  # 5   number of slots
@@ -43,6 +45,8 @@ class SlotAttention(nn.Module):
 
         # slot decoder
         # self.ln_decoder = nn.LayerNorm(self.key_d)      # ln for
+        self.decoder_pos_emb = nn.Parameter(torch.zeros(1, num_patches, 1, key_dim))
+        trunc_normal_(self.decoder_pos_emb, std=.02)
         self.decoder = nn.Sequential(
             nn.Linear(self.key_d, self.key_d * 2, bias=True),
             nn.ReLU(inplace=True),
@@ -57,9 +61,12 @@ class SlotAttention(nn.Module):
         # slots [bs, k20, d64], attn [bs, n196, k20]
 
         # recon
-        # slot_features = self.ln_decoder(slots)
-        slot_features = self.decoder(slots)     # [bs, k20, 768]
-        slot_features = torch.einsum('bkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
+        # slots = self.ln_decoder(slots)
+        # broadcast slots into shape [bs, n, k, d]
+        slots = slots.unsqueeze(1)      # [bs, 1, k, d]
+        slots = slots + self.decoder_pos_emb    # apply pos emb on n -> [bs, n, k, d]
+        slot_features = self.decoder(slots)     # [bs, n196, k20, 768]
+        slot_features = torch.einsum('bnkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
 
         # recon loss
         # features = self.ln_input(features)      # reconstruct features after ln
