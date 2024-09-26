@@ -62,7 +62,7 @@ class SlotAttention(nn.Module):
         slot_features = torch.einsum('bkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
 
         # recon loss
-        features = self.ln_input(features)      # reconstruct features after ln
+        # features = self.ln_input(features)      # reconstruct features after ln
         recon_loss = F.mse_loss(slot_features, features, reduction='none')      # [bs, n196, 768]
         recon_loss = torch.mean(torch.mean(recon_loss, dim=-1), dim=-1)     # [bs]
 
@@ -174,6 +174,7 @@ class Slot2Prompt(nn.Module):
             #     if 'bias' in k:
             #         nn.init.constant_(p, 0)
         elif self.selector_mode == 'attn':
+            self.slot_ln = nn.LayerNorm(key_dim)
             # e prompt init
             for e in self.e_layers:
                 # for model saving/loading simplicity, we init the full paramaters here
@@ -206,7 +207,7 @@ class Slot2Prompt(nn.Module):
                     nn.Sequential(nn.Linear(self.key_d, 2*self.key_d), nn.ReLU(inplace=True),
                                   nn.Linear(2*self.key_d, len(self.e_layers) * self.e_p_length * self.emb_d)))
             else:
-                for e in self.e_layers:
+                for e in self.e_layers:     # needs init?
                     K = getattr(self, f'e_k_{e}')
                     P = getattr(self, f'e_p_{e}')
                     # K = self.gram_schmidt(K)
@@ -220,6 +221,7 @@ class Slot2Prompt(nn.Module):
         if s2p is None:
             s2p = self
 
+        selections = None
         if self.selector_mode == 'gate':
             slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
             prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
@@ -236,6 +238,7 @@ class Slot2Prompt(nn.Module):
             # [bs, e, l, d]
         else:
             prompts = []
+            selections = []
             for l in self.e_layers:
                 K = getattr(s2p, f'e_k_{l}')  # [100, h]
                 p = getattr(s2p, f'e_p_{l}')  # [100, 8, 768]
@@ -261,19 +264,26 @@ class Slot2Prompt(nn.Module):
 
                 # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
                 # with attention and cosine sim
-                n_K = nn.functional.normalize(K, dim=1)
-                q = nn.functional.normalize(slots, dim=2)
-                aq_k = torch.einsum('bnh,kh->bnk', q, n_K)  # aq_k is cosine similarity [bs, n10, k30]
+                slots = self.slot_ln(slots)     # apply layernorm to alleviate shifting in slots
+                # K = nn.functional.normalize(K, dim=1)
+                # slots = nn.functional.normalize(slots, dim=2)
+                aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
+                # apply temp
+                aq_k = (self.key_d ** (-0.5) * self.temp) * aq_k
+                # over slot pool, thus each slot sharpply select one slot in the pool
+                aq_k = torch.softmax(aq_k, dim=-1)
                 # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
                 P = torch.einsum('bnk,kld->bld', aq_k, p)   # wei-sum over k -> bnld -> sum over n -> bld
                 prompts.append(P)
+                selections.append(aq_k)
             prompts = torch.stack(prompts, dim=1)       # [bs, e, l, d]
+            selections = torch.stack(selections, dim=1)     # [bs, e, n10, k30]
 
         # prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
         # # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
         # prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
 
-        return prompts
+        return prompts, selections
 
     # code for this function is modified from:
     # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py

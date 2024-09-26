@@ -87,7 +87,7 @@ class SlotPrompt(nn.Module):
             raise Exception(f'q has wrong shape: {q.shape}')
 
         # forward to obtain prompts:
-        prompts, slots, attn, recon_loss = [], [], [], []
+        prompts, selection, slots, attn, recon_loss = [], [], [], [], []
         if all:
             T = range(len(self.slot_attn))
         else:
@@ -100,17 +100,19 @@ class SlotPrompt(nn.Module):
                 with torch.no_grad():       # this phase does not learn slot attn
                     _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp, n_iter=n_iter)
                 _recon_loss = 0
-            _prompts = self.s2p(_slots)
+            _prompts, _selection = self.s2p(_slots)
             prompts.append(_prompts)
+            selection.append(_selection)
             slots.append(_slots)
             attn.append(_attn)
             recon_loss.append(_recon_loss)          # list [1\T]
 
         prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, e12, p8, d768]      # no K , k20
+        selections = torch.stack(selection, dim=1)  # [bs, 1\T, e12, k20, pp30]     # each slot:k select from prompt pool:pp
         slots = torch.stack(slots, dim=1)           # [bs, 1\T, k20, d64]
         attn = torch.stack(attn, dim=1)             # [bs, 1\T, n196, k20] (softmax-ed over k20)
 
-        return prompts, slots, attn, recon_loss
+        return prompts, selections, slots, attn, recon_loss
 
     @torch.no_grad()
     def maintain_pool(self, slots, check_init=False):

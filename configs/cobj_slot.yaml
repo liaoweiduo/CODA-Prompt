@@ -2,8 +2,8 @@ dataset: COBJ
 first_split_size: 10
 other_split_size: 10
 schedule:
-- [50, 50]
-- [50, 50]
+- [100, 50]
+- [100, 50]
 schedule_type: cosine
 slot_schedule_type: cosine
 batch_size: 32

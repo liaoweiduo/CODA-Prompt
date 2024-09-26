@@ -861,7 +861,7 @@ class SLOTPrompt(Prompt):
         #     prompts = model.obtain_q(inputs, all=False)      # [bs, 1, k20, e12, p8, d768]
         #     # all=False: only use new slots
         q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
-        prompts, slots, attn, recon_loss = q
+        prompts, selection, slots, attn, recon_loss = q
 
         if learn_slots:
             # only update slot attn
@@ -1134,7 +1134,7 @@ class SLOTPrompt(Prompt):
                 except:
                     model = self.model
                 q = model.obtain_q(samples)        # [bs, t, k20, e12, p8, d768]
-                prompts, slots, attn, recon_loss = q
+                prompts, selection, slots, attn, recon_loss = q
                 bs, t, k, e, p, d = prompts.shape
                 prompts = prompts.reshape(bs, t*k, e, p, d)
 
@@ -1285,6 +1285,7 @@ class SLOTPrompt(Prompt):
         mk_task_acc = AverageMeter(top_k=collect_top_k)
         recon_losses = AverageMeter()
         silhouette_scores = AverageMeter()
+        max_attns = AverageMeter()
         batch_timer.tic()
 
         logit_task_mask_top_k = self.config['logit_task_mask_top_k']
@@ -1326,7 +1327,7 @@ class SLOTPrompt(Prompt):
                     #                        )[:, :self.valid_out_dim]
 
                     q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
-                    prompts, slots, attn, recon_loss = q
+                    prompts, selection, slots, attn, recon_loss = q
                     bs, t, e, p, d = prompts.shape
                     assert t == 1
 
@@ -1394,6 +1395,13 @@ class SLOTPrompt(Prompt):
                             silhouette_avg = silhouette_score(X, cluster_labels)
                             silhouette_scores.update(silhouette_avg, collect_slots.shape[0])
 
+                        # collect attn statistics, average over patch: max over slot
+                        # attn [bs, t, n196, k10]
+                        attn = attn.reshape(-1, attn.shape[-1])       # [bs*t*n196, k10]
+                        max_attn = torch.max(attn, dim=-1)[0]
+                        max_attn = torch.mean(max_attn)
+                        max_attns.update(max_attn.item(), bs)
+
                         recon_losses.update(recon_loss.item(), bs)
                         continue
 
@@ -1443,7 +1451,7 @@ class SLOTPrompt(Prompt):
 
                     if len(target) > 1:
                         q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
-                        prompts, slots, attn, recon_loss = q
+                        prompts, selection, slots, attn, recon_loss = q
                         # bs, t, k, e, p, d = prompts.shape
                         # prompts = prompts.reshape(bs, t * k, e, p, d)
                         # # slots = model_single.prompt.match_pool(slots)
@@ -1522,13 +1530,16 @@ class SLOTPrompt(Prompt):
             if verbal:
                 self.log(' * Val Recon Loss {recon_losses.avg:.3e}, '
                          'Silhouette Score {silhouette_score.avg:.3f}, '
+                         'Avg Max Attn {max_attn.avg:.3f}, '
                          'MK Acc {mk_acc.avg:.3f}, '
                          'Total time {time:.2f}\n'
                          'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
                          .format(recon_losses=recon_losses, silhouette_score=silhouette_scores,
+                                 max_attn=max_attns,
                                  mk_acc=mk_acc, mk_task_acc=mk_task_acc,
                                  time=batch_timer.toc(), collect_top_k=collect_top_k))
-            return recon_losses.avg
+            return max_attns.avg
+            # return recon_losses.avg
         else:
             if verbal:
                 self.log(' * Val Acc {acc.avg:.3f}, '
@@ -1567,7 +1578,7 @@ class SLOTPrompt(Prompt):
 
                 # get slots
                 q = model.obtain_q(x, all=not self.FPS, learn_slots=False)
-                _, slots, _, _ = q  # [bs, 1, k5, d128]
+                _, _, slots, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
                 slots_collection.append(slots)
@@ -1625,7 +1636,7 @@ class SLOTPrompt(Prompt):
             with torch.no_grad():
                 # get slots
                 q = model.obtain_q(x, all=not self.FPS, learn_slots=False)
-                _, slots, _, _ = q  # [bs, 1, k5, d128]
+                _, _, slots, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
 

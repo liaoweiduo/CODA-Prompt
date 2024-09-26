@@ -35,15 +35,15 @@ mkdir -p $OUTDIR
 #    arg 10 = tau for ccl
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
-LEARNERTYPE=slotmo
-LEARNERNAME=SLOTPrompt
-slot_lrs=(5e-5 1e-4 2e-4)
-temp=0.5
-devices=(0 1 2)
-for run_id in 0 1 2; do
-slot_lr=${slot_lrs[${run_id}]}
-device=${devices[${run_id}]}
-LOGNAME=0-slot_attn-k10-nt5-temp${temp}-recon-slot_lr${slot_lr}
+slot_lrs=(5e-5 1e-4); temps=(0.5 1 1.5)
+devices=(0 1 2 3 4 5 6 7 8); i=-1
+for slot_run_id in 0 1; do
+for temp_run_id in 0 1 2; do
+((i++))
+slot_lr=${slot_lrs[${slot_run_id}]}
+temp=${temps[${temp_run_id}]}
+device=${devices[${i}]}
+LOGNAME=1-slot_attn-k10-nt5-temp${temp}-recon_noLN-slot_lr${slot_lr}
 #time=$(date +"%y-%m-%d-%H-%M-%S-%N")
 # liaoweiduo/coda:2.0_sklearn
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
@@ -51,11 +51,12 @@ docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/.cache:/workspace/.cache \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+    --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 30 40 10 5 ${temp} 1.0 0.0 0.0 0.1 1.2 \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
+done
 done
 
 #lrs=(0.00001 0.00005 0.0001 0.0002)
@@ -70,7 +71,7 @@ done
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
+#    --learner_type slotmo --learner_name SLOTPrompt \
 #    --prompt_param 100 40 10 0.0 0.0 0.1 1.2 \
 #    --slot_pre_learn_model slot-k10-recon-mk-slot_lr0.0001 \
 #    --lr ${lr} ${lr} \
