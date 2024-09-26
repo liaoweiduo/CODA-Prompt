@@ -45,7 +45,7 @@ mkdir -p $OUTDIR
 #device=${devices[${i}]}
 #LOGNAME=1-slot_attn-k10-nt5-temp${temp}-recon_noLN-slot_lr${slot_lr}
 slot_lr=1e-4
-temp=1
+temp=5
 LOGNAME=1-slot_attn-pos-k10-nt5-temp${temp}-recon_noLN-slot_lr${slot_lr}
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \

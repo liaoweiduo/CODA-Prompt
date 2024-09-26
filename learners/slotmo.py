@@ -31,6 +31,7 @@ from mo_optimizers.functions_evaluation import fastNonDominatedSort
 import dataloaders
 
 from sklearn.cluster import k_means, KMeans
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import silhouette_score
 
 
@@ -1387,12 +1388,17 @@ class SLOTPrompt(Prompt):
                             collect_slots = slots.reshape(-1, slots.shape[-1])  # [bs*t*k10, h128]
 
                             X = collect_slots.detach().cpu().numpy()
+
+                            # normalization
+                            scaler = MinMaxScaler()
+                            X_normalized = scaler.fit_transform(X)
+
                             # Initialize the clusterer with n_clusters value and a random generator
                             # seed of 10 for reproducibility.
                             n_clusters = 30
                             clusterer = KMeans(n_clusters=n_clusters, random_state=10)
-                            cluster_labels = clusterer.fit_predict(X)  # np [k10]
-                            silhouette_avg = silhouette_score(X, cluster_labels)
+                            cluster_labels = clusterer.fit_predict(X_normalized)  # np [k10]
+                            silhouette_avg = silhouette_score(X_normalized, cluster_labels)
                             silhouette_scores.update(silhouette_avg, collect_slots.shape[0])
 
                         # collect attn statistics, average over patch: max over slot
@@ -1404,6 +1410,9 @@ class SLOTPrompt(Prompt):
 
                         recon_losses.update(recon_loss.item(), bs)
                         continue
+
+                    # selection metric
+                    # selections: [bs, 1, e12, k10, pp30]
 
                     # forward all prompts
                     _, features, out = self.obtain_mo_matrix(
