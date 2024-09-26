@@ -31,7 +31,7 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 #for coeff in 0.001 0.003 0.005 0.007 0.009
 #do
-LOGNAME=slot-k10-nt5-recon-slr1e-4
+LOGNAME=slot-k10-nt5-temp1-recon-slr1e-4
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
@@ -39,6 +39,12 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
+LOGNAME=slot-prompt-k10-nt5-temp1-lr1e-4
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
+    --slot_pre_learn_model slot-k10-nt5-temp1-recon-slr1e-4 \
+    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 
 ## CODA-P
