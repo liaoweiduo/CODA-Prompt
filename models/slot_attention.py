@@ -61,11 +61,11 @@ class SlotAttention(nn.Module):
         # slots [bs, k20, d64], attn [bs, n196, k20]
 
         # recon
-        # slots = self.ln_decoder(slots)
+        # slot_features = self.ln_decoder(slots)
         # broadcast slots into shape [bs, n, k, d]
-        slots = slots.unsqueeze(1)      # [bs, 1, k, d]
-        slots = slots + self.decoder_pos_emb    # apply pos emb on n -> [bs, n, k, d]
-        slot_features = self.decoder(slots)     # [bs, n196, k20, 768]
+        slot_features = slots.unsqueeze(1)      # [bs, 1, k, d]
+        slot_features = slot_features + self.decoder_pos_emb    # apply pos emb on n -> [bs, n, k, d]
+        slot_features = self.decoder(slot_features)     # [bs, n196, k20, 768]
         slot_features = torch.einsum('bnkd,bnk->bnd', slot_features, attn)       # [bs, n196, 768]
 
         # recon loss

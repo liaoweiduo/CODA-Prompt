@@ -5,6 +5,7 @@ schedule:
 - [50, 30]
 - [50, 30]
 schedule_type: cosine
+slot_schedule_type: cosine
 batch_size: 128
 optimizer: Adam
 lr:
@@ -20,3 +21,4 @@ workers: 4
 validation: False
 train_aug: True
 rand_split: True
+logit_task_mask_top_k: 0

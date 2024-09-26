@@ -29,17 +29,17 @@ mkdir -p $OUTDIR
 #    arg 5 = p
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
-LEARNERTYPE=slotmo
-LEARNERNAME=SLOTPrompt
-for coeff in 0.001 0.003 0.005 0.007 0.009
-do
-LOGNAME=slot-k5-recon-klw${coeff}-lr1e-4
+#for coeff in 0.001 0.003 0.005 0.007 0.009
+#do
+LOGNAME=slot-k10-nt5-recon-slr1e-4
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-    --prompt_param 100 8 5 ${coeff} 30 \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
+    --slot_lr 1e-4 \
+    --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
-done
+#done
 
 ## CODA-P
 ##
