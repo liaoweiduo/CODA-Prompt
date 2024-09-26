@@ -73,7 +73,7 @@ docker run -d --rm --runtime=nvidia --gpus device=${device} \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
-    --slot_pre_learn_model 1-slot_attn-pos-k10-nt5-temp1-recon_noLN-slot_lr1e-4 \
+    --slot_pre_learn_model 1-slot_attn-k10-nt5-temp1-recon_noLN-slot_lr1e-4 \
     --lr ${lr} ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
