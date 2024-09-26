@@ -533,7 +533,7 @@ class SLOTPrompt(Prompt):
         FPS = self.FPS
 
         q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
-        prompts, slots, attn, recon_loss = q
+        prompts, selections, slots, attn, recon_loss = q
 
         # slot_attn_class_key
         K = model.prompt.slot_attn_class_key        # [c100, h128]
