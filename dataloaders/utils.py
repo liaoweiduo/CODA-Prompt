@@ -18,13 +18,17 @@ dataset_stats = {
     'CIFAR100': {'mean': (0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
                  'std' : (0.2673342858792409, 0.25643846291708816, 0.2761504713256834),
                  'size' : 32}, 
-    'ImageNet_R': {
+    'ImageNet_R': {'mean': (0.485, 0.456, 0.406),
+                   'std': (0.229, 0.224, 0.225),
                  'size' : 224}, 
-    'DomainNet': {
+    'DomainNet': {'mean': (0.485, 0.456, 0.406),
+                   'std': (0.229, 0.224, 0.225),
                  'size' : 224},
-    'CGQA': {
+    'CGQA': {'mean': (0.485, 0.456, 0.406),
+                   'std': (0.229, 0.224, 0.225),
                  'size' : 224},
-    'COBJ': {
+    'COBJ': {'mean': (0.485, 0.456, 0.406),
+                   'std': (0.229, 0.224, 0.225),
                  'size' : 224},
                 }
                 
@@ -35,8 +39,8 @@ def get_transform(dataset='cifar100', phase='test', aug=True, resize_imnet=False
     crop_size = dataset_stats[dataset]['size']
 
     # get mean and std
-    dset_mean = (0.0,0.0,0.0) # dataset_stats[dataset]['mean']
-    dset_std = (1.0,1.0,1.0) # dataset_stats[dataset]['std']
+    dset_mean = dataset_stats[dataset]['mean']   #  (0.0,0.0,0.0)
+    dset_std = dataset_stats[dataset]['std']    #  (1.0,1.0,1.0)
 
     if dataset == 'ImageNet32' or dataset == 'ImageNet84':
         transform_list.extend([
