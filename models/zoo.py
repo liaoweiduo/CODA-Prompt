@@ -80,7 +80,7 @@ class SlotPrompt(nn.Module):
                 nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
             self.expert_predictor.append(new_exp_pre)
 
-    def handle_q(self, q, all=True, learn_slots=True, temp=1., n_iter=None):
+    def handle_q(self, q, all=True, learn_slots=True, temp=None, n_iter=None):
         # obtain slot-prompts
         if q is None:
             raise ValueError('q is None')
