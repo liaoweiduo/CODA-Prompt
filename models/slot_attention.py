@@ -276,7 +276,8 @@ class Slot2Prompt(nn.Module):
                 # slots = nn.functional.normalize(slots, dim=2)
                 aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
                 # apply temp
-                aq_k = (self.key_d ** (-0.5) * self.temp) * aq_k
+                # aq_k = (self.key_d ** (-0.5) * self.temp) * aq_k
+                aq_k = ((self.key_d ** (-0.5)) * aq_k) ** int(self.temp)  # in this case, temp is recommended to be even num.
                 # over slot pool, thus each slot sharpply select one slot in the pool
                 aq_k = torch.softmax(aq_k, dim=-1)
                 # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type

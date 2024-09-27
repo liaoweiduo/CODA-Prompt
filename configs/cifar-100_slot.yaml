@@ -2,8 +2,8 @@ dataset: CIFAR100
 first_split_size: 10
 other_split_size: 10
 schedule:
-- [50, 30]
-- [50, 30]
+- [100, 30]
+- [100, 30]
 schedule_type: cosine
 slot_schedule_type: cosine
 batch_size: 128
