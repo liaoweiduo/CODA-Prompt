@@ -37,7 +37,7 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 slot_lrs=(1e-4 2e-4); temps=(1)
 devices=(0 1 2); i=-1
-for slot_run_id in 0 1个; do
+for slot_run_id in 0 1; do
 for temp_run_id in 0; do
 ((i++))
 slot_lr=${slot_lrs[${slot_run_id}]}
