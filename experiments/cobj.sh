@@ -26,7 +26,7 @@ mkdir -p $OUTDIR
 #    arg 3 = num of slots extracted from one img
 #    --debug_mode 1 \
 
-slot_lrs=(1e-4 5e-4 1e-3 2e-3); temps=(1)
+slot_lrs=(5e-5 7e-5); temps=(1)
 devices=(3 4 5 6); i=-1
 for slot_run_id in 0 1 2 3; do
 for temp_run_id in 0; do
