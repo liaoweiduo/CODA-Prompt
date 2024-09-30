@@ -271,7 +271,15 @@ class Slot2Prompt(nn.Module):
 
                 # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
                 # with attention and cosine sim
-                slots = self.slot_ln(slots)     # apply layernorm to alleviate shifting in slots
+
+                # slots = self.slot_ln(slots)     # apply layernorm to alleviate shifting in slots
+                # or min max scale to [-1, 1]
+                slots = slots.reshape(bs*n, h)
+                slots = slots - slots.min(dim=0)[0]  # norm on each axis
+                slots = slots / slots.max(dim=0)[0]
+                slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
+                slots = slots.reshape(bs, n, h)
+
                 # K = nn.functional.normalize(K, dim=1)
                 # slots = nn.functional.normalize(slots, dim=2)
                 aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
