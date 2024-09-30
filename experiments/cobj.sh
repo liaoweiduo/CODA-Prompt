@@ -28,7 +28,7 @@ mkdir -p $OUTDIR
 
 slot_lrs=(5e-5 7e-5); temps=(1)
 devices=(3 4 5 6); i=-1
-for slot_run_id in 0 1 2 3; do
+for slot_run_id in 0 1; do
 for temp_run_id in 0; do
 ((i++))
 slot_lr=${slot_lrs[${slot_run_id}]}
