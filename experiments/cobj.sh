@@ -25,7 +25,7 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = num of slots extracted from one img
 #    --debug_mode 1 \
-slot_lrs=(1e-4); temps=(0.5 2 10)
+slot_lrs=(1e-4); temps=(0.01 0.1 0.2)
 devices=(3 4 5); i=-1
 for slot_run_id in 0; do
 for temp_run_id in 0 1 2; do
