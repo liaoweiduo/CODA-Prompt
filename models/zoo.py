@@ -80,7 +80,7 @@ class SlotPrompt(nn.Module):
                 nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
             self.expert_predictor.append(new_exp_pre)
 
-    def handle_q(self, q, all=True, learn_slots=True, temp=None, n_iter=None):
+    def handle_q(self, q, all=True, learn_slots=True, learn_prompts=False, temp=None, n_iter=None, prompt_temp=None):
         # obtain slot-prompts
         if q is None:
             raise ValueError('q is None')
@@ -101,7 +101,7 @@ class SlotPrompt(nn.Module):
                 with torch.no_grad():       # this phase does not learn slot attn
                     _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp, n_iter=n_iter)
                 _recon_loss = 0
-            _prompts, _selection = self.s2p(_slots)
+            _prompts, _selection = self.s2p(_slots, temp=prompt_temp, train=learn_prompts)
             prompts.append(_prompts)
             selection.append(_selection)
             slots.append(_slots)

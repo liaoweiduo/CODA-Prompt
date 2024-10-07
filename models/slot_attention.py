@@ -222,7 +222,7 @@ class Slot2Prompt(nn.Module):
                     setattr(self, f'e_p_{e}', P)
                     setattr(self, f'e_k_{e}', K)
 
-    def forward(self, slots, s2p=None, train=False):
+    def forward(self, slots, s2p=None, train=False, temp=None):
         # slots [bs, n20, h64]
         bs, n, h = slots.shape
         if s2p is None:
@@ -272,20 +272,21 @@ class Slot2Prompt(nn.Module):
                 # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
                 # with attention and cosine sim
 
-                # slots = self.slot_ln(slots)     # apply layernorm to alleviate shifting in slots
-                # or min max scale to [-1, 1]
-                slots = slots.reshape(bs*n, h)
-                slots = slots - slots.min(dim=0)[0]  # norm on each axis
-                slots = slots / slots.max(dim=0)[0]
-                slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
-                slots = slots.reshape(bs, n, h)
+                slots = self.slot_ln(slots)     # apply layernorm to alleviate shifting in slots
+                # # or min max scale to [-1, 1]
+                # slots = slots.reshape(bs*n, h)
+                # slots = slots - slots.min(dim=0)[0]  # norm on each axis
+                # slots = slots / slots.max(dim=0)[0]
+                # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
+                # slots = slots.reshape(bs, n, h)
 
                 # K = nn.functional.normalize(K, dim=1)
                 # slots = nn.functional.normalize(slots, dim=2)
                 aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
                 # apply temp
-                # aq_k = (self.key_d ** (-0.5) * self.temp) * aq_k
-                aq_k = ((self.key_d ** (-0.5)) * aq_k) * self.temp
+                if temp is None:
+                    temp = self.temp
+                aq_k = ((self.key_d ** (-0.5)) * aq_k) * temp
                 # over slot pool, thus each slot sharpply select one slot in the pool
                 aq_k = torch.softmax(aq_k, dim=-1)
                 # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
