@@ -43,7 +43,7 @@ for temp_run_id in 0; do
 slot_lr=${slot_lrs[${slot_run_id}]}
 temp=${temps[${temp_run_id}]}
 device=${devices[${i}]}
-LOGNAME=2-slot_attn-pos-k10-nt5-temp${temp}-recon_noLN-mk-slot_lr${slot_lr}
+LOGNAME=3-slot_attn-pos-k10-nt5-temp${temp}-recon_noLN-mk-crossattn-slot_lr${slot_lr}
 #slot_lr=1e-4
 #temp=5
 #LOGNAME=1-slot_attn-pos-k10-nt5-temp${temp}-recon_noLN-slot_lr${slot_lr}

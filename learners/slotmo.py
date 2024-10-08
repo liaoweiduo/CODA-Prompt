@@ -547,7 +547,17 @@ class SLOTPrompt(Prompt):
         # slots shape [bs, 1\T, k10, h128]
         q = nn.functional.normalize(slots, dim=-1)
         # q = nn.functional.normalize(slots.detach(), dim=-1)
-        mk_logit = torch.einsum('btkh,ch->bc', q, n_K)  # sum over k -> wei-sum over h -> cos sim
+
+        # cross-attn and sum for all bs*k slots
+        bs, t, k, h = slots.shape
+        q = q.reshape(bs, -1, h)      # [bs, t*k, h]
+        weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs*t*k, h), dim=-1)
+        # [bs, k, bs*k] cosine sim matrix
+        weights = torch.sum(weights, dim=-1)        # [bs, k]
+        weights = torch.softmax(weights, dim=-1)    # sum over k == 1
+        q = torch.einsum('bkh,bk->bh', q, weights)
+
+        mk_logit = torch.einsum('bh,ch->bc', q, n_K)  # wei-sum over h -> cos sim
         mk_logit[:, :s] = -float('inf')
 
         mk_loss = F.cross_entropy(mk_logit, targets.long())
@@ -842,7 +852,8 @@ class SLOTPrompt(Prompt):
             out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [bs, n_cls]
             return (loss.detach(), out,
                     {'ccl_loss': ccl_loss.detach(), 's2p_loss': s2p_loss.detach(),
-                     'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach()})
+                     'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(),
+                     'mk_weights': weights.detach()})
 
     def update_model_f4m(self, inputs, targets, match_pool=False, learn_slots=False):
         self.optimizer.zero_grad()
@@ -1339,8 +1350,18 @@ class SLOTPrompt(Prompt):
                     n_K = nn.functional.normalize(K, dim=1)
                     # slots shape [bs, 1\T, k10, h128]
                     query = nn.functional.normalize(slots, dim=-1)
-                    mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
-                    # sum over k -> wei-sum over h -> cos sim
+
+                    # cross-attn and sum for all bs*k slots
+                    bs, t, k, h = slots.shape
+                    query = query.reshape(bs, -1, h)  # [bs, t*k, h]
+                    weights = torch.sum(query.unsqueeze(2) * query.reshape(1, 1, bs * t * k, h), dim=-1)
+                    # [bs, k, bs*k] cosine sim matrix
+                    weights = torch.sum(weights, dim=-1)  # [bs, k]
+                    weights = torch.softmax(weights, dim=-1)  # sum over k == 1
+                    query = torch.einsum('bkh,bk->bh', query, weights)
+
+                    mk_logit = torch.einsum('bh,ch->bc', query, n_K)  # wei-sum over h -> cos sim
+                    # mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
 
                     if self.debug_mode and i == 0:
                         print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
@@ -1474,7 +1495,18 @@ class SLOTPrompt(Prompt):
                         n_K = nn.functional.normalize(K, dim=1)
                         # slots shape [bs, 1\T, k10, h128]
                         query = nn.functional.normalize(slots, dim=-1)
-                        mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
+
+                        # cross-attn and sum for all bs*k slots
+                        bs, t, k, h = slots.shape
+                        query = query.reshape(bs, -1, h)  # [bs, t*k, h]
+                        weights = torch.sum(query.unsqueeze(2) * query.reshape(1, 1, bs * t * k, h), dim=-1)
+                        # [bs, k, bs*k] cosine sim matrix
+                        weights = torch.sum(weights, dim=-1)  # [bs, k]
+                        weights = torch.softmax(weights, dim=-1)  # sum over k == 1
+                        query = torch.einsum('bkh,bk->bh', query, weights)
+
+                        mk_logit = torch.einsum('bh,ch->bc', query, n_K)
+                        # mk_logit = torch.einsum('btkh,ch->bc', query, n_K)
                         # sum over k -> wei-sum over h -> cos sim
 
                         # mk_class_acc
