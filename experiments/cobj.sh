@@ -33,7 +33,7 @@ for temp_run_id in 0; do
 slot_lr=${slot_lrs[${slot_run_id}]}
 temp=${temps[${temp_run_id}]}
 device=${devices[${i}]}
-LOGNAME=3-slot_attn-pos-k10-nt5-temp${temp}-recon_noLN-mk-crossattn-slot_lr${slot_lr}
+LOGNAME=3-slot_attn-pos-k10-nt5-temp${temp}-recon_noLN-mk-crossattn0.1-slot_lr${slot_lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
