@@ -59,7 +59,7 @@ class SLOTPrompt(Prompt):
         self.ccl_coeff = float(self.config['prompt_param'][1][7])
         self.ccl_margin = float(self.config['prompt_param'][1][8])
         self.ccl_tau = float(self.config['prompt_param'][1][9])
-        self.cross_attn_temp = 0.1
+        self.cross_attn_temp = float(self.config['prompt_param'][1][10])
 
         try:
             prompt = self.model.module.prompt

@@ -25,22 +25,22 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = num of slots extracted from one img
 #    --debug_mode 1 \
-slot_lrs=(1e-4 2e-4); temps=(1)
+slot_lrs=(1e-4); temps=(0.01 0.05 0.1)
 devices=(3 4 5); i=-1
-for slot_run_id in 0 1; do
-for temp_run_id in 0; do
+for slot_run_id in 0; do
+for temp_run_id in 0 1 2; do
 ((i++))
 slot_lr=${slot_lrs[${slot_run_id}]}
 temp=${temps[${temp_run_id}]}
 device=${devices[${i}]}
-LOGNAME=3-slot_attn-pos-k10-nt5-temp${temp}-recon_noLN-mk-crossattn0.1-slot_lr${slot_lr}
+LOGNAME=3-slot_attn-pos-k10-nt5-recon_noLN-mk-crossattn${temp}-slot_lr${slot_lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 30 40 10 5 ${temp} 1.0 0.0 0.0 0.1 1.2 \
+    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 ${temp} \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
