@@ -59,6 +59,7 @@ class SLOTPrompt(Prompt):
         self.ccl_coeff = float(self.config['prompt_param'][1][7])
         self.ccl_margin = float(self.config['prompt_param'][1][8])
         self.ccl_tau = float(self.config['prompt_param'][1][9])
+        self.cross_attn_temp = 0.1
 
         try:
             prompt = self.model.module.prompt
@@ -554,6 +555,7 @@ class SLOTPrompt(Prompt):
         weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs*t*k, h), dim=-1)
         # [bs, k, bs*k] cosine sim matrix
         weights = torch.sum(weights, dim=-1)        # [bs, k]
+        weights = weights * self.cross_attn_temp    # cross_attn_temp: 0.1
         weights = torch.softmax(weights, dim=-1)    # sum over k == 1
         q = torch.einsum('bkh,bk->bh', q, weights)
 
@@ -1357,6 +1359,7 @@ class SLOTPrompt(Prompt):
                     weights = torch.sum(query.unsqueeze(2) * query.reshape(1, 1, bs * t * k, h), dim=-1)
                     # [bs, k, bs*k] cosine sim matrix
                     weights = torch.sum(weights, dim=-1)  # [bs, k]
+                    weights = weights * self.cross_attn_temp
                     weights = torch.softmax(weights, dim=-1)  # sum over k == 1
                     query = torch.einsum('bkh,bk->bh', query, weights)
 
@@ -1502,6 +1505,7 @@ class SLOTPrompt(Prompt):
                         weights = torch.sum(query.unsqueeze(2) * query.reshape(1, 1, bs * t * k, h), dim=-1)
                         # [bs, k, bs*k] cosine sim matrix
                         weights = torch.sum(weights, dim=-1)  # [bs, k]
+                        weights = weights * self.cross_attn_temp
                         weights = torch.softmax(weights, dim=-1)  # sum over k == 1
                         query = torch.einsum('bkh,bk->bh', query, weights)
 
