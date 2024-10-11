@@ -25,10 +25,10 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = num of slots extracted from one img
 #    --debug_mode 1 \
-slot_lrs=(1e-4); temps=(0.01 0.05 0.1)
-devices=(3 4 5); i=-1
-for slot_run_id in 0; do
-for temp_run_id in 0 1 2; do
+slot_lrs=(1e-5 5e-5); temps=(0.2 0.5)
+devices=(3 4 5 6); i=-1
+for slot_run_id in 0 1; do
+for temp_run_id in 0 1; do
 ((i++))
 slot_lr=${slot_lrs[${slot_run_id}]}
 temp=${temps[${temp_run_id}]}
