@@ -792,7 +792,8 @@ class Subset(torch.utils.data.dataset.Dataset):
             self.targets = np.array(self.targets)
             self.ori_idxs = np.array(self.ori_idxs)
         else:
-            self.targets = np.array(self._dataset.targets)[self._indices]
+            for index in range(len(self._indices)):
+                self.targets.append(self._class_mapping[self._dataset.targets[self._indices[index]]])
 
     def __getitem__(self, index):
         if self.load:

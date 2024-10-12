@@ -21,6 +21,8 @@ from torchvision.transforms.functional import crop, InterpolationMode
 import torch
 from torch import Tensor
 
+from dataloaders.cgqa import Subset, Benchmark
+
 
 """ README
 The original labels of classes are the sorted combination of all existing
@@ -751,71 +753,6 @@ class PathsDataset(torch.utils.data.Dataset):
         """
 
         return len(self.imgs)
-
-
-class Subset(torch.utils.data.dataset.Dataset):
-    """
-    subset with class mapping
-    """
-    def __init__(self, dataset, indices, class_mapping, task_labels, transform=None, load=False):
-        self._dataset = dataset
-        self._indices = indices
-        self._subset = torch.utils.data.Subset(dataset, indices)
-        self._class_mapping = class_mapping
-        self._task_labels = task_labels
-        self._transform = transform
-        self.load = load
-
-        self.images = []
-        self.targets = []
-        self.ori_idxs = []
-        if self.load:
-            # print('Load data in Subset:')
-            # for index in tqdm(range(len(self._indices))):
-            for index in range(len(self._indices)):
-                x, y, ori_idx = self.get_from_source(index)
-                self.images.append(x)
-                self.targets.append(y)
-                self.ori_idxs.append(ori_idx)
-            if type(self.images[0]) == torch.Tensor:
-                self.images = torch.stack(self.images)
-            else:
-                self.images = torch.from_numpy(np.stack(self.images))
-            self.targets = np.array(self.targets)
-            self.ori_idxs = np.array(self.ori_idxs)
-        else:
-            self.targets = np.array(self._dataset.targets)[self._indices]
-
-    def __getitem__(self, index):
-        if self.load:
-            return self.images[index], self.targets[index], self.ori_idxs[index]
-        else:
-            return self.get_from_source(index)
-
-    def __len__(self):
-        return len(self._indices)
-
-    def get_from_source(self, index):
-        x, y, ori_idx = self._subset[index]
-        if self._transform is not None:
-            x = self._transform(x)
-        mapped_y = self._class_mapping[y]
-        return x, mapped_y, ori_idx
-
-    def get_task_label(self, index):
-        if type(self._task_labels) is int:
-            return self._task_labels
-        return self._task_labels[index]
-
-
-class Benchmark:
-    """
-    Benchmark of all experiments
-    """
-    def __init__(self, train_datasets, test_datasets, val_datasets):
-        self.train_datasets = train_datasets
-        self.test_datasets = test_datasets
-        self.val_datasets = val_datasets
 
 
 __all__ = ["continual_training_benchmark", "fewshot_testing_benchmark"]
