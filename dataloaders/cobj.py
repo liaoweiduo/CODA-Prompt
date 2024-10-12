@@ -783,6 +783,8 @@ class Subset(torch.utils.data.dataset.Dataset):
                 self.images = torch.from_numpy(np.stack(self.images))
             self.targets = np.array(self.targets)
             self.ori_idxs = np.array(self.ori_idxs)
+        else:
+            self.targets = np.array(self._dataset.targets)[self._indices]
 
     def __getitem__(self, index):
         if self.load:
