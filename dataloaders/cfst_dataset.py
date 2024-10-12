@@ -107,7 +107,10 @@ class CFSTDataset(data.Dataset):
 
     def get_single_class_dataset(self, label):
         """from dataset load images with given label"""
-        targets = self.dataset.targets
+        if hasattr(self.dataset, 'targets'):
+            targets = self.dataset.targets
+        else:
+            targets = np.concatenate([self.dataset.datasets[t].targets for t in self.dataset.datasets])
         cls_indices = np.where(targets == label)[0]
         return torch.utils.data.Subset(self.dataset, cls_indices)
 
