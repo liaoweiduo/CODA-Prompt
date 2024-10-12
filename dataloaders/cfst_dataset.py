@@ -94,7 +94,7 @@ class CFSTDataset(data.Dataset):
         NOTE: train=False will be bug if in task-IL.
         if first_split_size is not 1, rearrange task id
         """
-        if t == 0:       # first task
+        if t == 0 and self.first_split_size > 1:       # first task
             self.dataset = torch.utils.data.ConcatDataset(
                 [self.target_datasets[s] for s in range(self.first_split_size)])
         else:
