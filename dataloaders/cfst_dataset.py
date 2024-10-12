@@ -105,6 +105,16 @@ class CFSTDataset(data.Dataset):
                 self.dataset = torch.utils.data.ConcatDataset([self.target_datasets[s] for s in range(exact_t+1)])
         self.t = t
 
+    def get_single_class_dataset(self, label):
+        """from dataset load images with given label"""
+        targets = self.dataset.targets
+        cls_indices = np.where(targets == label)[0]
+        return torch.utils.data.Subset(self.dataset, cls_indices)
+
+    def get_unique_labels(self):
+        targets = self.dataset.targets
+        return np.unique(targets)
+
     def update_pool(self, pool_size, task_id=None, pool=None):
         if task_id is None:
             task_id = self.t
