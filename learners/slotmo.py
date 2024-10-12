@@ -60,6 +60,7 @@ class SLOTPrompt(Prompt):
         self.ccl_margin = float(self.config['prompt_param'][1][8])
         self.ccl_tau = float(self.config['prompt_param'][1][9])
         self.cross_attn_temp = float(self.config['prompt_param'][1][10])
+        self.mk_coeff = float(self.config['prompt_param'][1][11])
 
         try:
             prompt = self.model.module.prompt
@@ -561,7 +562,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(recon_loss.item())
 
-            loss = recon_loss + mk_loss
+            loss = recon_loss + self.mk_coeff * mk_loss
 
             loss.backward()
 

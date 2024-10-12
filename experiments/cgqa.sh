@@ -34,6 +34,7 @@ mkdir -p $OUTDIR
 #    arg 9 = margin for ccl
 #    arg 10 = tau for ccl
 #    arg 11 = temperature for cross attn
+#    arg 12 = coeff for mk loss
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
 slot_lrs=(1e-4); temps=(0.01 0.05 0.1)
@@ -51,7 +52,7 @@ docker run -d --rm --runtime=nvidia --gpus device=${device} \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 ${temp} \
+    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 ${temp} 1.0 \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
     --log_dir ${OUTDIR}/${LOGNAME}
