@@ -536,11 +536,12 @@ class SLOTPrompt(Prompt):
 
         q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
         prompts, selections, slots, attn, recon_loss = q
+        bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
 
         # slot_attn_class_key
         K = model.prompt.slot_attn_class_key        # [c100, h128]
         s = self.last_valid_out_dim
-        mk_logit, mk_weights = self.forward_mk(slots, K)
+        mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
 
         mk_logit[:, :s] = -float('inf')
         mk_loss = F.cross_entropy(mk_logit, targets.long())
@@ -851,9 +852,9 @@ class SLOTPrompt(Prompt):
         # q = nn.functional.normalize(slots.detach(), dim=-1)
 
         # cross-attn and sum for all bs*k slots
-        bs, t, k, h = slots.shape
-        q = q.reshape(bs, -1, h)  # [bs, t*k, h]
-        weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs * t * k, h), dim=-1)
+        bs, k, h = slots.shape
+        # q = q.reshape(bs, -1, h)  # [bs, k, h]
+        weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs * k, h), dim=-1)
         # [bs, k, bs*k] cosine sim matrix
         weights = torch.sum(weights, dim=-1)  # [bs, k]
         weights = weights * self.cross_attn_temp  # cross_attn_temp: 0.1
@@ -1349,12 +1350,13 @@ class SLOTPrompt(Prompt):
                     q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
                     prompts, selection, slots, attn, recon_loss = q
                     bs, t, e, p, d = prompts.shape
+                    bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                     assert t == 1
 
                     # slot_attn_class_key
                     K = model.prompt.slot_attn_class_key  # [c100, h128]
                     s = self.last_valid_out_dim
-                    mk_logit, mk_weights = self.forward_mk(slots, K)
+                    mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
 
                     if self.debug_mode and i == 0:
                         print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
@@ -1479,12 +1481,13 @@ class SLOTPrompt(Prompt):
                         # prompts = prompts.reshape(bs, t * k, e, p, d)
                         # # slots = model_single.prompt.match_pool(slots)
                         bs, t, e, p, d = prompts.shape
+                        bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                         assert t == 1
 
                         # slot_attn_class_key
                         K = model.prompt.slot_attn_class_key  # [c100, h128]
                         s = self.last_valid_out_dim
-                        mk_logit, mk_weights = self.forward_mk(slots, K)
+                        mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
 
                         if self.debug_mode and i == 0:
                             print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
