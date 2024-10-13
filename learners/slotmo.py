@@ -848,16 +848,15 @@ class SLOTPrompt(Prompt):
         if self.t > 0:
             K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
         n_K = nn.functional.normalize(K, dim=1)
-        # slots shape [bs, 1\T, k10, h128]
-        q = nn.functional.normalize(slots, dim=-1)
-        # q = nn.functional.normalize(slots.detach(), dim=-1)
 
         # cross-attn and sum for all bs*k slots
         bs, k, h = slots.shape
+        q = nn.functional.normalize(slots, dim=-1)
+        # q = nn.functional.normalize(slots.detach(), dim=-1)
         # q = q.reshape(bs, -1, h)  # [bs, k, h]
         weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs * k, h), dim=-1)
         # [bs, k, bs*k] cosine sim matrix
-        weights = torch.sum(weights, dim=-1)  # [bs, k]
+        weights = torch.mean(weights, dim=-1)  # [bs, k]
         weights = weights * self.cross_attn_temp  # cross_attn_temp: 0.1
         weights = torch.softmax(weights, dim=-1)  # sum over k == 1
         q = torch.einsum('bkh,bk->bh', q, weights)

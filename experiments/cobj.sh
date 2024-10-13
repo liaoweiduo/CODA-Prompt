@@ -25,12 +25,12 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = num of slots extracted from one img
 #    --debug_mode 1 \
-slot_lrs=(1e-5); temps=(0.5)
-mk_coeffs=(0.1 0.5 1 2)
-devices=(3 4 5 6); i=-1
-for slot_run_id in 0; do
-for temp_run_id in 0; do
-for mk_coeff_run_id in 0 1 2 3; do
+slot_lrs=(1e-5 5e-5); temps=(40 80 160)
+mk_coeffs=(0.5)
+devices=(0 1 2 3 4 5 6); i=-1
+for slot_run_id in 0 1; do
+for temp_run_id in 0 1 2; do
+for mk_coeff_run_id in 0; do
 ((i++))
 slot_lr=${slot_lrs[${slot_run_id}]}
 temp=${temps[${temp_run_id}]}
@@ -67,8 +67,8 @@ done
 #  --shm-size 8G liaoweiduo/hide:2.0 \
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type slotmo --learner_name SLOTPrompt \
-#    --prompt_param 30 40 10 5 1.0 ${temp} 0.0 0.0 0.1 1.2 \
-#    --slot_pre_learn_model 1-slot_attn-pos-k10-nt5-temp1-recon_noLN-slot_lr1e-4 \
+#    --prompt_param 30 40 10 5 1.0 ${temp} 0.0 0.0 0.1 1.2 160 0.5 \
+#    --slot_pre_learn_model 3-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crossattn0.5-slot_lr1e-5 \
 #    --lr ${lr} ${lr} \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
