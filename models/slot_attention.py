@@ -280,13 +280,14 @@ class Slot2Prompt(nn.Module):
                 # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
                 # slots = slots.reshape(bs, n, h)
 
-                # K = nn.functional.normalize(K, dim=1)
-                # slots = nn.functional.normalize(slots, dim=2)
+                K = nn.functional.normalize(K, dim=-1)
+                slots = nn.functional.normalize(slots, dim=-1)
                 aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
                 # apply temp
                 if temp is None:
                     temp = self.temp
-                aq_k = ((self.key_d ** (-0.5)) * aq_k) * temp
+                # aq_k = ((self.key_d ** (-0.5)) * aq_k) * temp
+                aq_k = aq_k * temp
                 # over slot pool, thus each slot sharpply select one slot in the pool
                 aq_k = torch.softmax(aq_k, dim=-1)
                 # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
