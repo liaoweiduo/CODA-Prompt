@@ -223,6 +223,7 @@ class Slot2Prompt(nn.Module):
                     setattr(self, f'e_k_{e}', K)
 
     def forward(self, slots, s2p=None, train=False, temp=None):
+        # train control the detach of old K and p
         # slots [bs, n20, h64]
         bs, n, h = slots.shape
         if s2p is None:
