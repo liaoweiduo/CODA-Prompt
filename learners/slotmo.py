@@ -61,6 +61,7 @@ class SLOTPrompt(Prompt):
         self.ccl_tau = float(self.config['prompt_param'][1][9])
         self.cross_attn_temp = float(self.config['prompt_param'][1][10])
         self.mk_coeff = float(self.config['prompt_param'][1][11])
+        self.slot_vsI_coeff = float(self.config['prompt_param'][1][12])
 
         try:
             prompt = self.model.module.prompt
@@ -562,7 +563,16 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(recon_loss.item())
 
-            loss = recon_loss + self.mk_coeff * mk_loss
+            # image-wise mse for slot cosine sim vs I
+            slot_sim_mse = 0
+            if self.slot_vsI_coeff > 0:
+                cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                img_slots = slots.reshape(bs, t*k, h)
+                sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [bs, k, k]
+                eye = torch.eye(t*k).expand_as(sim).to(sim.device)
+                slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
+
+            loss = recon_loss + self.mk_coeff * mk_loss + self.slot_vsI_coeff * slot_sim_mse
 
             loss.backward()
 
