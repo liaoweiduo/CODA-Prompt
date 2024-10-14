@@ -27,7 +27,7 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 slot_lrs=(1e-5); temps=(80)
 mk_coeffs=(0.5); slot_vsI_coeffs=(0.5 1)
-devices=(2 3); i=-1
+devices=(4 5); i=-1
 for slot_run_id in 0 ; do
 for temp_run_id in 0; do
 for mk_coeff_run_id in 0; do
