@@ -55,13 +55,16 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary(aux_dataset)
         # self.aux = Auxiliary()
 
-        self.weight_coeff = float(self.config['prompt_param'][1][6])
-        self.ccl_coeff = float(self.config['prompt_param'][1][7])
-        self.ccl_margin = float(self.config['prompt_param'][1][8])
-        self.ccl_tau = float(self.config['prompt_param'][1][9])
-        self.cross_attn_temp = float(self.config['prompt_param'][1][10])
-        self.mk_coeff = float(self.config['prompt_param'][1][11])
-        self.slot_vsI_coeff = float(self.config['prompt_param'][1][12])
+        config = self.config['prompt_param'][1]
+        while len(config) < 13:
+            config.append(0)
+        self.weight_coeff = float(config[6])
+        self.ccl_coeff = float(config[7])
+        self.ccl_margin = float(config[8])
+        self.ccl_tau = float(config[9])
+        self.cross_attn_temp = float(config[10])
+        self.mk_coeff = float(config[11])
+        self.slot_vsI_coeff = float(config[12])
 
         try:
             prompt = self.model.module.prompt
