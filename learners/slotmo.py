@@ -319,6 +319,9 @@ class SLOTPrompt(Prompt):
                 losses = AverageMeter()
                 mk_losses = AverageMeter()
                 slot_sim_mses = AverageMeter()
+                alpha1s = AverageMeter()
+                alpha2s = AverageMeter()
+                alpha3s = AverageMeter()
                 batch_time = AverageMeter()
                 batch_timer = Timer()
 
@@ -369,6 +372,7 @@ class SLOTPrompt(Prompt):
                             loss, output, loss_dict = self.update_model(x, y, learn_slots=True)
                             mk_loss = loss_dict['mk_loss']
                             slot_sim_mse = loss_dict['slot_sim_mse']
+                            alpha = loss_dict['alpha']
 
                             # measure elapsed time
                             batch_time.update(batch_timer.toc())
@@ -379,23 +383,30 @@ class SLOTPrompt(Prompt):
                             losses.update(loss, y.size(0))
                             mk_losses.update(mk_loss, y.size(0))
                             slot_sim_mses.update(slot_sim_mse, y.size(0))
+                            alpha1s.update(alpha[0], y.size(0))
+                            alpha2s.update(alpha[1], y.size(0))
+                            alpha3s.update(alpha[2], y.size(0))
                             batch_timer.tic()
 
                         # eval update
                         self.log(
                             'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                         self.log(
-                            ' * Loss {loss.avg:.3f} | '
-                            'MK Loss {mk_loss.avg:.3f} | '
-                            'Slot Sim MSE {slot_sim_mse.avg:.3f} | '
+                            ' * Loss {loss.avg:.3f} a({alpha1.avg:.3f}) | '
+                            'MK Loss {mk_loss.avg:.3f} a({alpha2.avg:.3f}) | '
+                            'Slot Sim MSE {slot_sim_mse.avg:.3f} a({alpha3.avg:.3f}) | '
                             'Time {time:.3f}s ({i} batches)'.format(
                                 loss=losses, mk_loss=mk_losses, slot_sim_mse=slot_sim_mses,
+                                alpha1=alpha1s, alpha2=alpha2s, alpha3=alpha3s,
                                 time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                         # reset
                         losses = AverageMeter()
                         mk_losses = AverageMeter()
                         slot_sim_mses = AverageMeter()
+                        alpha1s = AverageMeter()
+                        alpha2s = AverageMeter()
+                        alpha3s = AverageMeter()
 
                         # validation recon loss
                         if val_loader is not None:
@@ -594,7 +605,19 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_sim_mse.item())
 
-            loss = recon_loss + self.mk_coeff * mk_loss + self.slot_vsI_coeff * slot_sim_mse
+            alpha = model.prompt.slot_attn_alpha    # [3]
+
+            for alpha_idx in range(len(alpha)):
+                self.epoch_log['scaler']['Tag'].append(f'alpha/{alpha_idx}')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(alpha[alpha_idx].item())
+
+            # loss = recon_loss + self.mk_coeff * mk_loss + self.slot_vsI_coeff * slot_sim_mse
+
+            loss = 1/alpha[0]**2 * recon_loss
+            loss = loss + 1/alpha[1]**2 * self.mk_coeff * mk_loss
+            loss = loss + 1/alpha[2]**2 * self.slot_vsI_coeff * slot_sim_mse
+            loss = loss + torch.sum(torch.log(alpha+1))
 
             loss.backward()
 
@@ -605,6 +628,7 @@ class SLOTPrompt(Prompt):
             return loss.detach(), logits, {'recon_loss': recon_loss.detach(),
                                            'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(),
                                            'slot_sim_mse': slot_sim_mse.detach(),
+                                           'alpha': alpha.detach(),
                                            }
 
         else:

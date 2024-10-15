@@ -49,6 +49,10 @@ class SlotPrompt(nn.Module):
         # slot mapping ortho
         self.slot_attn_mapping_k = init_tensor(self.e_pool_size, self.key_d)
 
+        # slot learning coeff
+        self.slot_attn_alpha = nn.Parameter(torch.FloatTensor(3), requires_grad=True)
+        nn.init.constant_(self.slot_attn_alpha, 1)
+
         # output setting
         self.s2p_temp = float(prompt_param[5])     # 1.2 temperature to control how sharp are slot attns
         self.s2p = Slot2Prompt(emb_d, self.n_tasks, self.e_pool_size, self.e_p_length, self.e_layers,
