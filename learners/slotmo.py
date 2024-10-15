@@ -589,17 +589,17 @@ class SLOTPrompt(Prompt):
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
                 img_slots = slots.reshape(bs, t*k, h)
                 ## slot to be ortho
-                # sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [bs, k, k]
-                # eye = torch.eye(t*k).expand_as(sim).to(sim.device)
-                # slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
-                ## selection to be ortho
-                slot_mapping_k = model.prompt.slot_attn_mapping_k
-                slot_mapping_k = nn.functional.normalize(slot_mapping_k, dim=-1)        # [pp30, h]
-                img_slots = nn.functional.normalize(img_slots, dim=-1)                  # [bs, k, h]
-                image_selections = torch.einsum('bnh,kh->bnk', img_slots, slot_mapping_k)   # [bs, k, pp30]
-                sim = cos(image_selections.unsqueeze(1), image_selections.unsqueeze(2))  # [bs*e, k, k]
-                eye = torch.eye(k).expand_as(sim).to(sim.device)
+                sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [bs, k, k]
+                eye = torch.eye(t*k).expand_as(sim).to(sim.device)
                 slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
+                ## selection to be ortho
+                # slot_mapping_k = model.prompt.slot_attn_mapping_k
+                # slot_mapping_k = nn.functional.normalize(slot_mapping_k, dim=-1)        # [pp30, h]
+                # img_slots = nn.functional.normalize(img_slots, dim=-1)                  # [bs, k, h]
+                # image_selections = torch.einsum('bnh,kh->bnk', img_slots, slot_mapping_k)   # [bs, k, pp30]
+                # sim = cos(image_selections.unsqueeze(1), image_selections.unsqueeze(2))  # [bs*e, k, k]
+                # eye = torch.eye(k).expand_as(sim).to(sim.device)
+                # slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
 
                 self.epoch_log['scaler']['Tag'].append('loss/slot_sim_mse')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)

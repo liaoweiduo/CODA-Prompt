@@ -27,7 +27,7 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 slot_lrs=(1e-5); temps=(80)
 mk_coeffs=(1); slot_vsI_coeffs=(1)
-devices=(0); i=-1
+devices=(1); i=-1
 for slot_run_id in 0; do
 for temp_run_id in 0; do
 for mk_coeff_run_id in 0; do
@@ -38,7 +38,7 @@ temp=${temps[${temp_run_id}]}
 mk_coeff=${mk_coeffs[${mk_coeff_run_id}]}
 slot_vsI_coeff=${slot_vsI_coeffs[${slot_vsI_coeff_run_id}]}
 device=${devices[${i}]}
-LOGNAME=5-slot_attn-pos-k10-nt5-recon_noLN-alpha-mk${mk_coeff}-crosssim${temp}-slotM_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
+LOGNAME=5-slot_attn-pos-k10-nt5-recon_noLN-alpha-mk${mk_coeff}-crosssim${temp}-slot_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
