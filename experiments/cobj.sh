@@ -38,7 +38,7 @@ temp=${temps[${temp_run_id}]}
 mk_coeff=${mk_coeffs[${mk_coeff_run_id}]}
 slot_vsI_coeff=${slot_vsI_coeffs[${slot_vsI_coeff_run_id}]}
 device=${devices[${i}]}
-LOGNAME=4-slot_attn-pos-k10-nt5-recon_noLN-mk${mk_coeff}-crosssim${temp}-slotM_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
+LOGNAME=5-slot_attn-pos-k10-nt5-recon_noLN-mk${mk_coeff}-crosssim${temp}-slotM_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
