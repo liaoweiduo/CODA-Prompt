@@ -47,7 +47,7 @@ class SlotPrompt(nn.Module):
         self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
 
         # slot mapping ortho
-        self.slot_mapping_k = init_tensor(self.e_pool_size, self.key_d)
+        self.slot_attn_mapping_k = init_tensor(self.e_pool_size, self.key_d)
 
         # output setting
         self.s2p_temp = float(prompt_param[5])     # 1.2 temperature to control how sharp are slot attns

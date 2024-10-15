@@ -270,7 +270,7 @@ class Trainer:
 
             # save temporary acc results
             for mkey in ['acc']:
-                save_file = temp_dir + mkey + f'_t{self.seed}.csv'
+                save_file = temp_dir + mkey + f'_seed{self.seed}.csv'
                 np.savetxt(save_file, np.asarray(temp_table[mkey]), delimiter=",", fmt='%.2f')  
 
             if avg_train_time is not None: avg_metrics['time']['global'][i] = avg_train_time
@@ -280,7 +280,7 @@ class Trainer:
                 self.learner.train_log_to_df()
                 epoch_log = self.learner.epoch_log
 
-                debugger.save_log(epoch_log, temp_dir + f'log_t{i}' + '.pkl')
+                debugger.save_log(epoch_log, temp_dir + f'log_seed{self.seed}_t{i}' + '.pkl')
 
                 # pop_labels = [
                 #     f"p{idx}" if idx < self.learner_config['n_obj'] else f"m{idx - self.learner_config['n_obj']}"
@@ -296,19 +296,20 @@ class Trainer:
                 # debugger.write_pool(pool, i=i, writer=writer, prefix=f'pool')
 
                 if len(epoch_log['scaler']) > 0:     # perform training
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/ce_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/mo_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/s2p_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/mk_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/ccl_loss', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='loss/slot_recon_loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler'], key='val_acc_phase1', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='val_acc', i=i, writer=writer, inner=True)
-                    debugger.write_scaler(epoch_log['scaler'], key='alpha', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler'], key='loss/et_loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler'], key='et/loss', i=i, writer=writer, inner=True)
-                    # debugger.write_scaler(epoch_log['scaler'], key='et/acc', i=i, writer=writer, inner=True)
+                    debugger.write_scaler(epoch_log['scaler'], key='all', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/ce_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/hv_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/mo_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/s2p_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/mk_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/ccl_loss', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='loss/slot_recon_loss', i=i, writer=writer, inner=True)
+                    # # debugger.write_scaler(epoch_log['scaler'], key='val_acc_phase1', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='val_acc', i=i, writer=writer, inner=True)
+                    # debugger.write_scaler(epoch_log['scaler'], key='alpha', i=i, writer=writer, inner=True)
+                    # # debugger.write_scaler(epoch_log['scaler'], key='loss/et_loss', i=i, writer=writer, inner=True)
+                    # # debugger.write_scaler(epoch_log['scaler'], key='et/loss', i=i, writer=writer, inner=True)
+                    # # debugger.write_scaler(epoch_log['scaler'], key='et/acc', i=i, writer=writer, inner=True)
 
                 '''write mo'''
                 if len(epoch_log['mo']) > 0:

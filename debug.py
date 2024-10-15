@@ -150,20 +150,28 @@ class Debugger:
         if level < self.level:
             return
 
-        t_df = df[df.Tag == key]
-        value = -1
-        for idx in sorted(set(t_df.Idx)):
-            value = t_df[t_df.Idx == idx].Value.mean()
-            value = np.nan_to_num(value)
-            if not inner:
-                writer.add_scalar(f'{prefix}{key}/{idx}', value, i + 1)
+        if key == 'all':
+            keys = list(set(df.Tag))
+        else:
+            keys = [key]
 
-        print(f'{prefix}{key}: {value:.5f}.')
+        values = []
+        for key in keys:
+            t_df = df[df.Tag == key]
+            value = -1
+            for idx in sorted(set(t_df.Idx)):
+                value = t_df[t_df.Idx == idx].Value.mean()
+                value = np.nan_to_num(value)
+                if not inner:
+                    writer.add_scalar(f'{prefix}{key}/{idx}', value, i + 1)
 
-        if inner:
-            self.write_inner(df, key=key, i=i, writer=writer, prefix=prefix)
+            print(f'{prefix}{key}: {value:.5f}.')
+            values.append(value)
 
-        return value
+            if inner:
+                self.write_inner(df, key=key, i=i, writer=writer, prefix=prefix)
+
+        return keys, values
 
     def write_inner(self, df, key, i, writer: Optional[SummaryWriter] = None, prefix=''):
         """

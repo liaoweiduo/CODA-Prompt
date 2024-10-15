@@ -318,6 +318,7 @@ class SLOTPrompt(Prompt):
                 self.log(f'Phase I： training slots')
                 losses = AverageMeter()
                 mk_losses = AverageMeter()
+                slot_sim_mses = AverageMeter()
                 batch_time = AverageMeter()
                 batch_timer = Timer()
 
@@ -367,6 +368,7 @@ class SLOTPrompt(Prompt):
                             # model update
                             loss, output, loss_dict = self.update_model(x, y, learn_slots=True)
                             mk_loss = loss_dict['mk_loss']
+                            slot_sim_mse = loss_dict['slot_sim_mse']
 
                             # measure elapsed time
                             batch_time.update(batch_timer.toc())
@@ -376,6 +378,7 @@ class SLOTPrompt(Prompt):
                             y = y.detach()
                             losses.update(loss, y.size(0))
                             mk_losses.update(mk_loss, y.size(0))
+                            slot_sim_mses.update(slot_sim_mse, y.size(0))
                             batch_timer.tic()
 
                         # eval update
@@ -384,13 +387,15 @@ class SLOTPrompt(Prompt):
                         self.log(
                             ' * Loss {loss.avg:.3f} | '
                             'MK Loss {mk_loss.avg:.3f} | '
+                            'Slot Sim MSE {slot_sim_mse.avg:.3f} | '
                             'Time {time:.3f}s ({i} batches)'.format(
-                                loss=losses, mk_loss=mk_losses,
+                                loss=losses, mk_loss=mk_losses, slot_sim_mse=slot_sim_mses,
                                 time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                         # reset
                         losses = AverageMeter()
                         mk_losses = AverageMeter()
+                        slot_sim_mses = AverageMeter()
 
                         # validation recon loss
                         if val_loader is not None:
@@ -577,13 +582,17 @@ class SLOTPrompt(Prompt):
                 # eye = torch.eye(t*k).expand_as(sim).to(sim.device)
                 # slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
                 ## selection to be ortho
-                slot_mapping_k = model.prompt.slot_mapping_k
+                slot_mapping_k = model.prompt.slot_attn_mapping_k
                 slot_mapping_k = nn.functional.normalize(slot_mapping_k, dim=-1)        # [pp30, h]
                 img_slots = nn.functional.normalize(img_slots, dim=-1)                  # [bs, k, h]
                 image_selections = torch.einsum('bnh,kh->bnk', img_slots, slot_mapping_k)   # [bs, k, pp30]
                 sim = cos(image_selections.unsqueeze(1), image_selections.unsqueeze(2))  # [bs*e, k, k]
                 eye = torch.eye(k).expand_as(sim).to(sim.device)
                 slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
+
+                self.epoch_log['scaler']['Tag'].append('loss/slot_sim_mse')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(slot_sim_mse.item())
 
             loss = recon_loss + self.mk_coeff * mk_loss + self.slot_vsI_coeff * slot_sim_mse
 
@@ -593,8 +602,10 @@ class SLOTPrompt(Prompt):
             self.optimizer.step()
 
             logits = None
-            return loss.detach(), logits, {'recon_loss': recon_loss.detach(), 'mk_loss': mk_loss.detach(),
-                                           'mk_logit': mk_logit.detach()}
+            return loss.detach(), logits, {'recon_loss': recon_loss.detach(),
+                                           'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(),
+                                           'slot_sim_mse': slot_sim_mse.detach(),
+                                           }
 
         else:
             bs, t, e, p, d = prompts.shape      # no k
