@@ -65,8 +65,7 @@ class SLOTPrompt(Prompt):
         self.cross_attn_temp = float(config[10])
         self.mk_coeff = float(config[11])
         self.slot_vsI_coeff = float(config[12])
-        self.prompt_ortho_coeff = float(config[13])
-        self.selection_ortho_coeff = float(config[14])
+        self.selection_ortho_coeff = float(config[13])
 
         try:
             prompt = self.model.module.prompt
@@ -734,8 +733,6 @@ class SLOTPrompt(Prompt):
             # selection_ortho_loss
             selection_ortho_loss = torch.zeros(1).mean().to(loss.device)
             if self.selection_ortho_coeff > 0:
-                # 还需要selection要不同，k个slots的selection的cossim或者KL矩阵与I的mse？
-                # 或者与slots的cossim的mse。因为有些slot是一样的，所以直接就利用它自己的cossim
                 bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
                 batched_selections = selections.reshape(bs, t*k, e*pp)
                 bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
