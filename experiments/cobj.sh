@@ -59,7 +59,7 @@ lrs=(1e-4); temps=(1 10)
 selection_ortho_coeffs=(0.5 1)
 devices=(0 1 2 3); i=-1
 for lr_run_id in 0; do
-for temp_run_id in 0; do
+for temp_run_id in 0 1; do
 for soc_run_id in 0 1; do
 ((i++))
 lr=${lrs[${lr_run_id}]}
