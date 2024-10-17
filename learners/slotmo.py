@@ -56,7 +56,7 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary()
 
         config = self.config['prompt_param'][1]
-        while len(config) < 13:
+        while len(config) < 14:
             config.append(0)
         self.weight_coeff = float(config[6])
         self.ccl_coeff = float(config[7])
