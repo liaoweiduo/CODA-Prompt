@@ -55,25 +55,33 @@ mkdir -p $OUTDIR
 #done
 
 
-lrs=(1e-4); temps=(1 10)
-devices=(2 3); i=-1
+lrs=(1e-4); temps=(1)
+prompt_ortho_coeffs=(0.5 1)
+selection_ortho_coeffs=(0.5 1)
+devices=(0 1 2 3); i=-1
 for lr_run_id in 0; do
-for temp_run_id in 0 1; do
+for temp_run_id in 0; do
+for poc_run_id in 0 1; do
+for soc_run_id in 0 1; do
 ((i++))
 lr=${lrs[${lr_run_id}]}
 temp=${temps[${temp_run_id}]}
+prompt_ortho_coeff=${prompt_ortho_coeffs[${poc_run_id}]}
+selection_ortho_coeff=${selection_ortho_coeffs[${soc_run_id}]}
 device=${devices[${i}]}
-LOGNAME=5-slot_prompt-k10-nt5-ln-cossim${temp}-p30-l40-lr${lr}
+LOGNAME=5-slot_prompt-k10-nt5-ln-cossim${temp}-pol${prompt_ortho_coeff}-sol${selection_ortho_coeff}-p30-l40-lr${lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 30 40 10 5 1.0 ${temp} 0.0 0.0 0.1 1.2 80 0.5 0.0 \
+    --prompt_param 30 40 10 5 1.0 ${temp} 0.0 0.0 0.1 1.2 80 0.5 0.0 ${prompt_ortho_coeff} ${selection_ortho_coeff} \
     --slot_pre_learn_model 4-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-5 \
     --lr ${lr} ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
+done
+done
 done
 done
 #    --t0_model_from slot-k10-p30-ccl0-l2weight0.05 \

@@ -292,11 +292,11 @@ class Slot2Prompt(nn.Module):
                 # over slot pool, thus each slot sharpply select one slot in the pool
                 aq_k = torch.softmax(aq_k, dim=-1)
                 # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
-                P = torch.einsum('bnk,kld->bld', aq_k, p)   # wei-sum over k -> bnld -> sum over n -> bld
+                P = torch.einsum('bnk,kld->bnld', aq_k, p)   # wei-sum over k -> bnld
                 prompts.append(P)
                 selections.append(aq_k)
-            prompts = torch.stack(prompts, dim=1)       # [bs, e, l, d]
-            selections = torch.stack(selections, dim=1)     # [bs, e, n10, k30]
+            prompts = torch.stack(prompts, dim=2)       # [bs, n10, e, l, d]   n is num_slots
+            selections = torch.stack(selections, dim=2)     # [bs, n10, e, k30]
 
         # prompt_map = getattr(self, f's2p')  # [h64, e12, p8, d768]
         # # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]

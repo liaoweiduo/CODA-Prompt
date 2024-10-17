@@ -46,12 +46,12 @@ class SlotPrompt(nn.Module):
         # class key
         self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
 
-        # slot mapping ortho
-        self.slot_attn_mapping_k = init_tensor(self.e_pool_size, self.key_d)
+        # # slot mapping ortho
+        # self.slot_attn_mapping_k = init_tensor(self.e_pool_size, self.key_d)
 
-        # slot learning coeff
-        self.slot_attn_alpha = nn.Parameter(torch.FloatTensor(3), requires_grad=True)
-        nn.init.constant_(self.slot_attn_alpha, 1)
+        # # slot learning coeff
+        # self.slot_attn_alpha = nn.Parameter(torch.FloatTensor(3), requires_grad=True)
+        # nn.init.constant_(self.slot_attn_alpha, 1)
 
         # output setting
         self.s2p_temp = float(prompt_param[5])     # 1.2 temperature to control how sharp are slot attns
@@ -116,8 +116,8 @@ class SlotPrompt(nn.Module):
             attn.append(_attn)
             recon_loss.append(_recon_loss)          # list [1\T]
 
-        prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, e12, p8, d768]      # no K , k20
-        selections = torch.stack(selection, dim=1)  # [bs, 1\T, e12, k20, pp30]     # each slot:k select from prompt pool:pp
+        prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, k20, e12, p8, d768]
+        selections = torch.stack(selection, dim=1)  # [bs, 1\T, k20, e12, pp30] each slot:k select from prompt pool:pp
         slots = torch.stack(slots, dim=1)           # [bs, 1\T, k20, d64]
         attn = torch.stack(attn, dim=1)             # [bs, 1\T, n196, k20] (softmax-ed over k20)
 

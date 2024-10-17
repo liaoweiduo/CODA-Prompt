@@ -65,6 +65,8 @@ class SLOTPrompt(Prompt):
         self.cross_attn_temp = float(config[10])
         self.mk_coeff = float(config[11])
         self.slot_vsI_coeff = float(config[12])
+        self.prompt_ortho_coeff = float(config[13])
+        self.selection_ortho_coeff = float(config[14])
 
         try:
             prompt = self.model.module.prompt
@@ -372,7 +374,7 @@ class SLOTPrompt(Prompt):
                             loss, output, loss_dict = self.update_model(x, y, learn_slots=True)
                             mk_loss = loss_dict['mk_loss']
                             slot_sim_mse = loss_dict['slot_sim_mse']
-                            alpha = loss_dict['alpha']
+                            # alpha = loss_dict['alpha']
 
                             # measure elapsed time
                             batch_time.update(batch_timer.toc())
@@ -383,9 +385,9 @@ class SLOTPrompt(Prompt):
                             losses.update(loss, y.size(0))
                             mk_losses.update(mk_loss, y.size(0))
                             slot_sim_mses.update(slot_sim_mse, y.size(0))
-                            alpha1s.update(alpha[0], y.size(0))
-                            alpha2s.update(alpha[1], y.size(0))
-                            alpha3s.update(alpha[2], y.size(0))
+                            # alpha1s.update(alpha[0], y.size(0))
+                            # alpha2s.update(alpha[1], y.size(0))
+                            # alpha3s.update(alpha[2], y.size(0))
                             batch_timer.tic()
 
                         # eval update
@@ -439,6 +441,8 @@ class SLOTPrompt(Prompt):
                 ccl_losses = AverageMeter()
                 s2p_losses = AverageMeter()
                 mk_losses = AverageMeter()
+                prompt_ortho_losses = AverageMeter()
+                selection_ortho_losses = AverageMeter()
                 acc = AverageMeter()
                 batch_time = AverageMeter()
                 batch_timer = Timer()
@@ -477,6 +481,8 @@ class SLOTPrompt(Prompt):
                         loss, output, loss_dict = self.update_model(x, y)  # , task
                         ccl_loss, s2p_loss = loss_dict['ccl_loss'], loss_dict['s2p_loss']
                         mk_loss = loss_dict['mk_loss']
+                        prompt_ortho_loss = loss_dict['prompt_ortho_loss']
+                        selection_ortho_loss = loss_dict['selection_ortho_loss']
 
                         # measure elapsed time
                         batch_time.update(batch_timer.toc())
@@ -489,6 +495,8 @@ class SLOTPrompt(Prompt):
                         ccl_losses.update(ccl_loss, y.size(0))
                         mk_losses.update(mk_loss, y.size(0))
                         s2p_losses.update(s2p_loss, y.size(0))
+                        prompt_ortho_losses.update(prompt_ortho_loss, y.size(0))
+                        selection_ortho_losses.update(selection_ortho_loss, y.size(0))
                         batch_timer.tic()
 
                     # eval update
@@ -499,9 +507,13 @@ class SLOTPrompt(Prompt):
                         'CCL Loss {ccl_loss.avg:.3f} | '
                         'S2P Loss {s2p_loss.avg:.3f} | '
                         'MK Loss {mk_loss.avg:.3f} | '
+                        'Po Loss {prompt_ortho_loss.avg:.3f} | '
+                        'So Loss {selection_ortho_loss.avg:.3f} | '
                         'Train Acc {acc.avg:.3f} | '
                         'Time {time:.3f}s ({i} batches)'.format(
-                            loss=losses, ccl_loss=ccl_losses, s2p_loss=s2p_losses, mk_loss=mk_losses, acc=acc,
+                            loss=losses, ccl_loss=ccl_losses, s2p_loss=s2p_losses, mk_loss=mk_losses,
+                            acc=acc,
+                            prompt_ortho_loss=prompt_ortho_losses, selection_ortho_loss=selection_ortho_losses,
                             time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                     # reset
@@ -509,6 +521,8 @@ class SLOTPrompt(Prompt):
                     ccl_losses = AverageMeter()
                     mk_losses = AverageMeter()
                     s2p_losses = AverageMeter()
+                    prompt_ortho_losses = AverageMeter()
+                    selection_ortho_losses = AverageMeter()
                     acc = AverageMeter()
 
                     # validation
@@ -558,7 +572,6 @@ class SLOTPrompt(Prompt):
         q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
         prompts, selections, slots, attn, recon_loss = q
         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
-        # bs, e, k, pp = selections.shape   # [bs, e5, k10, pp30]
 
         # slot_attn_class_key
         K = model.prompt.slot_attn_class_key        # [c100, h128]
@@ -584,7 +597,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Value'].append(recon_loss.item())
 
             # image-wise mse for slot cosine sim vs I
-            slot_sim_mse = 0
+            slot_sim_mse = torch.zeros(1).mean().to(recon_loss.device)
             if self.slot_vsI_coeff > 0:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
                 img_slots = slots.reshape(bs, t*k, h)
@@ -605,19 +618,17 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_sim_mse.item())
 
-            alpha = model.prompt.slot_attn_alpha    # [3]
+            loss = recon_loss + self.mk_coeff * mk_loss + self.slot_vsI_coeff * slot_sim_mse
 
-            for alpha_idx in range(len(alpha)):
-                self.epoch_log['scaler']['Tag'].append(f'alpha/{alpha_idx}')
-                self.epoch_log['scaler']['Idx'].append(self.epoch)
-                self.epoch_log['scaler']['Value'].append(alpha[alpha_idx].item())
-
-            # loss = recon_loss + self.mk_coeff * mk_loss + self.slot_vsI_coeff * slot_sim_mse
-
-            loss = 1/alpha[0]**2 * recon_loss
-            loss = loss + 1/alpha[1]**2 * self.mk_coeff * mk_loss
-            loss = loss + 1/alpha[2]**2 * self.slot_vsI_coeff * slot_sim_mse
-            loss = loss + torch.sum(torch.log(alpha+1))
+            # alpha = model.prompt.slot_attn_alpha    # [3]
+            # for alpha_idx in range(len(alpha)):
+            #     self.epoch_log['scaler']['Tag'].append(f'alpha/{alpha_idx}')
+            #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+            #     self.epoch_log['scaler']['Value'].append(alpha[alpha_idx].item())
+            # loss = 1/alpha[0]**2 * recon_loss
+            # loss = loss + 1/alpha[1]**2 * self.mk_coeff * mk_loss
+            # loss = loss + 1/alpha[2]**2 * self.slot_vsI_coeff * slot_sim_mse
+            # loss = loss + torch.sum(torch.log(alpha+1))
 
             loss.backward()
 
@@ -628,11 +639,11 @@ class SLOTPrompt(Prompt):
             return loss.detach(), logits, {'recon_loss': recon_loss.detach(),
                                            'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(),
                                            'slot_sim_mse': slot_sim_mse.detach(),
-                                           'alpha': alpha.detach(),
+                                           # 'alpha': alpha.detach(),
                                            }
 
         else:
-            bs, t, e, p, d = prompts.shape      # no k
+            # bs, t, k, e, p, d = prompts.shape
             # prompts = prompts.reshape(bs, t*k, e, p, d)
             # prompts = prompts[:, -1]
 
@@ -666,16 +677,19 @@ class SLOTPrompt(Prompt):
             # loss = torch.mean(sorted_mo_matrix, dim=1)        # [bs]
             # loss = torch.mean(loss)
 
-            prompts = prompts.reshape(bs * t, *prompts.shape[2:])  # [bs*t, ...]
-            assert t == 1
+            bs, t, k, e, p, d = prompts.shape
+            prompts = prompts.reshape(bs, t*k, e, p, d)  # [bs,t*k, e, p, d]
+            assert t == 1       # if not 1, should permutate t with e then reshape to t*k
 
             if self.debug_mode:
                 print('samples:', inputs.shape, 'prompts:', prompts.shape)
 
+            sum_prompts = torch.sum(prompts, dim=1)     # [bs, e, p, d]
+
             # loss = torch.zeros(1).mean().to(prompts.device)
             # pen: penultimate features; train: same forward as batch training.
             out, features = self.model(
-                inputs, q=prompts,
+                inputs, q=sum_prompts,
                 pen=True, train=True,
                 # register_blk=hard_l,
                 debug_mode=self.debug_mode)
@@ -700,6 +714,41 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Tag'].append('loss/ce_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(ce_loss.item())
+
+            cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+            # prompt ortho loss
+            prompt_ortho_loss = torch.zeros(1).mean().to(loss.device)
+            if self.prompt_ortho_coeff > 0:
+                weighted_prompts = prompts     # shape[bs, t*k, e, p, d]
+                weighted_prompts = weighted_prompts.reshape(bs, t*k, e*p*d)
+                sim = cos(weighted_prompts.unsqueeze(1), weighted_prompts.unsqueeze(2))  # [bs, k, k]
+                eye = torch.eye(t*k).expand_as(sim).to(sim.device)
+                prompt_ortho_loss = F.mse_loss(sim, eye)
+
+                loss = loss + self.prompt_ortho_coeff * prompt_ortho_loss
+
+                self.epoch_log['scaler']['Tag'].append('loss/prompt_ortho_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(prompt_ortho_loss.item())
+
+            # selection_ortho_loss
+            selection_ortho_loss = torch.zeros(1).mean().to(loss.device)
+            if self.selection_ortho_coeff > 0:
+                # 还需要selection要不同，k个slots的selection的cossim或者KL矩阵与I的mse？
+                # 或者与slots的cossim的mse。因为有些slot是一样的，所以直接就利用它自己的cossim
+                bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
+                batched_selections = selections.reshape(bs, t*k, e*pp)
+                bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+                batched_slots = slots.reshape(bs, t*k, h)
+                selection_sim = cos(batched_selections.unsqueeze(1), batched_selections.unsqueeze(2))  # [bs, k, k]
+                slot_sim = cos(batched_slots.unsqueeze(1), batched_slots.unsqueeze(2))  # [bs, k, k]
+                selection_ortho_loss = F.mse_loss(selection_sim, slot_sim)
+
+                loss = loss + self.selection_ortho_coeff * selection_ortho_loss
+
+                self.epoch_log['scaler']['Tag'].append('loss/selection_ortho_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(selection_ortho_loss.item())
 
             # ccl loss
             ccl_loss = torch.zeros(1).mean().to(loss.device)
@@ -895,8 +944,10 @@ class SLOTPrompt(Prompt):
             out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [bs, n_cls]
             return (loss.detach(), out,
                     {'ccl_loss': ccl_loss.detach(), 's2p_loss': s2p_loss.detach(),
-                     'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(),
-                     'mk_weights': mk_weights.detach()})
+                     'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(), 'mk_weights': mk_weights.detach(),
+                     'prompt_ortho_loss': prompt_ortho_loss.detach(),
+                     'selection_ortho_loss': selection_ortho_loss.detach(),
+                     })
 
     def forward_mk(self, slots, K):
         # slot_attn_class_key
@@ -1407,7 +1458,6 @@ class SLOTPrompt(Prompt):
 
                     q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
                     prompts, selection, slots, attn, recon_loss = q
-                    bs, t, e, p, d = prompts.shape
                     bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                     assert t == 1
 
@@ -1486,9 +1536,12 @@ class SLOTPrompt(Prompt):
                         continue
 
                     # selection metric
-                    # selections: [bs, 1, e12, k10, pp30]
+                    # selections: [bs, 1, k10, e12, pp30]
 
                     # forward all prompts
+                    bs, t, k, e, p, d = prompts.shape
+                    prompts = prompts.reshape(bs, t*k, e, p, d)
+                    prompts = torch.sum(prompts, dim=1, keepdim=True)     # sum over k [bs, 1, e, p, d]
                     _, features, out = self.obtain_mo_matrix(
                         None, prompts=prompts,
                         train=False,
@@ -1538,7 +1591,6 @@ class SLOTPrompt(Prompt):
                         # bs, t, k, e, p, d = prompts.shape
                         # prompts = prompts.reshape(bs, t * k, e, p, d)
                         # # slots = model_single.prompt.match_pool(slots)
-                        bs, t, e, p, d = prompts.shape
                         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                         assert t == 1
 
@@ -1582,6 +1634,9 @@ class SLOTPrompt(Prompt):
                             continue
 
                         # forward all prompts
+                        bs, t, k, e, p, d = prompts.shape
+                        prompts = prompts.reshape(bs, t * k, e, p, d)
+                        prompts = torch.sum(prompts, dim=1, keepdim=True)     # sum over k [bs, 1, e, p, d]
                         _, features, out = self.obtain_mo_matrix(
                             None, prompts=prompts,
                             train=False,
