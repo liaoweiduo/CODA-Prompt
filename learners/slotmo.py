@@ -480,7 +480,7 @@ class SLOTPrompt(Prompt):
                         loss, output, loss_dict = self.update_model(x, y)  # , task
                         ccl_loss, s2p_loss = loss_dict['ccl_loss'], loss_dict['s2p_loss']
                         mk_loss = loss_dict['mk_loss']
-                        prompt_ortho_loss = loss_dict['prompt_ortho_loss']
+                        # prompt_ortho_loss = loss_dict['prompt_ortho_loss']
                         selection_ortho_loss = loss_dict['selection_ortho_loss']
 
                         # measure elapsed time
@@ -494,7 +494,7 @@ class SLOTPrompt(Prompt):
                         ccl_losses.update(ccl_loss, y.size(0))
                         mk_losses.update(mk_loss, y.size(0))
                         s2p_losses.update(s2p_loss, y.size(0))
-                        prompt_ortho_losses.update(prompt_ortho_loss, y.size(0))
+                        # prompt_ortho_losses.update(prompt_ortho_loss, y.size(0))
                         selection_ortho_losses.update(selection_ortho_loss, y.size(0))
                         batch_timer.tic()
 
@@ -506,13 +506,13 @@ class SLOTPrompt(Prompt):
                         'CCL Loss {ccl_loss.avg:.3f} | '
                         'S2P Loss {s2p_loss.avg:.3f} | '
                         'MK Loss {mk_loss.avg:.3f} | '
-                        'Po Loss {prompt_ortho_loss.avg:.3f} | '
                         'So Loss {selection_ortho_loss.avg:.3f} | '
                         'Train Acc {acc.avg:.3f} | '
                         'Time {time:.3f}s ({i} batches)'.format(
                             loss=losses, ccl_loss=ccl_losses, s2p_loss=s2p_losses, mk_loss=mk_losses,
                             acc=acc,
-                            prompt_ortho_loss=prompt_ortho_losses, selection_ortho_loss=selection_ortho_losses,
+                            # prompt_ortho_loss=prompt_ortho_losses,
+                            selection_ortho_loss=selection_ortho_losses,
                             time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                     # reset
@@ -714,22 +714,23 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(ce_loss.item())
 
+            # cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+            # # prompt ortho loss
+            # prompt_ortho_loss = torch.zeros(1).mean().to(loss.device)
+            # if self.prompt_ortho_coeff > 0:
+            #     weighted_prompts = prompts     # shape[bs, t*k, e, p, d]
+            #     weighted_prompts = weighted_prompts.reshape(bs, t*k, e*p*d)
+            #     sim = cos(weighted_prompts.unsqueeze(1), weighted_prompts.unsqueeze(2))  # [bs, k, k]
+            #     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
+            #     prompt_ortho_loss = F.mse_loss(sim, eye)
+            #
+            #     loss = loss + self.prompt_ortho_coeff * prompt_ortho_loss
+            #
+            #     self.epoch_log['scaler']['Tag'].append('loss/prompt_ortho_loss')
+            #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+            #     self.epoch_log['scaler']['Value'].append(prompt_ortho_loss.item())
+
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            # prompt ortho loss
-            prompt_ortho_loss = torch.zeros(1).mean().to(loss.device)
-            if self.prompt_ortho_coeff > 0:
-                weighted_prompts = prompts     # shape[bs, t*k, e, p, d]
-                weighted_prompts = weighted_prompts.reshape(bs, t*k, e*p*d)
-                sim = cos(weighted_prompts.unsqueeze(1), weighted_prompts.unsqueeze(2))  # [bs, k, k]
-                eye = torch.eye(t*k).expand_as(sim).to(sim.device)
-                prompt_ortho_loss = F.mse_loss(sim, eye)
-
-                loss = loss + self.prompt_ortho_coeff * prompt_ortho_loss
-
-                self.epoch_log['scaler']['Tag'].append('loss/prompt_ortho_loss')
-                self.epoch_log['scaler']['Idx'].append(self.epoch)
-                self.epoch_log['scaler']['Value'].append(prompt_ortho_loss.item())
-
             # selection_ortho_loss
             selection_ortho_loss = torch.zeros(1).mean().to(loss.device)
             if self.selection_ortho_coeff > 0:
@@ -942,7 +943,7 @@ class SLOTPrompt(Prompt):
             return (loss.detach(), out,
                     {'ccl_loss': ccl_loss.detach(), 's2p_loss': s2p_loss.detach(),
                      'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(), 'mk_weights': mk_weights.detach(),
-                     'prompt_ortho_loss': prompt_ortho_loss.detach(),
+                     # 'prompt_ortho_loss': prompt_ortho_loss.detach(),
                      'selection_ortho_loss': selection_ortho_loss.detach(),
                      })
 
