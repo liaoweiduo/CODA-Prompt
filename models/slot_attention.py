@@ -291,8 +291,16 @@ class Slot2Prompt(nn.Module):
                 aq_k = aq_k * temp
                 # over slot pool, thus each slot sharpply select one slot in the pool
                 aq_k = torch.softmax(aq_k, dim=-1)
+                # aq_k_repa = aq_k
+
+                # Reparametrization trick.
+                index = aq_k.max(-1, keepdim=True)[1]
+                aq_k_repa = torch.zeros_like(aq_k, memory_format=torch.legacy_contiguous_format
+                                             ).scatter_(-1, index, 1.0)
+                aq_k_repa = aq_k_repa - aq_k.detach() + aq_k
+
                 # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
-                P = torch.einsum('bnk,kld->bnld', aq_k, p)   # wei-sum over k -> bnld
+                P = torch.einsum('bnk,kld->bnld', aq_k_repa, p)   # wei-sum over k -> bnld
                 prompts.append(P)
                 selections.append(aq_k)
             prompts = torch.stack(prompts, dim=2)       # [bs, n10, e, l, d]   n is num_slots
