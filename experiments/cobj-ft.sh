@@ -28,10 +28,12 @@ do
     -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
     -v ~/.cache:/workspace/.cache \
     --shm-size 8G liaoweiduo/hide:2.0 \
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+  python -u run_ft.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 80 0.5 0.5 1 \
-    --log_dir ${OUTDIR}/5-slot_prompt-k10-nt5-ln-discrete_selec-cossim80-sol1-p30-l40-lr2e-4 \
+    --prompt_param 30 40 10 5 1.0 10 0.0 0.0 0.1 1.2 80 0.5 0.5 1 \
+    --slot_pre_learn_model 4-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-5 \
+    --log_dir ${OUTDIR}/5-slot_prompt-k10-nt5-ln-discrete_selec-cossim10-sol1-p30-l40-lr2e-4 \
+    --lr 0.001 \
     --mode ${mode}
   date
 done
