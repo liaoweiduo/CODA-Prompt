@@ -294,7 +294,7 @@ class SLOTPrompt(Prompt):
             # load slot model if specified
             if model_save_dir is not None and self.config['slot_pre_learn_model'] != 'none':
                 # raise exp if no slot trained but train prompt
-                # model_save_dir will be None if do compositional few-shot testing
+                # model_save_dir will be None if do compositional few-shot testing and model is load in trainer_ft.py
                 flag = self.load_model(model_save_dir, task_id=self.t,
                                        slot_pre_learn_model=self.config['slot_pre_learn_model'])
             try:
@@ -316,6 +316,7 @@ class SLOTPrompt(Prompt):
                 self.s2p_copy = copy.deepcopy(model.prompt.s2p)
 
             if self.config['only_learn_slot'] or self.config['slot_pre_learn_model'] == 'none':
+                # for CFST, slot_pre_learn_model is not none, so will not be going to fine-tune slots
                 self.log(f'Phase I： training slots')
                 losses = AverageMeter()
                 mk_losses = AverageMeter()
@@ -331,6 +332,8 @@ class SLOTPrompt(Prompt):
                     schedule = schedule[-1]
                 else:
                     schedule = schedule[self.t]
+                if type(schedule) is not list:
+                    schedule = [schedule, schedule]
                 epochs = schedule[0]        # phase I
                 self.epochs = epochs
 
@@ -433,6 +436,8 @@ class SLOTPrompt(Prompt):
                     schedule = schedule[-1]
                 else:
                     schedule = schedule[self.t]
+                if type(schedule) is not list:
+                    schedule = [schedule, schedule]      # for CFST: [20, 20]
                 epochs = schedule[1]        # phase II
                 self.epochs = epochs
 
