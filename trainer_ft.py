@@ -91,6 +91,7 @@ class Trainer:
         self.add_dim = self.num_tasks
 
         args.schedule = [20]
+        args.batch_size = 10
 
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
