@@ -68,7 +68,7 @@ mkdir -p $OUTDIR
 
 lrs=(2e-4); temps=(10)
 selection_ortho_coeffs=(1)
-devices=(0); i=-1
+devices=(3); i=-1
 for lr_run_id in 0; do
 for temp_run_id in 0; do
 for soc_run_id in 0; do
