@@ -172,7 +172,8 @@ class Trainer:
             # this is important in model updating (mask out valid_out_dim)
             # load model
             model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+f'/task-{self.test_model}/'
-            self.learner.load_model(model_save_dir, drop_last=True)
+            self.learner.load_model(model_save_dir, drop_last=True,  freeze=True)
+            # only last is trainable
 
             # set task id for model (needed for prompting)
             try:

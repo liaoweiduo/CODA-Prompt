@@ -112,7 +112,8 @@ class SLOTPrompt(Prompt):
 
         return model
 
-    def load_model(self, filename, drop_last=False, task_id=-1, from_outside=False, slot_pre_learn_model='none'):
+    def load_model(self, filename, drop_last=False, task_id=-1, from_outside=False, slot_pre_learn_model='none',
+                   freeze=False):
         flag = False        # True if need to further train
         # if slot_pre_learn_model is not none, load slots
         if slot_pre_learn_model != 'none':
@@ -164,6 +165,12 @@ class SLOTPrompt(Prompt):
 
             self.model.load_state_dict(state_dict, strict=False)
             self.log('=> Load Done')
+
+        if freeze:
+            self.log('=> Freeze backbone')     # on CFST
+            for k, p in self.model.named_parameters():
+                if 'last' not in k:
+                    p.requires_grad = False
 
         if self.gpu:
             self.model = self.model.cuda()
