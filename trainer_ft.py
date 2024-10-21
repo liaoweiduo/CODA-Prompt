@@ -116,6 +116,14 @@ class Trainer:
                         'prompt_param':[self.num_tasks,args.prompt_param],
                         'mode': args.mode,
                         'seed': self.seed,
+                        'log_dir': args.log_dir,
+                        # slot training args
+                        'only_learn_slot': args.only_learn_slot,
+                        'slot_pre_learn_model': args.slot_pre_learn_model,
+                        't0_model_from': args.t0_model_from,
+                        'slot_lr': args.slot_lr,
+                        'logit_task_mask_top_k': args.logit_task_mask_top_k,
+                        'slot_schedule_type': args.slot_schedule_type,
                         }
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
