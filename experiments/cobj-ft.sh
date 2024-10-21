@@ -19,25 +19,22 @@ OVERWRITE=0
 mkdir -p $OUTDIR
 
 
-# PMO-Prompt
+# SLOT-Prompt
 #
-# prompt parameter args:
-#    arg 1 = prompt component pool size
-#    arg 2 = prompt length
-#    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#    arg 4 = memory size for pool (0 to not enable pool hv loss on fewshot testing)
-#LEARNERNAME=PMOPrompt
-#LOGNAME=pmo
-#for mode in sys pro sub non noc
-#do
-#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#      --learner_type prompt --learner_name ${LEARNERNAME} \
-#      --prompt_param 100 8 0.0 0 \
-#      --memory 0 \
-#      --log_dir ${OUTDIR}/${LOGNAME} \
-#      --mode ${mode}
-#  date
-#done
+for mode in sys pro non noc
+do
+  # do not use -d to avoid running in parallel
+  docker run --rm --runtime=nvidia --gpus device=0 \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 80 0.5 0.5 0.5 \
+    --log_dir ${OUTDIR}/5-slot_prompt-k10-nt5-ln-discrete_selec-cossim80-sol0.5-p30-l40-lr${lr} \
+    --mode ${mode}
+  date
+done
 
 
 # CODA-P
@@ -46,15 +43,15 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-for mode in sys pro non noc
-do
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-      --learner_type prompt --learner_name CODAPrompt \
-      --prompt_param 100 8 0.0 \
-      --log_dir ${OUTDIR}/coda-p \
-      --mode ${mode}
-  date
-done
+#for mode in sys pro non noc
+#do
+#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#      --learner_type prompt --learner_name CODAPrompt \
+#      --prompt_param 100 8 0.0 \
+#      --log_dir ${OUTDIR}/coda-p \
+#      --mode ${mode}
+#  date
+#done
 
 # DualPrompt
 #
