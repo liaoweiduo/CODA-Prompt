@@ -196,6 +196,9 @@ class SLOTPrompt(Prompt):
         else:
             schedule = schedule[t]
 
+        if type(schedule) is not list:
+            schedule = [schedule, schedule]
+
         # parse optimizer args
         # Multi-GPU
         if len(self.config['gpuid']) > 1:
