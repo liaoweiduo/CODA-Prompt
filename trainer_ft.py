@@ -203,7 +203,7 @@ class Trainer:
             # model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
             # if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
             # set model_save_dir to None to enable training
-            avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, test_loader)
+            avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, None)
 
             # # save model
             # self.learner.save_model(model_save_dir)
