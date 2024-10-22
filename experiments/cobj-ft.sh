@@ -20,11 +20,11 @@ mkdir -p $OUTDIR
 
 
 # SLOT-Prompt
-#
-for mode in sys pro non noc
+# sys
+for mode in pro non noc
 do
   # do not use -d to avoid running in parallel
-  docker run --rm --runtime=nvidia --gpus device=2 \
+  docker run --rm --runtime=nvidia --gpus device=4 \
     -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
     -v ~/.cache:/workspace/.cache \
     --shm-size 8G liaoweiduo/hide:2.0 \
