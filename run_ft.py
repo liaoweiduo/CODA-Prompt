@@ -63,8 +63,10 @@ def create_args():
 def get_args(argv):
     parser=create_args()
     args = parser.parse_args(argv)
-    config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
-    config.update(vars(args))
+    config = vars(args)
+    config_yaml = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
+    config.update(config_yaml)      # make yaml overwrite args
+
     # config['batch_size'] = 100    # trainer_ft -> batch_size is set to 100
     return argparse.Namespace(**config)
 
@@ -91,6 +93,8 @@ if __name__ == '__main__':
     if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
     log_out = args.log_dir + '/output.log'
     sys.stdout = Logger(log_out)
+
+    print(vars(args))
 
     print(f'********start mode {args.mode}********')
     metric_keys = ['acc','time',]
