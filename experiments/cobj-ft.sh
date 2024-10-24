@@ -47,11 +47,11 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 for mode in sys pro non noc
 do
-#  # do not use -d to avoid running in parallel
-#  docker run --rm --runtime=nvidia --gpus device=4 \
-#    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#    -v ~/.cache:/workspace/.cache \
-#    --shm-size 8G liaoweiduo/hide:2.0 \
+  # do not use -d to avoid running in parallel
+  docker run --rm --runtime=nvidia --gpus device=4 \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
   python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
       --learner_type prompt --learner_name CODAPrompt \
       --prompt_param 100 40 0.0 \
@@ -69,11 +69,11 @@ done
 #    arg 3 = g-prompt pool length
 for mode in sys pro non noc
 do
-#  # do not use -d to avoid running in parallel
-#  docker run --rm --runtime=nvidia --gpus device=4 \
-#    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#    -v ~/.cache:/workspace/.cache \
-#    --shm-size 8G liaoweiduo/hide:2.0 \
+  # do not use -d to avoid running in parallel
+  docker run --rm --runtime=nvidia --gpus device=4 \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
   python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
       --learner_type prompt --learner_name DualPrompt \
       --prompt_param 10 40 10 \
@@ -91,11 +91,11 @@ done
 #    arg 3 = -1 -> shallow, 1 -> deep
 for mode in sys pro non noc
 do
-#  # do not use -d to avoid running in parallel
-#  docker run --rm --runtime=nvidia --gpus device=4 \
-#    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#    -v ~/.cache:/workspace/.cache \
-#    --shm-size 8G liaoweiduo/hide:2.0 \
+  # do not use -d to avoid running in parallel
+  docker run --rm --runtime=nvidia --gpus device=4 \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
   python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
       --learner_type prompt --learner_name L2P \
       --prompt_param 10 10 -1 \
