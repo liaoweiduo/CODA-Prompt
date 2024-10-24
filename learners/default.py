@@ -253,7 +253,7 @@ class NormalNN(nn.Module):
         torch.save(model_state, filename + 'class.pth')
         self.log('=> Save Done')
 
-    def load_model(self, filename, drop_last=False):
+    def load_model(self, filename, drop_last=False, freeze=False):
         state_dict = torch.load(filename + 'class.pth')
         # complete with/without module.
         for key in list(state_dict.keys()):
@@ -271,6 +271,13 @@ class NormalNN(nn.Module):
             # self.model.load_state_dict(state_dict, strict=False)
         self.model.load_state_dict(state_dict, strict=False)
         self.log('=> Load Done')
+
+        if freeze:
+            self.log('=> Freeze backbone')     # on CFST
+            for k, p in self.model.named_parameters():
+                if 'last' not in k:
+                    p.requires_grad = False
+
         if self.gpu:
             self.model = self.model.cuda()
         self.model.eval()
