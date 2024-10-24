@@ -293,6 +293,7 @@ class NormalNN(nn.Module):
         lr = self.config['lr']
         if type(lr) is list:
             lr = lr[-1]
+        print(f'init_optimizer: lr: {lr}')
         # parse optimizer args
         optimizer_arg = {'params':self.model.parameters(),
                          'lr':lr,
