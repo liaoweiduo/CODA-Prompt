@@ -94,6 +94,7 @@ done
 #python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type prompt --learner_name ${LEARNERNAME} \
 #    --prompt_param 100 40 0.0 \
+#    --lr 0.001 \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 
 # DualPrompt
@@ -107,6 +108,7 @@ done
 #python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type prompt --learner_name ${LEARNERNAME} \
 #    --prompt_param 10 40 10 \
+#    --lr 0.001 \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 
 # L2P++
@@ -120,4 +122,5 @@ done
 #python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type prompt --learner_name ${LEARNERNAME} \
 #    --prompt_param 10 10 -1 \
+#    --lr 0.001 \
 #    --log_dir ${OUTDIR}/${LOGNAME}
