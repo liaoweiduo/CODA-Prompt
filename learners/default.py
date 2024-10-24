@@ -290,10 +290,12 @@ class NormalNN(nn.Module):
 
     # sets model optimizers
     def init_optimizer(self):
-
+        lr = self.config['lr']
+        if type(lr) is list:
+            lr = lr[-1]
         # parse optimizer args
         optimizer_arg = {'params':self.model.parameters(),
-                         'lr':self.config['lr'],
+                         'lr':lr,
                          'weight_decay':self.config['weight_decay']}
         if self.config['optimizer'] in ['SGD','RMSprop']:
             optimizer_arg['momentum'] = self.config['momentum']
