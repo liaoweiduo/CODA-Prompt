@@ -66,12 +66,12 @@ mkdir -p $OUTDIR
 #done
 #done
 
-lrs=(2e-4); temps=(10)
-selection_ortho_coeffs=(1)
-devices=(3); i=-1
-for lr_run_id in 0; do
+lrs=(2e-4 1e-3); temps=(20)
+selection_ortho_coeffs=(0.1 1 10)
+devices=(1 2 3 4 5 6); i=-1
+for lr_run_id in 0 1; do
 for temp_run_id in 0; do
-for soc_run_id in 0; do
+for soc_run_id in 0 1 2; do
 ((i++))
 lr=${lrs[${lr_run_id}]}
 temp=${temps[${temp_run_id}]}
