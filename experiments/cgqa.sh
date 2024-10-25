@@ -78,10 +78,10 @@ temp=${temps[${temp_run_id}]}
 selection_ortho_coeff=${selection_ortho_coeffs[${soc_run_id}]}
 device=${devices[${i}]}
 LOGNAME=5-slot_prompt-k10-nt5-ln-discrete_selec-wA-cossim${temp}-sol${selection_ortho_coeff}-p30-l40-lr${lr}
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
+#docker run -d --rm --runtime=nvidia --gpus device=${device} \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 30 40 10 5 1.0 ${temp} 0.0 0.0 0.1 1.2 80 0.5 0.0 ${selection_ortho_coeff} \
