@@ -251,7 +251,7 @@ class Slot2Prompt(nn.Module):
             selections = []
             for l in self.e_layers:
                 K = getattr(s2p, f'e_k_{l}')  # [100, h]
-                A = getattr(s2p, f'e_a_{l}')  # [100, 768]
+                A = getattr(s2p, f'e_a_{l}')  # [100, h]
                 p = getattr(s2p, f'e_p_{l}')  # [100, 8, 768]
                 if s2p.FPS:  # use all prompts
                     s = 0
@@ -287,6 +287,7 @@ class Slot2Prompt(nn.Module):
                 # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
                 # slots = slots.reshape(bs, n, h)
 
+                print(f'slots: {slots.shape}; A: {A.shape}; K: {K.shape}')
                 slots = torch.einsum('bnh,kh->bnkh', slots, A)      # attended slots
                 K = nn.functional.normalize(K, dim=-1)
                 slots = nn.functional.normalize(slots, dim=-1)
