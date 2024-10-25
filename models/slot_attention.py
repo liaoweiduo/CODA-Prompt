@@ -192,15 +192,15 @@ class Slot2Prompt(nn.Module):
                 # in the original paper, we used ortho init at the start - this modification is more
                 # fair in the spirit of continual learning and has little affect on performance
                 e_l = self.e_p_length
-                p = init_tensor(self.e_pool_size, e_l, emb_d, ortho=True)  # [100, 8, 768]
-                k = init_tensor(self.e_pool_size, self.key_d, ortho=True)  # [100, 128]
-                # a = init_tensor(self.e_pool_size, self.key_d)
+                p = init_tensor(self.e_pool_size, e_l, emb_d, ortho=True)   # [100, 8, 768]
+                k = init_tensor(self.e_pool_size, self.key_d, ortho=True)   # [100, 128]
+                a = init_tensor(self.e_pool_size, self.key_d, ortho=True)   # [100, 128]
                 # p = self.gram_schmidt(p)
                 # k = self.gram_schmidt(k)
                 # # a = self.gram_schmidt(a)
                 setattr(self, f'e_p_{e}', p)
                 setattr(self, f'e_k_{e}', k)
-                # setattr(self, f'e_a_{e}', a)
+                setattr(self, f'e_a_{e}', a)
         else:
             raise NotImplementedError
 
@@ -217,10 +217,12 @@ class Slot2Prompt(nn.Module):
                 for e in self.e_layers:     # needs init?
                     K = getattr(self, f'e_k_{e}')
                     P = getattr(self, f'e_p_{e}')
+                    A = getattr(self, f'e_a_{e}')
                     # K = self.gram_schmidt(K)
                     # P = self.gram_schmidt(P)
                     setattr(self, f'e_p_{e}', P)
                     setattr(self, f'e_k_{e}', K)
+                    setattr(self, f'e_a_{e}', A)
 
     def forward(self, slots, s2p=None, train=False, temp=None):
         # train control the detach of old K and p
@@ -249,6 +251,7 @@ class Slot2Prompt(nn.Module):
             selections = []
             for l in self.e_layers:
                 K = getattr(s2p, f'e_k_{l}')  # [100, h]
+                A = getattr(s2p, f'e_a_{l}')  # [100, 768]
                 p = getattr(s2p, f'e_p_{l}')  # [100, 8, 768]
                 if s2p.FPS:  # use all prompts
                     s = 0
@@ -262,12 +265,15 @@ class Slot2Prompt(nn.Module):
                 if train:
                     if self.task_count > 0:
                         K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
+                        A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
                         p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
                     else:
                         K = K[s:f]
+                        A = A[s:f]
                         p = p[s:f]
                 else:
                     K = K[0:f]
+                    A = A[0:f]
                     p = p[0:f]
 
                 # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
@@ -281,9 +287,11 @@ class Slot2Prompt(nn.Module):
                 # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
                 # slots = slots.reshape(bs, n, h)
 
+                slots = torch.einsum('bnh,kh->bnkh', slots, A)      # attended slots
                 K = nn.functional.normalize(K, dim=-1)
                 slots = nn.functional.normalize(slots, dim=-1)
-                aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
+                # aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
+                aq_k = torch.einsum('bnkh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
                 # apply temp
                 if temp is None:
                     temp = self.temp
