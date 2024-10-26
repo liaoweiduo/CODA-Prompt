@@ -287,12 +287,16 @@ class Slot2Prompt(nn.Module):
                 # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
                 # with attention and cosine sim
 
-                # print(f'slots: {slots_.shape}; A: {A.shape}; K: {K.shape}')
-                slots_ = torch.einsum('bnh,kh->bnkh', slots, A)      # attended slots
                 K = nn.functional.normalize(K, dim=-1)
-                slots_ = nn.functional.normalize(slots_, dim=-1)
-                # aq_k = torch.einsum('bnh,kh->bnk', slots, K)  # aq_k [bs, n10, k30]
-                aq_k = torch.einsum('bnkh,kh->bnk', slots_, K)  # aq_k [bs, n10, k30]
+                slots_ = nn.functional.normalize(slots, dim=-1)
+                aq_k = torch.einsum('bnh,kh->bnk', slots_, K)  # aq_k [bs, n10, k30]
+
+                # # print(f'slots: {slots_.shape}; A: {A.shape}; K: {K.shape}')
+                # slots_ = torch.einsum('bnh,kh->bnkh', slots, A)      # attended slots
+                # K = nn.functional.normalize(K, dim=-1)
+                # slots_ = nn.functional.normalize(slots_, dim=-1)
+                # aq_k = torch.einsum('bnkh,kh->bnk', slots_, K)  # aq_k [bs, n10, k30]
+
                 # apply temp
                 if temp is None:
                     temp = self.temp
