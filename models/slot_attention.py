@@ -205,6 +205,9 @@ class Slot2Prompt(nn.Module):
             raise NotImplementedError
 
     def new_task(self):
+
+        self.task_count += 1
+
         if not self.FPS:
             if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
                 self.slot_map.append(
@@ -214,17 +217,19 @@ class Slot2Prompt(nn.Module):
                     nn.Sequential(nn.Linear(self.key_d, 2*self.key_d), nn.ReLU(inplace=True),
                                   nn.Linear(2*self.key_d, len(self.e_layers) * self.e_p_length * self.emb_d)))
             else:
-                for e in self.e_layers:     # needs init?
+                for e in self.e_layers:
                     K = getattr(self, f'e_k_{e}')
                     P = getattr(self, f'e_p_{e}')
                     A = getattr(self, f'e_a_{e}')
-                    # K = self.gram_schmidt(K)
-                    # P = self.gram_schmidt(P)
+                    A = self.gram_schmidt(A)
+                    K = self.gram_schmidt(K)
+                    P = self.gram_schmidt(P)
                     setattr(self, f'e_p_{e}', P)
                     setattr(self, f'e_k_{e}', K)
                     setattr(self, f'e_a_{e}', A)
 
-    def forward(self, slots, s2p=None, train=False, temp=None):
+    def forward(self, slots, s2p=None, train=False, temp=None, phase=1):
+        """phase 0: only use detached old prompts """
         # train control the detach of old K and p
         # slots [bs, n20, h64]
         bs, n, h = slots.shape
@@ -264,10 +269,13 @@ class Slot2Prompt(nn.Module):
                 if s2p.FPS:  # use all prompts
                     s = 0
                     f = self.e_pool_size
-                else:
+                else:       # train task-specific prompts and check phase
                     pt = int(self.e_pool_size / (self.n_tasks))  # 100/10=10
                     s = int(self.task_count * pt)  # 10 prompts for one task
                     f = int((self.task_count + 1) * pt)
+
+                    if phase == 0 and self.task_count > 0:      # only use detached old prompts for new tasks
+                        f = s
 
                 # freeze/control past tasks
                 if train:

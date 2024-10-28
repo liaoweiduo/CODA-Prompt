@@ -30,7 +30,7 @@ class SlotPrompt(nn.Module):
         # self.prompt_map_init(self.task_count)
 
         # trigger fixed prompt size (FPS)
-        self.FPS = True         # if True, continually learning s2p
+        self.FPS = False         # if True, continually learning s2p
 
         # slot basic param
         # self.e_pool_size = int(prompt_param[0])  # 100 no use for slots
@@ -66,32 +66,37 @@ class SlotPrompt(nn.Module):
         # setattr(self, f's2p', prompt_map)
 
     def process_task_count(self):
-        if not self.FPS:
-            # freeze old slot attn
-            for param in self.slot_attn[-1].parameters():
-                param.requires_grad = False
-            # self.prompt_map_freeze(self.task_count)
+        """In the case of not FPS, slot_attn is still shared across tasks, we just freeze s2p"""
+        # if not self.FPS:
+        #     # freeze old slot attn
+        #     for param in self.slot_attn[-1].parameters():
+        #         param.requires_grad = False
+        #     # self.prompt_map_freeze(self.task_count)
 
         self.task_count += 1
 
+        # freeze old s2p and ortho init new prompt
         self.s2p.new_task()
-        if not self.FPS:
-            device = next(self.slot_attn[-1].parameters()).device
-            new_attn = SlotAttention(self.emb_d, n_slots=self.n_slots, key_dim=self.key_d,
-                                     n_iter=self.n_iters, temp=self.temp).to(device)
-            new_attn.load_state_dict(self.slot_attn[-1].state_dict())     # init using last slot attn
-            self.slot_attn.append(new_attn)
-            # self.prompt_map_init(self.task_count)
 
-            # logit len: len(self.tasks[self.task_count])
-            new_exp_pre = nn.Sequential(
-                nn.Linear(len(self.tasks[self.task_count]), len(self.tasks[self.task_count])),
-                nn.ReLU(inplace=True),
-                nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
-            self.expert_predictor.append(new_exp_pre)
+        # # add new slot_attn
+        # if not self.FPS:
+        #     device = next(self.slot_attn[-1].parameters()).device
+        #     new_attn = SlotAttention(self.emb_d, n_slots=self.n_slots, key_dim=self.key_d,
+        #                              n_iter=self.n_iters, temp=self.temp).to(device)
+        #     new_attn.load_state_dict(self.slot_attn[-1].state_dict())     # init using last slot attn
+        #     self.slot_attn.append(new_attn)
+        #     # self.prompt_map_init(self.task_count)
+        #
+        #     # # logit len: len(self.tasks[self.task_count])
+        #     # new_exp_pre = nn.Sequential(
+        #     #     nn.Linear(len(self.tasks[self.task_count]), len(self.tasks[self.task_count])),
+        #     #     nn.ReLU(inplace=True),
+        #     #     nn.Linear(len(self.tasks[self.task_count]), 2)).to(device)
+        #     # self.expert_predictor.append(new_exp_pre)
 
-    def handle_q(self, q, all=True, learn_slots=True, detach_old_prompts=False,
-                 temp=None, n_iter=None, prompt_temp=None):
+    def handle_q(self, q, all=True, learn_slots=True, train=False,
+                 temp=None, n_iter=None, prompt_temp=None, prompt_phase=1):
+        """all control slot-attn: True all slot-attn module, False the last slot-attn module"""
         # obtain slot-prompts
         if q is None:
             raise ValueError('q is None')
@@ -112,7 +117,7 @@ class SlotPrompt(nn.Module):
                 with torch.no_grad():       # this phase does not learn slot attn
                     _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp, n_iter=n_iter)
                 _recon_loss = 0
-            _prompts, _selection = self.s2p(_slots, temp=prompt_temp, train=detach_old_prompts)
+            _prompts, _selection = self.s2p(_slots, temp=prompt_temp, train=train, phase=prompt_phase)
             prompts.append(_prompts)
             selection.append(_selection)
             slots.append(_slots)

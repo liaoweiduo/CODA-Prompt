@@ -463,6 +463,7 @@ class SLOTPrompt(Prompt):
                 batch_time = AverageMeter()
                 batch_timer = Timer()
 
+                phase0_epochs = int(epochs / 2)
                 for epoch in range(epochs):       # self.config['schedule'][-1]
                     self.epoch = epoch
 
@@ -494,7 +495,9 @@ class SLOTPrompt(Prompt):
                         # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                         # model update
-                        loss, output, loss_dict = self.update_model(x, y)  # , task
+                        # prompt_phase, first half =0, last half =1
+                        loss, output, loss_dict = self.update_model(
+                            x, y, prompt_phase=1 if epoch >= phase0_epochs else 0)  # , task
                         ccl_loss, s2p_loss = loss_dict['ccl_loss'], loss_dict['s2p_loss']
                         mk_loss = loss_dict['mk_loss']
                         # prompt_ortho_loss = loss_dict['prompt_ortho_loss']
@@ -519,7 +522,8 @@ class SLOTPrompt(Prompt):
 
                     # eval update
                     self.log(
-                        'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
+                        'Epoch:{epoch:.0f}/{total:.0f} phase{phase}'.format(
+                            epoch=self.epoch + 1, total=epochs, phase=epoch >= phase0_epochs))
                     self.log(
                         ' * Loss {loss.avg:.3f} | '
                         'MK Loss {mk_loss.avg:.3f} | '
@@ -581,7 +585,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, match_pool=False, learn_slots=False,
+    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, prompt_phase=1,
                      p=30, tau=3):
         self.optimizer.zero_grad()
         try:
@@ -590,7 +594,7 @@ class SLOTPrompt(Prompt):
             model = self.model
         FPS = self.FPS
 
-        q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
+        q = model.obtain_q(inputs, learn_slots=learn_slots, train=True, prompt_phase=prompt_phase)
         prompts, selections, slots, attn, recon_loss = q
         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
 
@@ -1057,7 +1061,7 @@ class SLOTPrompt(Prompt):
         # else:
         #     prompts = model.obtain_q(inputs, all=False)      # [bs, 1, k20, e12, p8, d768]
         #     # all=False: only use new slots
-        q = model.obtain_q(inputs, all=not FPS, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
+        q = model.obtain_q(inputs, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
         prompts, selection, slots, attn, recon_loss = q
 
         if learn_slots:
@@ -1781,7 +1785,7 @@ class SLOTPrompt(Prompt):
                     y = y.cuda()
 
                 # get slots
-                q = model.obtain_q(x, all=not self.FPS, learn_slots=False)
+                q = model.obtain_q(x, learn_slots=False)
                 _, _, slots, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
@@ -1839,7 +1843,7 @@ class SLOTPrompt(Prompt):
 
             with torch.no_grad():
                 # get slots
-                q = model.obtain_q(x, all=not self.FPS, learn_slots=False)
+                q = model.obtain_q(x, learn_slots=False)
                 _, _, slots, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
