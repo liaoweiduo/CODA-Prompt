@@ -43,13 +43,16 @@ class SlotPrompt(nn.Module):
             SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim,
                           n_iter=self.n_iters, temp=self.temp)])
 
-        # class key
+        # class key for mk
         self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
+
+        # aux classifier for prompt-concept alignment loss
+        self.prompt_concept_alignment_classifier = nn.Linear(768, np.max(self.tasks)+1)     # [100, 768]
 
         # # slot mapping ortho
         # self.slot_attn_mapping_k = init_tensor(self.e_pool_size, self.key_d)
 
-        # # slot learning coeff
+        # # learnable slot learning coeff
         # self.slot_attn_alpha = nn.Parameter(torch.FloatTensor(3), requires_grad=True)
         # nn.init.constant_(self.slot_attn_alpha, 1)
 
@@ -1543,6 +1546,8 @@ class ViTZoo(nn.Module):
                  use_vit_emb=True, use_vit_fea=False):
         super(ViTZoo, self).__init__()
 
+        self.num_classes = num_classes
+
         # get last layer
         # self.last = nn.Linear(512, num_classes)
         self.prompt_flag = prompt_flag
@@ -1623,7 +1628,7 @@ class ViTZoo(nn.Module):
 
     # pen: get penultimate features    
     def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False,
-                cond_x=None, return_aqk=False, q=None, **kwargs):
+                cond_x=None, return_aqk=False, q=None, forward_last=True, **kwargs):
         # kwargs for prompt
         if task_id is None:
             task_id = self.task_id
@@ -1647,7 +1652,10 @@ class ViTZoo(nn.Module):
             out = out[:, 0, :]
         out = out.view(out.size(0), -1)
         features = out
-        out = self.last(out)
+        if forward_last:
+            out = self.last(out)
+        else:
+            out = None
 
         if pen:
             return out, features

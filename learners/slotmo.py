@@ -458,6 +458,7 @@ class SLOTPrompt(Prompt):
                 mk_losses = AverageMeter()
                 prompt_ortho_losses = AverageMeter()
                 selection_ortho_losses = AverageMeter()
+                prompt_concept_alignment_losses = AverageMeter()
                 acc = AverageMeter()
                 batch_time = AverageMeter()
                 batch_timer = Timer()
@@ -498,6 +499,7 @@ class SLOTPrompt(Prompt):
                         mk_loss = loss_dict['mk_loss']
                         # prompt_ortho_loss = loss_dict['prompt_ortho_loss']
                         selection_ortho_loss = loss_dict['selection_ortho_loss']
+                        prompt_concept_alignment_loss = loss_dict['prompt_concept_alignment_loss']
 
                         # measure elapsed time
                         batch_time.update(batch_timer.toc())
@@ -512,6 +514,7 @@ class SLOTPrompt(Prompt):
                         s2p_losses.update(s2p_loss, y.size(0))
                         # prompt_ortho_losses.update(prompt_ortho_loss, y.size(0))
                         selection_ortho_losses.update(selection_ortho_loss, y.size(0))
+                        prompt_concept_alignment_losses.update(prompt_concept_alignment_loss, y.size(0))
                         batch_timer.tic()
 
                     # eval update
@@ -519,17 +522,21 @@ class SLOTPrompt(Prompt):
                         'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                     self.log(
                         ' * Loss {loss.avg:.3f} | '
-                        'CCL Loss {ccl_loss.avg:.3f} | '
-                        'S2P Loss {s2p_loss.avg:.3f} | '
                         'MK Loss {mk_loss.avg:.3f} | '
                         'So Loss {selection_ortho_loss.avg:.3f} | '
+                        'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
                         'Train Acc {acc.avg:.3f} | '
                         'Time {time:.3f}s ({i} batches)'.format(
-                            loss=losses, ccl_loss=ccl_losses, s2p_loss=s2p_losses, mk_loss=mk_losses,
+                            loss=losses,
+                            # ccl_loss=ccl_losses, s2p_loss=s2p_losses,
+                            mk_loss=mk_losses,
                             acc=acc,
                             # prompt_ortho_loss=prompt_ortho_losses,
                             selection_ortho_loss=selection_ortho_losses,
+                            prompt_concept_alignment_loss=prompt_concept_alignment_losses,
                             time=batch_time.avg*len(train_loader), i=len(train_loader)))
+                    # 'CCL Loss {ccl_loss.avg:.3f} | '
+                    # 'S2P Loss {s2p_loss.avg:.3f} | '
 
                     # reset
                     losses = AverageMeter()
@@ -538,6 +545,7 @@ class SLOTPrompt(Prompt):
                     s2p_losses = AverageMeter()
                     prompt_ortho_losses = AverageMeter()
                     selection_ortho_losses = AverageMeter()
+                    prompt_concept_alignment_losses = AverageMeter()
                     acc = AverageMeter()
 
                     # validation
@@ -748,18 +756,50 @@ class SLOTPrompt(Prompt):
             # prompt-concept alignment loss
             prompt_concept_alignment_loss = torch.zeros(1).mean().to(loss.device)
             if self.prompt_concept_alignment_coeff > 0:
-                bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
-                batched_slots = slots.reshape(bs, t*k, h)
-                bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
-                attn = attn.permute(0, 2, 1, 3).reshape(bs, n, t*k)
-                bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
-                # resize attn to input size
-                grid_size = 14
-                assert (grid_size * grid_size == n
-                        ), f'attn {attn.shape} and grid_size {grid_size} not match. can not put attn on input.'
+                with torch.no_grad():
+                    bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+                    batched_slots = slots.reshape(bs, t*k, h)
+                    bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
+                    attn = attn.permute(0, 2, 1, 3).reshape(bs, n, t*k)
+                    bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
+                    # expand attn to input size
+                    grid_size = 14
+                    assert (grid_size * grid_size == n
+                            ), f'attn {attn.shape} and grid_size {grid_size} not match. can not put attn on input.'
+                    expand_size = height // grid_size
+                    attn = attn.reshape(bs, grid_size, grid_size, k)
+                    masks = attn.repeat_interleave(
+                        expand_size, dim=1).repeat_interleave(expand_size, dim=2)  # [bs, height, weight, k]
+                    # expand inputs to match k slots
+                    k_expand_inputs = inputs.reshape(bs, channel, height, weight, 1
+                                                     ).repeat_interleave(t*k, dim=-1)  # [bs, 3, H, W, k]
+                    # apply masks
+                    k_expand_inputs = torch.einsum('bchwk,bhwk->bchwk', k_expand_inputs, masks)
+                    k_expand_inputs = k_expand_inputs.permute(0, 4, 1, 2, 3).reshape(bs*t*k, channel, height, weight)
+                    k_expand_targets = targets.repeat_interleave(t*k)
 
+                k_expand_prompts = prompts.reshape(bs*t*k, e, p, d)
+                _, k_expand_features = self.model(
+                    k_expand_inputs, q=k_expand_prompts,
+                    pen=True, train=True,
+                    forward_last=False,         # only get features
+                    debug_mode=self.debug_mode)
+                # features: [bs*t*k, 768]
+                last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
+                k_expand_logits = last(k_expand_features)    #
 
+                k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [bs*k, 30]
+                k_expand_logits[:, :self.last_valid_out_dim] = -float('inf')
+                prompt_concept_alignment_loss = self.criterion_fn(k_expand_logits, k_expand_targets.long()).mean()
 
+                loss = loss + self.prompt_concept_alignment_coeff * prompt_concept_alignment_loss
+
+                if self.debug_mode:
+                    print(f'prompt_concept_alignment_loss: {prompt_concept_alignment_loss.item()}')
+
+                self.epoch_log['scaler']['Tag'].append('loss/prompt_concept_alignment_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(prompt_concept_alignment_loss.item())
 
             # # prompt ortho loss
             # prompt_ortho_loss = torch.zeros(1).mean().to(loss.device)
@@ -973,6 +1013,7 @@ class SLOTPrompt(Prompt):
                      'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(), 'mk_weights': mk_weights.detach(),
                      # 'prompt_ortho_loss': prompt_ortho_loss.detach(),
                      'selection_ortho_loss': selection_ortho_loss.detach(),
+                     'prompt_concept_alignment_loss': prompt_concept_alignment_loss.detach(),
                      })
 
     def forward_mk(self, slots, K):
