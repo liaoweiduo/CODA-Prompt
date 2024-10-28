@@ -90,7 +90,7 @@ class Trainer:
         self.oracle_flag = args.oracle_flag
         self.add_dim = self.num_tasks
 
-        args.schedule = [20]
+        args.schedule = [50]
         args.batch_size = 10
 
         # Prepare the self.learner (model)
@@ -197,7 +197,7 @@ class Trainer:
             train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=int(self.workers))
 
             # learn
-            self.test_dataset.load_dataset(i, train=False)
+            self.test_dataset.load_dataset(i, train=True)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
             # no use during training
             # model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'

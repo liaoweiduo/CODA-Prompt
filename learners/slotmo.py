@@ -56,7 +56,7 @@ class SLOTPrompt(Prompt):
         # self.aux = Auxiliary()
 
         config = self.config['prompt_param'][1]
-        while len(config) < 14:
+        while len(config) < 15:
             config.append(0)
         self.weight_coeff = float(config[6])
         self.ccl_coeff = float(config[7])
@@ -66,6 +66,7 @@ class SLOTPrompt(Prompt):
         self.mk_coeff = float(config[11])
         self.slot_vsI_coeff = float(config[12])
         self.selection_ortho_coeff = float(config[13])
+        self.prompt_concept_alignment_coeff = float(config[14])
 
         try:
             prompt = self.model.module.prompt
@@ -552,10 +553,10 @@ class SLOTPrompt(Prompt):
                         '''nvidia-smi'''
                         os.system('nvidia-smi')
 
-        if self.config['mode'] == 'continual':
-            self.log(f'Phase III: update correlation for labels')
-            self.collect_statistics(train_loader, train_dataset)
-            self.collect_slot_pool(train_loader, train_dataset)
+        # if self.config['mode'] == 'continual':
+        #     self.log(f'Phase III: update correlation for labels')
+        #     self.collect_statistics(train_loader, train_dataset)
+        #     self.collect_slot_pool(train_loader, train_dataset)
 
         self.model.eval()
 
@@ -688,7 +689,6 @@ class SLOTPrompt(Prompt):
             #
             # loss = torch.mean(sorted_mo_matrix, dim=1)        # [bs]
             # loss = torch.mean(loss)
-
             bs, t, k, e, p, d = prompts.shape
             prompts = prompts.reshape(bs, t*k, e, p, d)  # [bs,t*k, e, p, d]
             assert t == 1       # if not 1, should permutate t with e then reshape to t*k
@@ -727,22 +727,6 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(ce_loss.item())
 
-            # cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            # # prompt ortho loss
-            # prompt_ortho_loss = torch.zeros(1).mean().to(loss.device)
-            # if self.prompt_ortho_coeff > 0:
-            #     weighted_prompts = prompts     # shape[bs, t*k, e, p, d]
-            #     weighted_prompts = weighted_prompts.reshape(bs, t*k, e*p*d)
-            #     sim = cos(weighted_prompts.unsqueeze(1), weighted_prompts.unsqueeze(2))  # [bs, k, k]
-            #     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
-            #     prompt_ortho_loss = F.mse_loss(sim, eye)
-            #
-            #     loss = loss + self.prompt_ortho_coeff * prompt_ortho_loss
-            #
-            #     self.epoch_log['scaler']['Tag'].append('loss/prompt_ortho_loss')
-            #     self.epoch_log['scaler']['Idx'].append(self.epoch)
-            #     self.epoch_log['scaler']['Value'].append(prompt_ortho_loss.item())
-
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             # selection_ortho_loss
             selection_ortho_loss = torch.zeros(1).mean().to(loss.device)
@@ -760,6 +744,37 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Tag'].append('loss/selection_ortho_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(selection_ortho_loss.item())
+
+            # prompt-concept alignment loss
+            prompt_concept_alignment_loss = torch.zeros(1).mean().to(loss.device)
+            if self.prompt_concept_alignment_coeff > 0:
+                bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+                batched_slots = slots.reshape(bs, t*k, h)
+                bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
+                attn = attn.permute(0, 2, 1, 3).reshape(bs, n, t*k)
+                bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
+                # resize attn to input size
+                grid_size = 14
+                assert (grid_size * grid_size == n
+                        ), f'attn {attn.shape} and grid_size {grid_size} not match. can not put attn on input.'
+
+
+
+
+            # # prompt ortho loss
+            # prompt_ortho_loss = torch.zeros(1).mean().to(loss.device)
+            # if self.prompt_ortho_coeff > 0:
+            #     weighted_prompts = prompts     # shape[bs, t*k, e, p, d]
+            #     weighted_prompts = weighted_prompts.reshape(bs, t*k, e*p*d)
+            #     sim = cos(weighted_prompts.unsqueeze(1), weighted_prompts.unsqueeze(2))  # [bs, k, k]
+            #     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
+            #     prompt_ortho_loss = F.mse_loss(sim, eye)
+            #
+            #     loss = loss + self.prompt_ortho_coeff * prompt_ortho_loss
+            #
+            #     self.epoch_log['scaler']['Tag'].append('loss/prompt_ortho_loss')
+            #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+            #     self.epoch_log['scaler']['Value'].append(prompt_ortho_loss.item())
 
             # ccl loss
             ccl_loss = torch.zeros(1).mean().to(loss.device)

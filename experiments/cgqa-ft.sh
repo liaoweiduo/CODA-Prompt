@@ -44,15 +44,15 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#for mode in sys pro sub non noc
-#do
-#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#      --learner_type prompt --learner_name CODAPrompt \
-#      --prompt_param 100 40 0.0 \
-#      --log_dir ${OUTDIR}/coda-imagenet-l40 \
-#      --mode ${mode}
-#  date
-#done
+for mode in sys pro sub non noc
+do
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+      --learner_type prompt --learner_name CODAPrompt \
+      --prompt_param 100 40 0.0 \
+      --log_dir ${OUTDIR}/coda-imagenet-l40 \
+      --mode ${mode}
+  date
+done
 
 # DualPrompt
 #
@@ -60,15 +60,15 @@ mkdir -p $OUTDIR
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-#for mode in sys pro sub non noc
-#do
-#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#      --learner_type prompt --learner_name DualPrompt \
-#      --prompt_param 10 40 10 \
-#      --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10 \
-#      --mode ${mode}
-#  date
-#done
+for mode in sys pro sub non noc
+do
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+      --learner_type prompt --learner_name DualPrompt \
+      --prompt_param 10 40 10 \
+      --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10 \
+      --mode ${mode}
+  date
+done
 
 # L2P++
 #
@@ -76,12 +76,12 @@ mkdir -p $OUTDIR
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-for mode in sys pro sub non noc
-do
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-      --learner_type prompt --learner_name L2P \
-      --prompt_param 10 10 -1 \
-      --log_dir ${OUTDIR}/l2p++-imagenet-p10-l10 \
-      --mode ${mode}
-  date
-done
+#for mode in sys pro sub non noc
+#do
+#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#      --learner_type prompt --learner_name L2P \
+#      --prompt_param 10 10 -1 \
+#      --log_dir ${OUTDIR}/l2p++-imagenet-p10-l10 \
+#      --mode ${mode}
+#  date
+#done
