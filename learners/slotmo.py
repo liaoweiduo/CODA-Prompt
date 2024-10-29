@@ -463,7 +463,7 @@ class SLOTPrompt(Prompt):
                 batch_time = AverageMeter()
                 batch_timer = Timer()
 
-                phase0_epochs = int(epochs / 2)
+                phase0_epochs = 20 if 20 < int(epochs / 2) else int(epochs / 2)
                 for epoch in range(epochs):       # self.config['schedule'][-1]
                     self.epoch = epoch
 
@@ -523,7 +523,7 @@ class SLOTPrompt(Prompt):
                     # eval update
                     self.log(
                         'Epoch:{epoch:.0f}/{total:.0f} phase{phase}'.format(
-                            epoch=self.epoch + 1, total=epochs, phase=epoch >= phase0_epochs))
+                            epoch=self.epoch + 1, total=epochs, phase=1 if epoch >= phase0_epochs else 0))
                     self.log(
                         ' * Loss {loss.avg:.3f} | '
                         'MK Loss {mk_loss.avg:.3f} | '
@@ -766,6 +766,7 @@ class SLOTPrompt(Prompt):
                     bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
                     attn = attn.permute(0, 2, 1, 3).reshape(bs, n, t*k)
                     bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
+
                     # expand attn to input size
                     grid_size = 14
                     assert (grid_size * grid_size == n
@@ -783,16 +784,24 @@ class SLOTPrompt(Prompt):
                     k_expand_targets = targets.repeat_interleave(t*k)
 
                 k_expand_prompts = prompts.reshape(bs*t*k, e, p, d)
+
+                # random select some slots to reduce cuda memory cost
+                n_samples = k       # select 10 slots for each iteration
+                indexs = np.random.permutation(range(bs*t*k))[:n_samples]
+                k_expand_inputs = k_expand_inputs[indexs]
+                k_expand_targets = k_expand_targets[indexs]
+                k_expand_prompts = k_expand_prompts[indexs]
+
                 _, k_expand_features = self.model(
                     k_expand_inputs, q=k_expand_prompts,
                     pen=True, train=True,
                     forward_last=False,         # only get features
                     debug_mode=self.debug_mode)
-                # features: [bs*t*k, 768]
+                # features: [n_samples, 768]
                 last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
                 k_expand_logits = last(k_expand_features)    #
 
-                k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [bs*k, 30]
+                k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [n_samples, 30]
                 k_expand_logits[:, :self.last_valid_out_dim] = -float('inf')
                 prompt_concept_alignment_loss = self.criterion_fn(k_expand_logits, k_expand_targets.long()).mean()
 
