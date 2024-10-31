@@ -290,7 +290,7 @@ class SLOTPrompt(Prompt):
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule[phase], gamma=0.1)
         elif schedule_type == 'cosann':
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                self.optimizer, T_0=int(schedule[phase]/5), eta_min=lr/100)
+                self.optimizer, T_0=int(schedule[phase]/2), eta_min=lr/100)
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
@@ -463,7 +463,8 @@ class SLOTPrompt(Prompt):
                 batch_time = AverageMeter()
                 batch_timer = Timer()
 
-                phase0_epochs = 20 if 20 < int(epochs / 2) else int(epochs / 2)
+                # phase0_epochs = 20 if 20 < int(epochs / 2) else int(epochs / 2)
+                phase0_epochs = int(epochs / 2)
                 for epoch in range(epochs):       # self.config['schedule'][-1]
                     self.epoch = epoch
 
