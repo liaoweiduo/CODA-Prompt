@@ -68,6 +68,8 @@ class SLOTPrompt(Prompt):
         self.selection_ortho_coeff = float(config[13])
         self.prompt_concept_alignment_coeff = float(config[14])
 
+        self.selection_ortho_type = 'l1'
+
         try:
             prompt = self.model.module.prompt
         except:
@@ -750,7 +752,10 @@ class SLOTPrompt(Prompt):
                 batched_slots = slots.reshape(bs, t*k, h)
                 selection_sim = cos(batched_selections.unsqueeze(1), batched_selections.unsqueeze(2))  # [bs, k, k]
                 slot_sim = cos(batched_slots.unsqueeze(1), batched_slots.unsqueeze(2))  # [bs, k, k]
-                selection_ortho_loss = F.mse_loss(selection_sim, slot_sim)
+                if self.selection_ortho_type == 'l1':
+                    selection_ortho_loss = F.l1_loss(selection_sim, slot_sim)
+                else:
+                    selection_ortho_loss = F.mse_loss(selection_sim, slot_sim)
 
                 loss = loss + self.selection_ortho_coeff * selection_ortho_loss
 
