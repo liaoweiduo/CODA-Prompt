@@ -228,7 +228,7 @@ class Slot2Prompt(nn.Module):
                     setattr(self, f'e_k_{e}', K)
                     setattr(self, f'e_a_{e}', A)
 
-    def forward(self, slots, s2p=None, train=False, temp=None, phase=1):
+    def forward(self, slots, s2p=None, train=False, temp=None, phase=1, sigmoid=True):
         """phase 0: only use detached old prompts """
         # train control the detach of old K and p
         # slots [bs, n20, h64]
@@ -312,17 +312,20 @@ class Slot2Prompt(nn.Module):
                     temp = self.temp
                 # aq_k = ((self.key_d ** (-0.5)) * aq_k) * temp
                 aq_k = aq_k * temp
-                # over slot pool, thus each slot sharpply select one slot in the pool
-                aq_k = torch.softmax(aq_k, dim=-1)
-
-                if train:
+                # over slot pool, thus each slot sharply select one slot in the pool
+                if sigmoid:
+                    aq_k = torch.sigmoid(aq_k)
                     aq_k_repa = aq_k
                 else:
-                    # Reparametrization trick.
-                    index = aq_k.max(-1, keepdim=True)[1]
-                    aq_k_repa = torch.zeros_like(aq_k, memory_format=torch.legacy_contiguous_format
-                                                 ).scatter_(-1, index, 1.0)
-                    aq_k_repa = aq_k_repa - aq_k.detach() + aq_k
+                    aq_k = torch.softmax(aq_k, dim=-1)
+                    if train:
+                        aq_k_repa = aq_k
+                    else:
+                        # Reparametrization trick.
+                        index = aq_k.max(-1, keepdim=True)[1]
+                        aq_k_repa = torch.zeros_like(aq_k, memory_format=torch.legacy_contiguous_format
+                                                     ).scatter_(-1, index, 1.0)
+                        aq_k_repa = aq_k_repa - aq_k.detach() + aq_k
 
                 # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
                 P = torch.einsum('bnk,kld->bnld', aq_k_repa, p)   # wei-sum over k -> bnld
