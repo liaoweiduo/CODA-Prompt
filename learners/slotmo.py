@@ -766,37 +766,49 @@ class SLOTPrompt(Prompt):
             # prompt-concept alignment loss
             prompt_concept_alignment_loss = torch.zeros(1).mean().to(loss.device)
             if self.prompt_concept_alignment_coeff > 0:
-                with torch.no_grad():
-                    bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
-                    batched_slots = slots.reshape(bs, t*k, h)
-                    bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
-                    attn = attn.permute(0, 2, 1, 3).reshape(bs, n, t*k)
-                    bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
+                bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
+                attn = attn.clone().permute(0, 1, 3, 2).reshape(bs*t*k, n)
+                bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
+                # expand inputs to match k slots
+                k_expand_inputs = inputs.reshape(
+                    bs, 1, channel, height, weight
+                ).repeat_interleave(t*k, dim=1).reshape(
+                    bs*t*k, channel, height, weight
+                )  # [bs*t*k, 3, H, W]
+                k_expand_targets = targets.repeat_interleave(t * k)     # [bs*tk]
+                # expand prompts to match k slots
+                k_expand_prompts = prompts.reshape(bs * t * k, e, p, d)
 
-                    # expand attn to input size
+                # random select some slots to reduce cuda memory cost
+                n_samples = k  # select 10 slots for each iteration
+                indexs = np.random.permutation(range(bs * t * k))[:n_samples]
+                k_expand_inputs = k_expand_inputs[indexs]       # [n_samples, 3, H, W]
+                k_expand_targets = k_expand_targets[indexs]     # [n_samples]
+                k_expand_prompts = k_expand_prompts[indexs]     # [n_samples, e5, p40, d768]
+                attn = attn[indexs]                             # [n_samples, n]
+
+                with torch.no_grad():
+                    # to 0-1 mask
+                    attn[attn >= 0.5] = 1
+                    attn[attn < 0.5] = 0
+
                     grid_size = 14
                     assert (grid_size * grid_size == n
                             ), f'attn {attn.shape} and grid_size {grid_size} not match. can not put attn on input.'
                     expand_size = height // grid_size
-                    attn = attn.reshape(bs, grid_size, grid_size, k)
+                    attn = attn.reshape(n_samples, grid_size, grid_size)
+
+                    # do dilation with 1 neighbor on patch-level
+                    kernel_size = 3  # dilate one patch neighbor
+                    dilate = nn.MaxPool2d(kernel_size=kernel_size, stride=1, padding=int(kernel_size / 2))  # 3, 1, 1
+                    attn = dilate(attn)
+
+                    # expand attn to input size
                     masks = attn.repeat_interleave(
-                        expand_size, dim=1).repeat_interleave(expand_size, dim=2)  # [bs, height, weight, k]
-                    # expand inputs to match k slots
-                    k_expand_inputs = inputs.reshape(bs, channel, height, weight, 1
-                                                     ).repeat_interleave(t*k, dim=-1)  # [bs, 3, H, W, k]
+                        expand_size, dim=1).repeat_interleave(expand_size, dim=2)  # [n_samples, height, weight]
+
                     # apply masks
-                    k_expand_inputs = torch.einsum('bchwk,bhwk->bchwk', k_expand_inputs, masks)
-                    k_expand_inputs = k_expand_inputs.permute(0, 4, 1, 2, 3).reshape(bs*t*k, channel, height, weight)
-                    k_expand_targets = targets.repeat_interleave(t*k)
-
-                k_expand_prompts = prompts.reshape(bs*t*k, e, p, d)
-
-                # random select some slots to reduce cuda memory cost
-                n_samples = k       # select 10 slots for each iteration
-                indexs = np.random.permutation(range(bs*t*k))[:n_samples]
-                k_expand_inputs = k_expand_inputs[indexs]
-                k_expand_targets = k_expand_targets[indexs]
-                k_expand_prompts = k_expand_prompts[indexs]
+                    k_expand_inputs = torch.einsum('bchw,bhw->bchw', k_expand_inputs, masks)
 
                 _, k_expand_features = self.model(
                     k_expand_inputs, q=k_expand_prompts,
