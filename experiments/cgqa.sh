@@ -68,7 +68,7 @@ mkdir -p $OUTDIR
 
 lrs=(1e-3); temps=(10)
 prompt_concept_alignment_coeffs=(0.5)
-devices=(5); i=-1
+devices=(6); i=-1
 for lr_run_id in 0; do
 for temp_run_id in 0; do
 for pcac_run_id in 0; do
