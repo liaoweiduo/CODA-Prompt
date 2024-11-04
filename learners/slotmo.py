@@ -465,7 +465,7 @@ class SLOTPrompt(Prompt):
                 batch_time = AverageMeter()
                 batch_timer = Timer()
 
-                phase0_epochs = 5 if 5 < int(epochs / 2) else int(epochs / 2)
+                phase0_epochs = 0 if 0 < int(epochs / 2) else int(epochs / 2)       # 5
                 # phase0_epochs = int(epochs / 2)
                 for epoch in range(epochs):       # self.config['schedule'][-1]
                     self.epoch = epoch
