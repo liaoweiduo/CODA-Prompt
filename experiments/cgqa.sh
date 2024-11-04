@@ -67,8 +67,8 @@ mkdir -p $OUTDIR
 #done
 
 lrs=(1e-3); temps=(10)
-prompt_concept_alignment_coeffs=(0)
-devices=(4); i=-1
+prompt_concept_alignment_coeffs=(0.5)
+devices=(5); i=-1
 for lr_run_id in 0; do
 for temp_run_id in 0; do
 for pcac_run_id in 0; do
@@ -77,7 +77,7 @@ lr=${lrs[${lr_run_id}]}
 temp=${temps[${temp_run_id}]}
 prompt_concept_alignment_coeff=${prompt_concept_alignment_coeffs[${pcac_run_id}]}
 device=${devices[${i}]}
-LOGNAME=8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old25-cosann-cossim${temp}-l1-sol1-dilate1-pcac${prompt_concept_alignment_coeff}-lr${lr}
+LOGNAME=8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-cossim${temp}-l1-sol1-dilate1-pcac${prompt_concept_alignment_coeff}-lr${lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
