@@ -67,11 +67,11 @@ mkdir -p $OUTDIR
 #done
 
 lrs=(1e-3); temps=(10)
-prompt_concept_alignment_coeffs=(0.5)
-devices=(0 1 2); i=-1
+prompt_concept_alignment_coeffs=(0)
+devices=(4); i=-1
 for lr_run_id in 0; do
 for temp_run_id in 0; do
-for pcac_run_id in 0 1 2; do
+for pcac_run_id in 0; do
 ((i++))
 lr=${lrs[${lr_run_id}]}
 temp=${temps[${temp_run_id}]}

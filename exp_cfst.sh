@@ -1,0 +1,1 @@
+nohup bash experiments/cgqa-ft.sh >>outputs/CGQA/ft-8-0.5.txt 2>&1
