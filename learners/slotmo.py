@@ -457,7 +457,7 @@ class SLOTPrompt(Prompt):
                         schedule = schedule[self.t]
                     if type(schedule) is not list:
                         schedule = [schedule, schedule]      # for CFST: [20, 20]
-                    epochs = schedule[1]        # phase II
+                    epochs = schedule[prompt_phase+1]        # phase II
                     self.epochs = epochs
 
                     losses = AverageMeter()
