@@ -289,7 +289,7 @@ class Slot2Prompt(nn.Module):
                         #     K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
                         #     A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
                         p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
-                    else:
+                    else:       # first task, s=0
                         K = K[s:f]
                         A = A[s:f]
                         p = p[s:f]
