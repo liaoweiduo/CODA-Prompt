@@ -292,7 +292,7 @@ class SLOTPrompt(Prompt):
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule[phase], gamma=0.1)
         elif schedule_type == 'cosann':
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                self.optimizer, T_0=int(schedule[phase]/2), eta_min=lr/100)
+                self.optimizer, T_0=int(schedule[phase]/2), T_mult=1, eta_min=lr/100)
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
@@ -440,133 +440,137 @@ class SLOTPrompt(Prompt):
 
             if not self.config['only_learn_slot']:
                 self.log(f'Phase II： training slot2prompt mapping and classifier')
-                if self.reset_optimizer:  # Reset optimizer before learning each task
-                    self.log('Optimizer is reset')
-                    self.init_optimizer(t=self.t, target='/slot', phase=1)
 
-                schedule = self.config['schedule']
-                if self.t >= len(schedule):
-                    schedule = schedule[-1]
+                if self.t == 0:
+                    prompt_phases = [1]
                 else:
-                    schedule = schedule[self.t]
-                if type(schedule) is not list:
-                    schedule = [schedule, schedule]      # for CFST: [20, 20]
-                epochs = schedule[1]        # phase II
-                self.epochs = epochs
+                    prompt_phases = [0, 1]
+                for prompt_phase in prompt_phases:
+                    if self.reset_optimizer:  # Reset optimizer before learning each task
+                        self.log('Optimizer is reset')
+                        self.init_optimizer(t=self.t, target='/slot', phase=prompt_phase+1)
 
-                losses = AverageMeter()
-                ccl_losses = AverageMeter()
-                s2p_losses = AverageMeter()
-                mk_losses = AverageMeter()
-                prompt_ortho_losses = AverageMeter()
-                selection_ortho_losses = AverageMeter()
-                prompt_concept_alignment_losses = AverageMeter()
-                acc = AverageMeter()
-                batch_time = AverageMeter()
-                batch_timer = Timer()
+                    schedule = self.config['schedule']
+                    if self.t >= len(schedule):
+                        schedule = schedule[-1]
+                    else:
+                        schedule = schedule[self.t]
+                    if type(schedule) is not list:
+                        schedule = [schedule, schedule]      # for CFST: [20, 20]
+                    epochs = schedule[1]        # phase II
+                    self.epochs = epochs
 
-                phase0_epochs = 5 if 5 < int(epochs / 2) else int(epochs / 2)       # 5
-                # phase0_epochs = int(epochs / 2)
-                for epoch in range(epochs):       # self.config['schedule'][-1]
-                    self.epoch = epoch
-
-                    if epoch > 0: self.scheduler.step()
-                    for param_group in self.optimizer.param_groups:
-                        self.log('LR:', param_group['lr'])
-                    batch_timer.tic()
-                    for i, sample in enumerate(train_loader):
-                        self.batch_idx = i
-
-                        concepts = None
-                        if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
-                            x, y, concepts, task = sample
-                        else:
-                            x, y, task = sample
-
-                        # verify in train mode
-                        self.model.train()
-
-                        # send data to gpu
-                        if self.gpu:
-                            x = x.cuda()
-                            y = y.cuda()
-                            # if concepts is not None:
-                            #     concepts = concepts.cuda()      # [bs, 224, 224]
-                            # task = task.cuda()
-
-                        # # debug
-                        # print(f'x shape: {x.shape}, y: {y}, task: {task}')
-
-                        # model update
-                        # prompt_phase, first half =0, last half =1
-                        loss, output, loss_dict = self.update_model(
-                            x, y, prompt_phase=1 if epoch >= phase0_epochs else 0)  # , task
-                        ccl_loss, s2p_loss = loss_dict['ccl_loss'], loss_dict['s2p_loss']
-                        mk_loss = loss_dict['mk_loss']
-                        # prompt_ortho_loss = loss_dict['prompt_ortho_loss']
-                        selection_ortho_loss = loss_dict['selection_ortho_loss']
-                        prompt_concept_alignment_loss = loss_dict['prompt_concept_alignment_loss']
-
-                        # measure elapsed time
-                        batch_time.update(batch_timer.toc())
-                        batch_timer.tic()
-
-                        # measure accuracy and record loss
-                        y = y.detach()
-                        accumulate_acc(output, y, task, acc, topk=(self.top_k,))
-                        losses.update(loss, y.size(0))
-                        ccl_losses.update(ccl_loss, y.size(0))
-                        mk_losses.update(mk_loss, y.size(0))
-                        s2p_losses.update(s2p_loss, y.size(0))
-                        # prompt_ortho_losses.update(prompt_ortho_loss, y.size(0))
-                        selection_ortho_losses.update(selection_ortho_loss, y.size(0))
-                        prompt_concept_alignment_losses.update(prompt_concept_alignment_loss, y.size(0))
-                        batch_timer.tic()
-
-                    # eval update
-                    self.log(
-                        'Epoch:{epoch:.0f}/{total:.0f} phase{phase}'.format(
-                            epoch=self.epoch + 1, total=epochs, phase=1 if epoch >= phase0_epochs else 0))
-                    self.log(
-                        ' * Loss {loss.avg:.3f} | '
-                        'MK Loss {mk_loss.avg:.3f} | '
-                        'So Loss {selection_ortho_loss.avg:.3f} | '
-                        'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
-                        'Train Acc {acc.avg:.3f} | '
-                        'Time {time:.3f}s ({i} batches)'.format(
-                            loss=losses,
-                            # ccl_loss=ccl_losses, s2p_loss=s2p_losses,
-                            mk_loss=mk_losses,
-                            acc=acc,
-                            # prompt_ortho_loss=prompt_ortho_losses,
-                            selection_ortho_loss=selection_ortho_losses,
-                            prompt_concept_alignment_loss=prompt_concept_alignment_losses,
-                            time=batch_time.avg*len(train_loader), i=len(train_loader)))
-                    # 'CCL Loss {ccl_loss.avg:.3f} | '
-                    # 'S2P Loss {s2p_loss.avg:.3f} | '
-
-                    # reset
                     losses = AverageMeter()
                     ccl_losses = AverageMeter()
-                    mk_losses = AverageMeter()
                     s2p_losses = AverageMeter()
+                    mk_losses = AverageMeter()
                     prompt_ortho_losses = AverageMeter()
                     selection_ortho_losses = AverageMeter()
                     prompt_concept_alignment_losses = AverageMeter()
                     acc = AverageMeter()
+                    batch_time = AverageMeter()
+                    batch_timer = Timer()
 
-                    # validation
-                    if val_loader is not None:
-                        val_acc = self.validation(val_loader)
-                        # log
-                        self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                        self.epoch_log['scaler']['Idx'].append(self.epoch)
-                        self.epoch_log['scaler']['Value'].append(val_acc)
+                    for epoch in range(epochs):       # self.config['schedule'][-1]
+                        self.epoch = epoch
 
-                    # if self.epoch % 10 == 0:
-                    if self.epoch == 0:
-                        '''nvidia-smi'''
-                        os.system('nvidia-smi')
+                        if epoch > 0: self.scheduler.step()
+                        for param_group in self.optimizer.param_groups:
+                            self.log('LR:', param_group['lr'])
+                        batch_timer.tic()
+                        for i, sample in enumerate(train_loader):
+                            self.batch_idx = i
+
+                            concepts = None
+                            if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
+                                x, y, concepts, task = sample
+                            else:
+                                x, y, task = sample
+
+                            # verify in train mode
+                            self.model.train()
+
+                            # send data to gpu
+                            if self.gpu:
+                                x = x.cuda()
+                                y = y.cuda()
+                                # if concepts is not None:
+                                #     concepts = concepts.cuda()      # [bs, 224, 224]
+                                # task = task.cuda()
+
+                            # # debug
+                            # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                            # model update
+                            # prompt_phase, first half =0, last half =1
+                            loss, output, loss_dict = self.update_model(
+                                x, y, prompt_phase=prompt_phase)  # , task
+                            ccl_loss, s2p_loss = loss_dict['ccl_loss'], loss_dict['s2p_loss']
+                            mk_loss = loss_dict['mk_loss']
+                            # prompt_ortho_loss = loss_dict['prompt_ortho_loss']
+                            selection_ortho_loss = loss_dict['selection_ortho_loss']
+                            prompt_concept_alignment_loss = loss_dict['prompt_concept_alignment_loss']
+
+                            # measure elapsed time
+                            batch_time.update(batch_timer.toc())
+                            batch_timer.tic()
+
+                            # measure accuracy and record loss
+                            y = y.detach()
+                            accumulate_acc(output, y, task, acc, topk=(self.top_k,))
+                            losses.update(loss, y.size(0))
+                            ccl_losses.update(ccl_loss, y.size(0))
+                            mk_losses.update(mk_loss, y.size(0))
+                            s2p_losses.update(s2p_loss, y.size(0))
+                            # prompt_ortho_losses.update(prompt_ortho_loss, y.size(0))
+                            selection_ortho_losses.update(selection_ortho_loss, y.size(0))
+                            prompt_concept_alignment_losses.update(prompt_concept_alignment_loss, y.size(0))
+                            batch_timer.tic()
+
+                        # eval update
+                        self.log(
+                            'Epoch:{epoch:.0f}/{total:.0f} phase{phase}'.format(
+                                epoch=self.epoch + 1, total=epochs, phase=prompt_phase))
+                        self.log(
+                            ' * Loss {loss.avg:.3f} | '
+                            'MK Loss {mk_loss.avg:.3f} | '
+                            'So Loss {selection_ortho_loss.avg:.3f} | '
+                            'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
+                            'Train Acc {acc.avg:.3f} | '
+                            'Time {time:.3f}s ({i} batches)'.format(
+                                loss=losses,
+                                # ccl_loss=ccl_losses, s2p_loss=s2p_losses,
+                                mk_loss=mk_losses,
+                                acc=acc,
+                                # prompt_ortho_loss=prompt_ortho_losses,
+                                selection_ortho_loss=selection_ortho_losses,
+                                prompt_concept_alignment_loss=prompt_concept_alignment_losses,
+                                time=batch_time.avg*len(train_loader), i=len(train_loader)))
+                        # 'CCL Loss {ccl_loss.avg:.3f} | '
+                        # 'S2P Loss {s2p_loss.avg:.3f} | '
+
+                        # reset
+                        losses = AverageMeter()
+                        ccl_losses = AverageMeter()
+                        mk_losses = AverageMeter()
+                        s2p_losses = AverageMeter()
+                        prompt_ortho_losses = AverageMeter()
+                        selection_ortho_losses = AverageMeter()
+                        prompt_concept_alignment_losses = AverageMeter()
+                        acc = AverageMeter()
+
+                        # validation
+                        if val_loader is not None:
+                            val_acc = self.validation(val_loader)
+                            # log
+                            self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                            self.epoch_log['scaler']['Idx'].append(self.epoch)
+                            self.epoch_log['scaler']['Value'].append(val_acc)
+
+                        # if self.epoch % 10 == 0:
+                        if self.epoch == 0:
+                            '''nvidia-smi'''
+                            os.system('nvidia-smi')
 
         # if self.config['mode'] == 'continual':
         #     self.log(f'Phase III: update correlation for labels')

@@ -68,7 +68,7 @@ mkdir -p $OUTDIR
 
 lrs=(1e-3); temps=(10)
 prompt_concept_alignment_coeffs=(0.5)
-devices=(1); i=-1
+devices=(2); i=-1
 for lr_run_id in 0; do
 for temp_run_id in 0; do
 for pcac_run_id in 0; do
@@ -77,7 +77,7 @@ lr=${lrs[${lr_run_id}]}
 temp=${temps[${temp_run_id}]}
 prompt_concept_alignment_coeff=${prompt_concept_alignment_coeffs[${pcac_run_id}]}
 device=${devices[${i}]}
-LOGNAME=8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim${temp}-l1-sol1-dilate1-pcac${prompt_concept_alignment_coeff}-lr${lr}
+LOGNAME=9-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old20-only_fix_P-cossim${temp}-l1-sol1-dilate1-pcac${prompt_concept_alignment_coeff}-lr${lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
@@ -87,11 +87,12 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --prompt_param 100 40 10 5 1.0 ${temp} 0.0 0.0 0.1 1.2 80 0.5 0.0 1.0 ${prompt_concept_alignment_coeff} \
     --slot_pre_learn_model 4-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
+    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
 done
-#    --t0_model_from slot-k10-p30-ccl0-l2weight0.05 \
+
 
 
 
