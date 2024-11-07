@@ -445,10 +445,6 @@ class SLOTPrompt(Prompt):
                 else:
                     prompt_phases = [0, 1]
                 for prompt_phase in prompt_phases:
-                    if self.reset_optimizer:  # Reset optimizer before learning each task
-                        self.log('Optimizer is reset')
-                        self.init_optimizer(t=self.t, target='/slot', phase=prompt_phase+1)
-
                     schedule = self.config['schedule']
                     if self.t >= len(schedule):
                         schedule = schedule[-1]
@@ -458,6 +454,14 @@ class SLOTPrompt(Prompt):
                         schedule = [schedule, schedule]      # for CFST: [20, 20]
                     epochs = schedule[prompt_phase+1]        # phase II
                     self.epochs = epochs
+
+                    if epochs == 0:
+                        print(f'Skip prompt_phase: {prompt_phase}, cause epochs=0')
+                        continue
+
+                    if self.reset_optimizer:  # Reset optimizer before learning each task
+                        self.log('Optimizer is reset')
+                        self.init_optimizer(t=self.t, target='/slot', phase=prompt_phase+1)
 
                     losses = AverageMeter()
                     onehot_losses = AverageMeter()
@@ -848,7 +852,7 @@ class SLOTPrompt(Prompt):
 
             # onehot loss
             onehot_loss = torch.zeros(1).mean().to(loss.device)
-            if self.onehot_coeff > 0 and self.t > 0:       # and self.epoch >= 5:
+            if self.onehot_coeff > 0:       # and self.epoch >= 5:
                 with torch.no_grad():
                     bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
                     batched_selections = selections.reshape(bs*t*k*e, pp)
