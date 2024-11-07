@@ -280,14 +280,14 @@ class Slot2Prompt(nn.Module):
                 # freeze/control past tasks
                 if train:
                     if self.task_count > 0:
-                        K = K[0:f]
-                        A = A[0:f]
-                        # if phase == 0:
-                        #     K = K[0:f]
-                        #     A = A[0:f]
-                        # else:
-                        #     K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
-                        #     A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
+                        # K = K[0:f]
+                        # A = A[0:f]
+                        if phase == 0:
+                            K = K[0:f]
+                            A = A[0:f]
+                        else:
+                            K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
+                            A = torch.cat((A[:s].detach().clone(), A[s:f]), dim=0)
                         p = torch.cat((p[:s].detach().clone(), p[s:f]), dim=0)
                     else:       # first task, s=0
                         K = K[s:f]
