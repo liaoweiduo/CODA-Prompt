@@ -853,9 +853,9 @@ class SLOTPrompt(Prompt):
             # onehot loss
             onehot_loss = torch.zeros(1).mean().to(loss.device)
             if self.onehot_coeff > 0:       # and self.epoch >= 5:
+                bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
+                batched_selections = selections.reshape(bs*t*k*e, pp)
                 with torch.no_grad():
-                    bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
-                    batched_selections = selections.reshape(bs*t*k*e, pp)
                     onehot_selections = torch.argmax(batched_selections, dim=-1)
                     onehot_selections = F.one_hot(onehot_selections, num_classes=pp)
 
