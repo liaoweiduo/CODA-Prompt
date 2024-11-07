@@ -59,16 +59,15 @@ class SLOTPrompt(Prompt):
         while len(config) < 15:
             config.append(0)
         self.weight_coeff = float(config[6])
-        self.ccl_coeff = float(config[7])
-        self.ccl_margin = float(config[8])
-        self.ccl_tau = float(config[9])
-        self.cross_attn_temp = float(config[10])
-        self.mk_coeff = float(config[11])
-        self.slot_vsI_coeff = float(config[12])
-        self.selection_ortho_coeff = float(config[13])
-        self.prompt_concept_alignment_coeff = float(config[14])
+        self.onehot_coeff = float(config[7])
+        self.cross_attn_temp = float(config[8])
+        self.mk_coeff = float(config[9])
+        self.slot_vsI_coeff = float(config[10])
+        self.selection_ortho_coeff = float(config[11])
+        self.prompt_concept_alignment_coeff = float(config[12])
 
         self.selection_ortho_type = 'l1'
+        self.selection_onehot_type = 'l1'
 
         try:
             prompt = self.model.module.prompt
@@ -461,10 +460,9 @@ class SLOTPrompt(Prompt):
                     self.epochs = epochs
 
                     losses = AverageMeter()
-                    ccl_losses = AverageMeter()
+                    onehot_losses = AverageMeter()
                     s2p_losses = AverageMeter()
                     mk_losses = AverageMeter()
-                    prompt_ortho_losses = AverageMeter()
                     selection_ortho_losses = AverageMeter()
                     prompt_concept_alignment_losses = AverageMeter()
                     acc = AverageMeter()
@@ -505,9 +503,8 @@ class SLOTPrompt(Prompt):
                             # prompt_phase, first half =0, last half =1
                             loss, output, loss_dict = self.update_model(
                                 x, y, prompt_phase=prompt_phase)  # , task
-                            ccl_loss, s2p_loss = loss_dict['ccl_loss'], loss_dict['s2p_loss']
+                            onehot_loss, s2p_loss = loss_dict['onehot_loss'], loss_dict['s2p_loss']
                             mk_loss = loss_dict['mk_loss']
-                            # prompt_ortho_loss = loss_dict['prompt_ortho_loss']
                             selection_ortho_loss = loss_dict['selection_ortho_loss']
                             prompt_concept_alignment_loss = loss_dict['prompt_concept_alignment_loss']
 
@@ -519,10 +516,9 @@ class SLOTPrompt(Prompt):
                             y = y.detach()
                             accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                             losses.update(loss, y.size(0))
-                            ccl_losses.update(ccl_loss, y.size(0))
+                            onehot_losses.update(onehot_loss, y.size(0))
                             mk_losses.update(mk_loss, y.size(0))
                             s2p_losses.update(s2p_loss, y.size(0))
-                            # prompt_ortho_losses.update(prompt_ortho_loss, y.size(0))
                             selection_ortho_losses.update(selection_ortho_loss, y.size(0))
                             prompt_concept_alignment_losses.update(prompt_concept_alignment_loss, y.size(0))
                             batch_timer.tic()
@@ -534,27 +530,26 @@ class SLOTPrompt(Prompt):
                         self.log(
                             ' * Loss {loss.avg:.3f} | '
                             'MK Loss {mk_loss.avg:.3f} | '
+                            'Onehot Loss {onehot_loss.avg:.3f} | '
                             'So Loss {selection_ortho_loss.avg:.3f} | '
                             'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
                             'Train Acc {acc.avg:.3f} | '
                             'Time {time:.3f}s ({i} batches)'.format(
                                 loss=losses,
-                                # ccl_loss=ccl_losses, s2p_loss=s2p_losses,
+                                onehot_loss=onehot_losses,   # s2p_loss=s2p_losses,
                                 mk_loss=mk_losses,
                                 acc=acc,
                                 # prompt_ortho_loss=prompt_ortho_losses,
                                 selection_ortho_loss=selection_ortho_losses,
                                 prompt_concept_alignment_loss=prompt_concept_alignment_losses,
                                 time=batch_time.avg*len(train_loader), i=len(train_loader)))
-                        # 'CCL Loss {ccl_loss.avg:.3f} | '
                         # 'S2P Loss {s2p_loss.avg:.3f} | '
 
                         # reset
                         losses = AverageMeter()
-                        ccl_losses = AverageMeter()
+                        onehot_losses = AverageMeter()
                         mk_losses = AverageMeter()
                         s2p_losses = AverageMeter()
-                        prompt_ortho_losses = AverageMeter()
                         selection_ortho_losses = AverageMeter()
                         prompt_concept_alignment_losses = AverageMeter()
                         acc = AverageMeter()
@@ -851,44 +846,25 @@ class SLOTPrompt(Prompt):
             #     self.epoch_log['scaler']['Idx'].append(self.epoch)
             #     self.epoch_log['scaler']['Value'].append(prompt_ortho_loss.item())
 
-            # ccl loss
-            ccl_loss = torch.zeros(1).mean().to(loss.device)
-            if self.ccl_coeff > 0 and self.t > 0:       # and self.epoch >= 5:
-                for task in self.tasks[:self.t]:        # for each old task
-                    old_last_weight = model.last.weight[task]       # [10, 768]
-                    old_last_bias = model.last.bias[task]           # [10]
-                    old_logits = F.linear(features, old_last_weight.detach(), old_last_bias.detach())
-                    # old_logits = features @ old_last_weight.T.detach() + old_last_bias.detach()     # [bs, 10]
+            # onehot loss
+            onehot_loss = torch.zeros(1).mean().to(loss.device)
+            if self.onehot_coeff > 0 and self.t > 0:       # and self.epoch >= 5:
+                with torch.no_grad():
+                    bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
+                    batched_selections = selections.reshape(bs*t*k*e, pp)
+                    onehot_selections = torch.argmax(batched_selections, dim=-1)
+                    onehot_selections = F.one_hot(onehot_selections, num_classes=pp)
 
-                    # old_logits = out[:, task]
+                if self.selection_onehot_type == 'l1':
+                    onehot_loss = F.l1_loss(batched_selections, onehot_selections)
+                else:
+                    onehot_loss = F.mse_loss(batched_selections, onehot_selections)
 
-                    if self.debug_mode:
-                        print('ccl loss: task:', task, f'old logits: {old_logits.shape}', old_logits[0])
+                loss = loss + self.onehot_coeff * onehot_loss
 
-                    mask = torch.max(logits, dim=1)[0] <= torch.max(old_logits, dim=1)[0] + self.ccl_margin       # [bs]
-
-                    if self.debug_mode:
-                        print('ccl loss: mask:', mask)
-
-                    if mask.sum() == 0:         # no need to apply ccl
-                        continue
-
-                    # old_logits = old_logits[mask]  # filter samples with bias to old logits
-                    taus = torch.ones_like(mask).float()
-                    taus[mask] = self.ccl_tau
-                    taus = taus.unsqueeze(1)
-                    ground = F.softmax(old_logits/taus, dim=1).detach().clone()
-                    loss_ccl = -torch.sum(ground * torch.log(F.softmax(old_logits, dim=1)), dim=1).mean()
-                    ccl_loss = ccl_loss + loss_ccl.detach() / self.t
-                    loss = loss + self.ccl_coeff * loss_ccl / self.t
-
-                    if self.debug_mode:
-                        print(f'ccl loss: ground {ground.shape}:', ground[0])
-                        print(f'ccl loss: loss_ccl:', loss_ccl)
-
-            self.epoch_log['scaler']['Tag'].append('loss/ccl_loss')
+            self.epoch_log['scaler']['Tag'].append('loss/onehot_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
-            self.epoch_log['scaler']['Value'].append(ccl_loss.item())
+            self.epoch_log['scaler']['Value'].append(onehot_loss.item())
 
             # out = out[:, :, :self.valid_out_dim]
             # bs, n_slots, n_cls = out.shape
@@ -1044,7 +1020,7 @@ class SLOTPrompt(Prompt):
 
             out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [bs, n_cls]
             return (loss.detach(), out,
-                    {'ccl_loss': ccl_loss.detach(), 's2p_loss': s2p_loss.detach(),
+                    {'onehot_loss': onehot_loss.detach(), 's2p_loss': s2p_loss.detach(),
                      'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(), 'mk_weights': mk_weights.detach(),
                      # 'prompt_ortho_loss': prompt_ortho_loss.detach(),
                      'selection_ortho_loss': selection_ortho_loss.detach(),
