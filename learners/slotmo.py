@@ -813,14 +813,14 @@ class SLOTPrompt(Prompt):
                     # apply masks
                     k_expand_inputs = torch.einsum('bchw,bhw->bchw', k_expand_inputs, masks)
 
-                _, k_expand_features = self.model(
+                k_expand_logits, k_expand_features = self.model(
                     k_expand_inputs, q=k_expand_prompts,
                     pen=True, train=True,
                     forward_last=False,         # only get features
                     debug_mode=self.debug_mode)
                 # features: [n_samples, 768]
-                last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
-                k_expand_logits = last(k_expand_features)    #
+                # last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
+                # k_expand_logits = last(k_expand_features)    #
 
                 k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [n_samples, 30]
                 k_expand_logits[:, :self.last_valid_out_dim] = -float('inf')
