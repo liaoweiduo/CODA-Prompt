@@ -107,7 +107,8 @@ class Trainer:
                                      download_flag=True if (args.debug_mode == 0) else False, transform=train_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // 10,
-                                     return_concepts=return_concepts       # mute for normal
+                                     return_concepts=return_concepts,       # mute for normal
+                                     mode=args.mode,
                                      )
         # if args.debug_mode == 1:
         #     self.train_dataset.debug_mode()     # use val datasets to avoid large train set loading
@@ -116,6 +117,7 @@ class Trainer:
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // 10,
                                      return_concepts=return_concepts,       # mute for normal
+                                     mode=args.mode,
                                      )
 
         # for oracle
