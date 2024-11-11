@@ -770,61 +770,83 @@ class SLOTPrompt(Prompt):
             prompt_concept_alignment_loss = torch.zeros(1).mean().to(loss.device)
             if self.prompt_concept_alignment_coeff > 0:
                 bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
-                attn = attn.clone().permute(0, 1, 3, 2).reshape(bs*t*k, n)
+                attn = attn.clone().permute(0, 1, 3, 2).reshape(bs, t*k, n)
                 bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
+
+                # random select some inputs to reduce cuda memory cost
+                n_samples = 1
+                indexs = np.random.permutation(range(bs))[:n_samples]
+                select_inputs = inputs[indexs]          # [n_samples, 3, H, W]
+                select_targets = targets[indexs]        # [n_samples]
+                select_prompts = prompts[indexs]        # [n_samples, tk, e, p, d]
+                select_attn = attn[indexs]              # [n_samples, tk, n]
+
                 # expand inputs to match k slots
-                k_expand_inputs = inputs.reshape(
-                    bs, 1, channel, height, weight
+                k_expand_inputs = select_inputs.reshape(
+                    n_samples, 1, channel, height, weight
                 ).repeat_interleave(t*k, dim=1).reshape(
-                    bs*t*k, channel, height, weight
-                )  # [bs*t*k, 3, H, W]
-                k_expand_targets = targets.repeat_interleave(t * k)     # [bs*tk]
+                    n_samples*t*k, channel, height, weight
+                )  # [n_samples*t*k, 3, H, W]
+                k_expand_targets = select_targets.repeat_interleave(t * k)     # [n_samples*tk]
                 # expand prompts to match k slots
-                k_expand_prompts = prompts.reshape(bs * t * k, e, p, d)
+                k_expand_prompts = select_prompts.reshape(n_samples * t * k, e, p, d)    # [n_samples*t*k, e, p, d]
 
-                # random select some slots to reduce cuda memory cost
-                n_samples = k  # select 10 slots for each iteration
-                indexs = np.random.permutation(range(bs * t * k))[:n_samples]
-                k_expand_inputs = k_expand_inputs[indexs]       # [n_samples, 3, H, W]
-                k_expand_targets = k_expand_targets[indexs]     # [n_samples]
-                k_expand_prompts = k_expand_prompts[indexs]     # [n_samples, e5, p40, d768]
-                attn = attn[indexs]                             # [n_samples, n]
-
+                # process mask
                 with torch.no_grad():
                     # to 0-1 mask
-                    attn[attn >= 0.5] = 1
-                    attn[attn < 0.5] = 0
+                    select_attn[select_attn >= 0.5] = 1
+                    select_attn[select_attn < 0.5] = 0
 
                     grid_size = 14
                     assert (grid_size * grid_size == n
                             ), f'attn {attn.shape} and grid_size {grid_size} not match. can not put attn on input.'
                     expand_size = height // grid_size
-                    attn = attn.reshape(n_samples, grid_size, grid_size)
+                    select_attn = select_attn.reshape(n_samples*t*k, grid_size, grid_size)
 
                     # do dilation with 1 neighbor on patch-level
                     kernel_size = 3  # dilate one patch neighbor
                     dilate = nn.MaxPool2d(kernel_size=kernel_size, stride=1, padding=int(kernel_size / 2))  # 3, 1, 1
-                    attn = dilate(attn)
+                    select_attn = dilate(select_attn)
 
                     # expand attn to input size
-                    masks = attn.repeat_interleave(
-                        expand_size, dim=1).repeat_interleave(expand_size, dim=2)  # [n_samples, height, weight]
+                    masks = select_attn.repeat_interleave(
+                        expand_size, dim=1).repeat_interleave(expand_size, dim=2)  # [n_samples*t*k, height, weight]
 
                     # apply masks
                     k_expand_inputs = torch.einsum('bchw,bhw->bchw', k_expand_inputs, masks)
 
-                k_expand_logits, k_expand_features = self.model(
+                # expend masked inputs, targets, prompts accordingly before forward
+                k_expand_inputs = k_expand_inputs.reshape(
+                    n_samples * t * k, 1, channel, height, weight
+                ).repeat_interleave(t*k, dim=1).reshape(
+                    n_samples*t*k * t*k, channel, height, weight
+                )  # [n_samples*t*k * t*k, 3, H, W]   [000111222]
+                k_expand_targets = k_expand_targets.repeat_interleave(t * k)  # [n_samples*tk*tk]
+                k_expand_prompts = k_expand_prompts.reshape(
+                    n_samples, 1, t * k, e, p, d
+                ).repeat_interleave(t*k, dim=1).reshape(
+                    n_samples * t * k * t*k, e, p, d
+                )   # [n_samples*t*k * t*k, e, p, d]  [012012012]
+
+                _, k_expand_features = self.model(
                     k_expand_inputs, q=k_expand_prompts,
                     pen=True, train=True,
-                    forward_last=True,         # False for only get features if use Aux classifier
+                    forward_last=False,         # False for only get features if use Aux classifier
                     debug_mode=self.debug_mode)
                 # features: [n_samples, 768]
-                # last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
-                # k_expand_logits = last(k_expand_features)    #
+                last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
+                k_expand_logits = last(k_expand_features)    # use aux classifier
 
-                k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [n_samples, 30]
+                k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [n_samples*k*K, 30]
                 k_expand_logits[:, :self.last_valid_out_dim] = -float('inf')
-                prompt_concept_alignment_loss = self.criterion_fn(k_expand_logits, k_expand_targets.long()).mean()
+                prompt_concept_alignment_loss_matrix = self.criterion_fn(
+                    k_expand_logits, k_expand_targets.long()).reshape(
+                    n_samples, t*k, t*k
+                )    # [n_samples, k, k]
+                weight_matrix = torch.ones_like(prompt_concept_alignment_loss_matrix) * (-1/(t*k-1))
+                for kid in range(t*k):
+                    weight_matrix[:, kid, kid] = 1
+                prompt_concept_alignment_loss = (prompt_concept_alignment_loss_matrix * weight_matrix).mean()
 
                 loss = loss + self.prompt_concept_alignment_coeff * prompt_concept_alignment_loss
 
