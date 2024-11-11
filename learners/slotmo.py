@@ -862,7 +862,7 @@ class SLOTPrompt(Prompt):
                     positive_sample_logits, k_expand_targets.long()).mean()
                 probs = F.softmax(negative_sample_logits, dim=1)
                 negative_loss = -torch.sum(probs * torch.log(probs + 1e-8), dim=1).mean()
-                prompt_concept_alignment_loss = positive_loss - 0.1 * negative_loss
+                prompt_concept_alignment_loss = positive_loss - 1 * negative_loss
 
                 loss = loss + self.prompt_concept_alignment_coeff * prompt_concept_alignment_loss
 

@@ -78,7 +78,7 @@ lr=${lrs[${lr_run_id}]}
 temp=${temps[${temp_run_id}]}
 coeff=${coeffs[${coef_run_id}]}
 device=${devices[${i}]}
-LOGNAME=11-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-l1_sol1-dilate1_contrast_pcac${coeff}-lr${lr}
+LOGNAME=11-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-l1_sol1-dilate1_contrast1_pcac${coeff}-lr${lr}
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
