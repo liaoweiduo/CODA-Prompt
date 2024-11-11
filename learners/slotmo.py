@@ -857,7 +857,7 @@ class SLOTPrompt(Prompt):
                 ).reshape(n_samples * t * k, self.valid_out_dim)
                 negative_sample_logits = torch.stack(
                     negative_sample_logits, dim=1
-                ).reshape(n_samples * t * (k-1) * t * (k-1), self.valid_out_dim)
+                ).reshape(n_samples * t * k * t * (k-1), self.valid_out_dim)
                 positive_loss = self.criterion_fn(
                     positive_sample_logits, k_expand_targets.long()).mean()
                 probs = F.softmax(negative_sample_logits, dim=1)
