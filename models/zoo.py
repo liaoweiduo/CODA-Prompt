@@ -223,7 +223,7 @@ class SlotPrompt(nn.Module):
 
 
 class CodaPrompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=128):
         """Difference:
         ortho init for prompts
         """
