@@ -163,7 +163,7 @@ class SLOTPrompt(Prompt):
 
             for k in state_dict.keys():
                 if 'e_' in k and 's2p' not in k:        # if load CODA's PKA
-                    idx = k.indexof('e_')
+                    idx = k.index('e_')
                     new_k = k[:idx] + 's2p.' + k[idx:]
                     state_dict[new_k] = state_dict[k]
 
