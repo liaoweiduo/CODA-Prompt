@@ -161,12 +161,14 @@ class SLOTPrompt(Prompt):
                 #     del state_dict['last.weight']; del state_dict['last.bias']
                 # self.model.load_state_dict(state_dict, strict=False)
 
-            # for k in state_dict.keys():
-            #     if 'expert_predictor' in k:
-            #         flag = False
+            for k in state_dict.keys():
+                if 'e_' in k and 's2p' not in k:        # if load CODA's PKA
+                    idx = k.indexof('e_')
+                    new_k = k[:idx] + 's2p.' + k[idx:]
+                    state_dict[new_k] = state_dict[k]
 
             self.model.load_state_dict(state_dict, strict=False)
-            self.log('=> Load Done')
+            self.log(f'=> Load Done with params {list(state_dict.keys())}')
 
         if freeze:
             self.log('=> Freeze backbone')     # on CFST
