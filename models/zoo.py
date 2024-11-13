@@ -36,6 +36,8 @@ class SlotPrompt(nn.Module):
         # self.e_pool_size = int(prompt_param[0])  # 100 no use for slots
         # self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
         # self.pool_init_idx = 0
+        while len(prompt_param) < 15:
+            prompt_param.append(0)
         self.n_slots = int(prompt_param[2])     # n_slots:10   number of slots for one extraction
         self.n_iters = int(prompt_param[3])     # 5 num of iter to extract slots
         self.temp = float(prompt_param[4])     # 1.2 temperature to control how sharp are slot attns
