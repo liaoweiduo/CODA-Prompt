@@ -161,7 +161,7 @@ class SLOTPrompt(Prompt):
                 #     del state_dict['last.weight']; del state_dict['last.bias']
                 # self.model.load_state_dict(state_dict, strict=False)
 
-            for k in state_dict.keys():
+            for k in list(state_dict.keys()):
                 if 'e_' in k and 's2p' not in k:        # if load CODA's PKA
                     idx = k.index('e_')
                     new_k = k[:idx] + 's2p.' + k[idx:]
