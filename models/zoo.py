@@ -13,7 +13,7 @@ import copy
 
 # Our Slot Prompt
 class SlotPrompt(nn.Module):
-    def __init__(self, emb_d, task_info, prompt_param, key_dim=128):
+    def __init__(self, emb_d, task_info, prompt_param, key_dim=768):
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d
@@ -223,7 +223,7 @@ class SlotPrompt(nn.Module):
 
 
 class CodaPrompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=128):
+    def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         """Difference:
         ortho init for prompts
         """
