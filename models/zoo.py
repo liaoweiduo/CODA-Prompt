@@ -13,7 +13,7 @@ import copy
 
 # Our Slot Prompt
 class SlotPrompt(nn.Module):
-    def __init__(self, emb_d, task_info, prompt_param, key_dim=768):
+    def __init__(self, emb_d, task_info, prompt_param, key_dim=128):
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d

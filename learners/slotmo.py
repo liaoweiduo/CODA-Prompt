@@ -168,7 +168,8 @@ class SLOTPrompt(Prompt):
                     state_dict[new_k] = state_dict[k]
 
             self.model.load_state_dict(state_dict, strict=False)
-            self.log(f'=> Load Done with params {list(state_dict.keys())}')
+            self.log(f'=> Load Done')
+            # self.log(f'=> Load Done with params {list(state_dict.keys())}')
 
         if freeze:
             self.log('=> Freeze backbone')     # on CFST
