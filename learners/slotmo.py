@@ -833,35 +833,50 @@ class SLOTPrompt(Prompt):
                     forward_last=False,         # False for only get features if use Aux classifier
                     debug_mode=self.debug_mode)
                 # features: [n_samples, 768]
-                last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
-                k_expand_logits = last(k_expand_features)    # use aux classifier
 
-                k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [n_samples*k*K, 30]
-                k_expand_logits[:, :self.last_valid_out_dim] = -float('inf')
-                k_expand_logits = k_expand_logits.reshape(n_samples, t*k, t*k, self.valid_out_dim)
-                # positive ce loss and negative entropy loss
-                positive_sample_logits, negative_sample_logits = [], []
-                for kx in range(t*k):
-                    negative_sample_collection = []
-                    for ky in range(t*k):
-                        logits = k_expand_logits[:, kx, ky]     # [n_samples, 30]
-                        if kx == ky:
-                            positive_sample_logits.append(logits)
-                        else:
-                            negative_sample_collection.append(logits)
-                    negative_sample_collection = torch.stack(negative_sample_collection, dim=1)  # [n_samples,k,30]
-                    negative_sample_logits.append(negative_sample_collection)
-                positive_sample_logits = torch.stack(
-                    positive_sample_logits, dim=1
-                ).reshape(n_samples * t * k, self.valid_out_dim)
-                negative_sample_logits = torch.stack(
-                    negative_sample_logits, dim=1
-                ).reshape(n_samples * t * k * t * (k-1), self.valid_out_dim)
-                positive_loss = self.criterion_fn(
-                    positive_sample_logits, k_expand_targets.long()).mean()
-                probs = F.softmax(negative_sample_logits, dim=1)
-                negative_loss = -torch.sum(probs * torch.log(probs + 1e-8), dim=1).mean()
-                prompt_concept_alignment_loss = positive_loss - 1 * negative_loss
+                # check one concept, distance to other prompts, then average.
+                emb_dim = k_expand_features.shape[-1]
+                k_expand_features = k_expand_features.view(n_samples, t*k, t*k, emb_dim)  # [k(concept), k(prompt)]
+                anchor = torch.stack([
+                    k_expand_features[n_samples, ki, ki] for ki in range(t*k)
+                ], dim=1)       # [n_samples, t*k, emb_dim]
+
+                # cosine sim
+                cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                anchor = anchor.reshape(n_samples, t*k, 1, emb_dim)   # same for prompt axis.
+                similarities = cos(k_expand_features, anchor)   # [n_samples, k, k]
+                avg_similarities = similarities.mean()
+                prompt_concept_alignment_loss = avg_similarities
+
+                # last = model.prompt.prompt_concept_alignment_classifier        # [c100, h128]
+                # k_expand_logits = last(k_expand_features)    # use aux classifier
+
+                # k_expand_logits = k_expand_logits[:, :self.valid_out_dim]       # [n_samples*k*K, 30]
+                # k_expand_logits[:, :self.last_valid_out_dim] = -float('inf')
+                # k_expand_logits = k_expand_logits.reshape(n_samples, t*k, t*k, self.valid_out_dim)
+                # # positive ce loss and negative entropy loss
+                # positive_sample_logits, negative_sample_logits = [], []
+                # for kx in range(t*k):
+                #     negative_sample_collection = []
+                #     for ky in range(t*k):
+                #         logits = k_expand_logits[:, kx, ky]     # [n_samples, 30]
+                #         if kx == ky:
+                #             positive_sample_logits.append(logits)
+                #         else:
+                #             negative_sample_collection.append(logits)
+                #     negative_sample_collection = torch.stack(negative_sample_collection, dim=1)  # [n_samples,k,30]
+                #     negative_sample_logits.append(negative_sample_collection)
+                # positive_sample_logits = torch.stack(
+                #     positive_sample_logits, dim=1
+                # ).reshape(n_samples * t * k, self.valid_out_dim)
+                # negative_sample_logits = torch.stack(
+                #     negative_sample_logits, dim=1
+                # ).reshape(n_samples * t * k * t * (k-1), self.valid_out_dim)
+                # positive_loss = self.criterion_fn(
+                #     positive_sample_logits, k_expand_targets.long()).mean()
+                # probs = F.softmax(negative_sample_logits, dim=1)
+                # negative_loss = -torch.sum(probs * torch.log(probs + 1e-8), dim=1).mean()
+                # prompt_concept_alignment_loss = positive_loss - 1 * negative_loss
 
                 loss = loss + self.prompt_concept_alignment_coeff * prompt_concept_alignment_loss
 
