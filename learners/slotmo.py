@@ -785,11 +785,7 @@ class SLOTPrompt(Prompt):
                 select_attn = attn[indexs]              # [n_samples, tk, n]
 
                 # expand inputs to match k slots
-                k_expand_inputs = select_inputs.reshape(
-                    n_samples, 1, channel, height, weight
-                ).repeat_interleave(t*k, dim=1).reshape(
-                    n_samples*t*k, channel, height, weight
-                )  # [n_samples*t*k, 3, H, W]
+                k_expand_inputs = select_inputs.repeat_interleave(t*k, dim=0)  # [n_samples*t*k, 3, H, W]
                 k_expand_targets = select_targets.repeat_interleave(t * k)     # [n_samples*tk]
                 # expand prompts to match k slots
                 k_expand_prompts = select_prompts.reshape(n_samples * t * k, e, p, d)    # [n_samples*t*k, e, p, d]
