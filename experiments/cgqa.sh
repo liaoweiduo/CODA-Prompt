@@ -68,7 +68,7 @@ mkdir -p $OUTDIR
 #done
 
 lrs=(1e-3); temps=(10)
-coeffs=(0.5)
+coeffs=(0.1)
 devices=(0); i=-1
 for lr_run_id in 0; do
 for temp_run_id in 0; do
