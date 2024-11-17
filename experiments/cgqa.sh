@@ -86,7 +86,7 @@ LOGNAME=MT-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-l1_
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 40 10 5 1.0 ${temp} 0.0 1.0 80 0.5 0.0 1.0 ${coeff} \
-    --slot_pre_learn_model MT-4-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
+    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
