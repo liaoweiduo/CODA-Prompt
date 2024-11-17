@@ -838,7 +838,7 @@ class SLOTPrompt(Prompt):
                 emb_dim = k_expand_features.shape[-1]
                 k_expand_features = k_expand_features.view(n_samples, t*k, t*k, emb_dim)  # [k(concept), k(prompt)]
                 anchor = torch.stack([
-                    k_expand_features[n_samples, ki, ki] for ki in range(t*k)
+                    k_expand_features[:, ki, ki] for ki in range(t*k)
                 ], dim=1)       # [n_samples, t*k, emb_dim]
 
                 # cosine sim
