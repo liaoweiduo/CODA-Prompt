@@ -88,12 +88,12 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --prompt_param 100 40 10 5 1.0 ${temp} 0.0 1.0 80 0.5 0.0 1.0 ${coeff} \
     --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
+    --oracle_flag --upper_bound_flag \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
 done
 ##    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
-##    --oracle_flag --upper_bound_flag \
 
 
 # PMO-Prompt
