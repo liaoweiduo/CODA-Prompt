@@ -67,32 +67,32 @@ mkdir -p $OUTDIR
 #done
 #done
 
-lrs=(1e-3); temps=(10)
-coeffs=(0.1)
-devices=(0); i=-1
-for lr_run_id in 0; do
-for temp_run_id in 0; do
-for coef_run_id in 0; do
-((i++))
-lr=${lrs[${lr_run_id}]}
-temp=${temps[${temp_run_id}]}
-coeff=${coeffs[${coef_run_id}]}
-device=${devices[${i}]}
-LOGNAME=MT-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-l1_sol1-dilate1_contrast_cos_pcac${coeff}-lr${lr}
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 40 10 5 1.0 ${temp} 0.0 1.0 80 0.5 0.0 1.0 ${coeff} \
-    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
-    --lr ${lr} ${lr} \
-    --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/${LOGNAME}
-done
-done
-done
+#lrs=(1e-3); temps=(10)
+#coeffs=(0.1)
+#devices=(0); i=-1
+#for lr_run_id in 0; do
+#for temp_run_id in 0; do
+#for coef_run_id in 0; do
+#((i++))
+#lr=${lrs[${lr_run_id}]}
+#temp=${temps[${temp_run_id}]}
+#coeff=${coeffs[${coef_run_id}]}
+#device=${devices[${i}]}
+#LOGNAME=MT-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-l1_sol1-dilate1_contrast_cos_pcac${coeff}-lr${lr}
+##docker run -d --rm --runtime=nvidia --gpus device=${device} \
+##  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+##  -v ~/.cache:/workspace/.cache \
+##  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type slotmo --learner_name SLOTPrompt \
+#    --prompt_param 100 40 10 5 1.0 ${temp} 0.0 1.0 80 0.5 0.0 1.0 ${coeff} \
+#    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
+#    --lr ${lr} ${lr} \
+#    --oracle_flag --upper_bound_flag \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#done
+#done
+#done
 ##    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
 
 
@@ -139,11 +139,12 @@ done
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name DualPrompt \
-#    --prompt_param 10 40 10 \
-#    --lr 0.001 \
-#    --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name DualPrompt \
+    --prompt_param 10 40 10 \
+    --lr 0.001 \
+    --oracle_flag --upper_bound_flag \
+    --log_dir ${OUTDIR}/MT-dual-prompt-imagenet-e40-g10
 
 # L2P++
 #
@@ -151,8 +152,9 @@ done
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name L2P \
-#    --prompt_param 10 10 -1 \
-#    --lr 0.001 \
-#    --log_dir ${OUTDIR}/l2p++-imagenet-p10-l10
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name L2P \
+    --prompt_param 10 10 -1 \
+    --lr 0.001 \
+    --oracle_flag --upper_bound_flag \
+    --log_dir ${OUTDIR}/MT-l2p++-imagenet-p10-l10
