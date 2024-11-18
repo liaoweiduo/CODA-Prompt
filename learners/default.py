@@ -12,6 +12,7 @@ import contextlib
 import os
 import sys
 import copy
+import pandas as pd
 from utils.schedulers import CosineSchedule
 
 class NormalNN(nn.Module):
@@ -64,6 +65,21 @@ class NormalNN(nn.Module):
 
         # initialize optimizer
         self.init_optimizer()
+
+        # log
+        self.epoch_log = dict()
+        self.init_train_log()
+
+    def init_train_log(self):
+        self.epoch_log = dict()
+        # Tag: acc/loss
+        self.epoch_log['mo'] = {'Tag': [], 'Pop_id': [], 'Obj_id': [], 'Epoch_id': [], 'Inner_id': [], 'Value': []}
+        # 'loss/hv_loss'
+        self.epoch_log['scaler'] = {'Tag': [], 'Idx': [], 'Value': []}
+
+    def train_log_to_df(self):
+        self.epoch_log['mo'] = pd.DataFrame(self.epoch_log['mo'])
+        self.epoch_log['scaler'] = pd.DataFrame(self.epoch_log['scaler'])
 
     ##########################################
     #           MODEL TRAINING               #
@@ -146,6 +162,10 @@ class NormalNN(nn.Module):
                 # validation
                 if val_loader is not None:
                     val_acc = self.validation(val_loader)
+                    # log
+                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 

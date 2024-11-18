@@ -107,6 +107,7 @@ class Trainer:
                                      download_flag=True if (args.debug_mode == 0) else False, transform=train_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // 10,
+                                     other_split_size=args.other_split_size // 10,
                                      return_concepts=return_concepts,       # mute for normal
                                      mode=args.mode,
                                      )
@@ -116,6 +117,7 @@ class Trainer:
                                      download_flag=True if (args.debug_mode == 0) else False, transform=test_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // 10,
+                                     other_split_size=args.other_split_size // 10,
                                      return_concepts=return_concepts,       # mute for normal
                                      mode=args.mode,
                                      )
@@ -251,7 +253,7 @@ class Trainer:
 
             # learn
             # test_loader does not use for training
-            self.test_dataset.load_dataset(i, train=True)
+            self.test_dataset.load_dataset(i, train=False)
             # self.test_dataset.load_dataset(0, train=True)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
 

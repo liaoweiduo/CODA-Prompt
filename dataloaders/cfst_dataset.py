@@ -14,7 +14,7 @@ class CFSTDataset(data.Dataset):
                  train=True, transform=None,
                  download_flag=False, lab=True, swap_dset = None,
                  tasks=None, seed=-1, rand_split=False, validation=False, kfolds=5,
-                 mode='continual', return_concepts=False, first_split_size=1,
+                 mode='continual', return_concepts=False, first_split_size=1, other_split_size=1,
                  ):
 
         # process rest of args
@@ -28,6 +28,7 @@ class CFSTDataset(data.Dataset):
         self.mode = mode        # [continual, sys, pro, sub, non, noc]
         self.return_concepts = return_concepts
         self.first_split_size = first_split_size
+        self.other_split_size = other_split_size
 
         # load dataset
         self.benchmark = None
@@ -88,21 +89,36 @@ class CFSTDataset(data.Dataset):
     def __repr__(self):
         return 'Dataset ' + self.__class__.__name__
 
-    def load_dataset(self, t, train=True):
+    def load_dataset(self, t, train=True, ignore_split=False):
         """set specific task
         train=True -> only load task t; False -> load task <=t.
-        NOTE: train=False will be bug if in task-IL.
-        if first_split_size is not 1, rearrange task id
+        NOTE: train=False will be a bug if in task-IL.
+        Originally, CFST dataset has 10/3 10-way tasks.
+        The load task t is according to first_split_size and other_split_size.
+        If ignore_split, dataset will be based on origin CFST dataset, and ignore train flag.
         """
-        if t == 0 and self.first_split_size > 1:       # first task
-            self.dataset = torch.utils.data.ConcatDataset(
-                [self.target_datasets[s] for s in range(self.first_split_size)])
+        if ignore_split:
+            self.dataset = self.target_datasets[t]
         else:
-            exact_t = t + self.first_split_size - 1     # shift t
-            if train:
-                self.dataset = self.target_datasets[exact_t]
+            # check load task range
+            if t == 0:
+                s = 0
+                f = self.first_split_size
+            elif train:
+                s = self.first_split_size + (t - 1) * self.other_split_size
+                f = self.first_split_size + t * self.other_split_size
             else:
-                self.dataset = torch.utils.data.ConcatDataset([self.target_datasets[s] for s in range(exact_t+1)])
+                s = 0
+                f = self.first_split_size + t * self.other_split_size
+
+            load_task_range = [ti for ti in range(s, f)]
+
+            if len(load_task_range) == 1:
+                self.dataset = self.target_datasets[load_task_range[0]]
+            else:
+                self.dataset = torch.utils.data.ConcatDataset(
+                    [self.target_datasets[ti] for ti in load_task_range])
+
         self.t = t
 
     def get_single_class_dataset(self, label):

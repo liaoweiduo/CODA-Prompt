@@ -84,21 +84,6 @@ class SLOTPrompt(Prompt):
         # s2p regularizer
         self.s2p_copy = None
 
-        # log
-        self.epoch_log = dict()
-        self.init_train_log()
-
-    def init_train_log(self):
-        self.epoch_log = dict()
-        # Tag: acc/loss
-        self.epoch_log['mo'] = {'Tag': [], 'Pop_id': [], 'Obj_id': [], 'Epoch_id': [], 'Inner_id': [], 'Value': []}
-        # 'loss/hv_loss'
-        self.epoch_log['scaler'] = {'Tag': [], 'Idx': [], 'Value': []}
-
-    def train_log_to_df(self):
-        self.epoch_log['mo'] = pd.DataFrame(self.epoch_log['mo'])
-        self.epoch_log['scaler'] = pd.DataFrame(self.epoch_log['scaler'])
-
     def create_model(self):
         cfg = self.config
         n_task = self.prompt_param[0]
