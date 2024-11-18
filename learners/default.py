@@ -142,7 +142,11 @@ class NormalNN(nn.Module):
                 # reset
                 losses = AverageMeter()
                 acc = AverageMeter()
-                
+
+                # validation
+                if val_loader is not None:
+                    val_acc = self.validation(val_loader)
+
         self.model.eval()
 
         self.last_valid_out_dim = self.valid_out_dim
