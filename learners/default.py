@@ -86,6 +86,7 @@ class NormalNN(nn.Module):
     ##########################################
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
+        self.init_train_log()
         
         # try to load model
         need_train = True
