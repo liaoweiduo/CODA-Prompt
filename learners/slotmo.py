@@ -439,7 +439,7 @@ class SLOTPrompt(Prompt):
                     else:
                         schedule = schedule[self.t]
                     if type(schedule) is not list:
-                        schedule = [schedule, schedule]      # for CFST: [20, 20]
+                        schedule = [schedule, 0, schedule]      # for CFST: [20, 0, 20]
                     epochs = schedule[prompt_phase+1]        # phase II
                     self.epochs = epochs
 
