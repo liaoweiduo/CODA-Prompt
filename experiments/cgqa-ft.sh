@@ -23,10 +23,10 @@ mkdir -p $OUTDIR
 for mode in sys pro sub non noc
 do
   # do not use -d to avoid running in parallel
-#  docker run --rm --runtime=nvidia --gpus device=3 \
-#    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#    -v ~/.cache:/workspace/.cache \
-#    --shm-size 8G liaoweiduo/hide:2.0 \
+  docker run --rm --runtime=nvidia --gpus device=6 \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
   python -u run_ft.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 40 10 5 1.0 10 0.0 0.0 0.0 0.0 80 0.0 0.0 0.0 0.0 \
