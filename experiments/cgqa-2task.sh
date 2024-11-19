@@ -37,35 +37,35 @@ mkdir -p $OUTDIR
 #    arg 12 = coeff for mk loss
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
-#slot_lrs=(1e-4); temps=(80)
-#mk_coeffs=(0.5 1); slot_vsI_coeffs=(0.5 1)
-#devices=(0 1 2 3); i=-1
-#for slot_run_id in 0; do
-#for temp_run_id in 0; do
-#for mk_coeff_run_id in 0 1; do
-#for slot_vsI_coeff_run_id in 0 1; do
-#((i++))
-#slot_lr=${slot_lrs[${slot_run_id}]}
-#temp=${temps[${temp_run_id}]}
-#mk_coeff=${mk_coeffs[${mk_coeff_run_id}]}
-#slot_vsI_coeff=${slot_vsI_coeffs[${slot_vsI_coeff_run_id}]}
-#device=${devices[${i}]}
-#LOGNAME=MT-slot_attn-pos-k10-nt5-recon_noLN-mk${mk_coeff}-crosssim${temp}-slot_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type slotmo --learner_name SLOTPrompt \
-#    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 ${temp} ${mk_coeff} ${slot_vsI_coeff} \
-#    --slot_lr ${slot_lr} \
-#    --only_learn_slot \
-#    --oracle_flag --upper_bound_flag \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#done
-#done
-#done
-#done
+slot_lrs=(1e-4); temps=(80)
+mk_coeffs=(0.5); slot_vsI_coeffs=(0.5)
+devices=(5); i=-1
+for slot_run_id in 0; do
+for temp_run_id in 0; do
+for mk_coeff_run_id in 0; do
+for slot_vsI_coeff_run_id in 0; do
+((i++))
+slot_lr=${slot_lrs[${slot_run_id}]}
+temp=${temps[${temp_run_id}]}
+mk_coeff=${mk_coeffs[${mk_coeff_run_id}]}
+slot_vsI_coeff=${slot_vsI_coeffs[${slot_vsI_coeff_run_id}]}
+device=${devices[${i}]}
+LOGNAME=0-slot_attn-pos-k10-nt5-recon_noLN-mk${mk_coeff}-crosssim${temp}-slot_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
+docker run -d --rm --runtime=nvidia --gpus device=${device} \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 ${temp} ${mk_coeff} ${slot_vsI_coeff} \
+    --slot_lr ${slot_lr} \
+    --only_learn_slot \
+    --oracle_flag --upper_bound_flag \
+    --log_dir ${OUTDIR}/${LOGNAME}
+done
+done
+done
+done
 
 #lrs=(1e-3); temps=(10)
 #coeffs=(0)
@@ -122,15 +122,15 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-docker run -d --rm --runtime=nvidia --gpus device=2 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name CODAPrompt \
-    --prompt_param 100 40 0.0 \
-    --lr 0.001 \
-    --log_dir ${OUTDIR}/coda-imagenet-l40
+#docker run -d --rm --runtime=nvidia --gpus device=2 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPrompt \
+#    --prompt_param 100 40 0.0 \
+#    --lr 0.001 \
+#    --log_dir ${OUTDIR}/coda-imagenet-l40
 
 # DualPrompt
 #
@@ -138,15 +138,15 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-docker run -d --rm --runtime=nvidia --gpus device=3 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name DualPrompt \
-    --prompt_param 10 40 10 \
-    --lr 0.001 \
-    --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10
+#docker run -d --rm --runtime=nvidia --gpus device=3 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name DualPrompt \
+#    --prompt_param 10 40 10 \
+#    --lr 0.001 \
+#    --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10
 
 # L2P++
 #
@@ -154,12 +154,12 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-docker run -d --rm --runtime=nvidia --gpus device=4 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name L2P \
-    --prompt_param 10 40 -1 \
-    --lr 0.001 \
-    --log_dir ${OUTDIR}/l2p++-imagenet-p10-l40
+#docker run -d --rm --runtime=nvidia --gpus device=4 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name L2P \
+#    --prompt_param 10 40 -1 \
+#    --lr 0.001 \
+#    --log_dir ${OUTDIR}/l2p++-imagenet-p10-l40
