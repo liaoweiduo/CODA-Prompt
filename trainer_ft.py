@@ -83,7 +83,6 @@ class Trainer:
                                      download_flag=False, transform=test_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      mode=args.mode)
-        print(f'train_dataset: {len(self.train_dataset)}, test_datset: {len(self.test_dataset)}')
 
         self.max_task = self.train_dataset.benchmark.n_experiences      # 300
         self.task_names = [str(i+1) for i in range(self.max_task)]      # 300
@@ -200,6 +199,8 @@ class Trainer:
             # learn
             self.test_dataset.load_dataset(i, train=True, ignore_split=True)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
+
+            print(f'train_dataset: {len(self.train_dataset)}, test_datset: {len(self.test_dataset)}')
             # no use during training
             # model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
             # if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
