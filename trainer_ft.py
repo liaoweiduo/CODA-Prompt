@@ -21,6 +21,7 @@ class Trainer:
         self.save_keys = save_keys
         self.log_dir = args.log_dir
         self.batch_size = 100   # args.batch_size
+        args.batch_size = 100
         self.workers = args.workers
 
         self.test_model = args.test_model
@@ -82,6 +83,7 @@ class Trainer:
                                      download_flag=False, transform=test_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      mode=args.mode)
+        print(f'train_dataset: {len(self.train_dataset)}, test_datset: {len(self.test_dataset)}')
 
         self.max_task = self.train_dataset.benchmark.n_experiences      # 300
         self.task_names = [str(i+1) for i in range(self.max_task)]      # 300
@@ -90,8 +92,7 @@ class Trainer:
         self.oracle_flag = args.oracle_flag
         self.add_dim = self.num_tasks
 
-        args.schedule = [100]
-        args.batch_size = 10
+        args.schedule = [200]
 
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
@@ -135,7 +136,7 @@ class Trainer:
         print('validation split name:', val_name)
         
         # eval
-        self.test_dataset.load_dataset(t_index, train=True)
+        self.test_dataset.load_dataset(t_index, train=True, ignore_split=True)
         test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
         if local:
             return self.learner.validation(test_loader, task_in = self.tasks_logits[0], task_metric=task)
@@ -191,13 +192,13 @@ class Trainer:
 
             # load dataset for task
             task = self.tasks_logits[0]
-            self.train_dataset.load_dataset(i, train=True)
+            self.train_dataset.load_dataset(i, train=True, ignore_split=True)
 
             # load dataloader
             train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=int(self.workers))
 
             # learn
-            self.test_dataset.load_dataset(i, train=True)
+            self.test_dataset.load_dataset(i, train=True, ignore_split=True)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
             # no use during training
             # model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
