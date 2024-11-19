@@ -51,16 +51,15 @@ mk_coeff=${mk_coeffs[${mk_coeff_run_id}]}
 slot_vsI_coeff=${slot_vsI_coeffs[${slot_vsI_coeff_run_id}]}
 device=${devices[${i}]}
 LOGNAME=0-slot_attn-pos-k10-nt5-recon_noLN-mk${mk_coeff}-crosssim${temp}-slot_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
+#docker run -d --rm --runtime=nvidia --gpus device=${device} \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 ${temp} ${mk_coeff} ${slot_vsI_coeff} \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
-    --oracle_flag --upper_bound_flag \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
@@ -88,7 +87,6 @@ done
 #    --prompt_param 100 40 10 5 1.0 ${temp} 0.0 1.0 80 0.5 0.0 1.0 ${coeff} \
 #    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
 #    --lr ${lr} ${lr} \
-#    --oracle_flag --upper_bound_flag \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 #done
