@@ -194,7 +194,7 @@ class SLOTPrompt(Prompt):
             schedule = schedule[t]
 
         if type(schedule) is not list:
-            schedule = [schedule, schedule]
+            schedule = [schedule, 0, schedule]
 
         # parse optimizer args
         # Multi-GPU
