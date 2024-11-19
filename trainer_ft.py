@@ -91,7 +91,7 @@ class Trainer:
         self.oracle_flag = args.oracle_flag
         self.add_dim = self.num_tasks
 
-        args.schedule = [20]
+        args.schedule = [100]
 
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
@@ -205,8 +205,8 @@ class Trainer:
             # model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
             # if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
             # set model_save_dir to None to enable training
-            # avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, None)
-            avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, test_loader)
+            avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, None)
+            # avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, test_loader)
 
             # # save model
             # self.learner.save_model(model_save_dir)
