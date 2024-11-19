@@ -20,7 +20,8 @@ mkdir -p $OUTDIR
 
 
 # SLOT-Prompt
-for mode in sys pro sub non noc
+#for mode in sys pro sub non noc
+for mode in sys
 do
   # do not use -d to avoid running in parallel
   docker run --rm --runtime=nvidia --gpus device=6 \
