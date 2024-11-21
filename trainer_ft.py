@@ -92,7 +92,7 @@ class Trainer:
         self.oracle_flag = args.oracle_flag
         self.add_dim = self.num_tasks
 
-        args.schedule = [20]
+        args.schedule = [50]
 
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
