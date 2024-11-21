@@ -1564,9 +1564,9 @@ class SLOTPrompt(Prompt):
         # This function doesn't distinguish tasks.
         batch_timer = Timer()
         acc = AverageMeter()
-        mk_acc = AverageMeter()
-        collect_top_k = (1, 3, 5, 7, 10)
-        mk_task_acc = AverageMeter(top_k=collect_top_k)
+        # mk_acc = AverageMeter()
+        # collect_top_k = (1, 3, 5, 7, 10)
+        # mk_task_acc = AverageMeter(top_k=collect_top_k)
         recon_losses = AverageMeter()
         silhouette_scores = AverageMeter()
         max_attns = AverageMeter()
@@ -1816,7 +1816,7 @@ class SLOTPrompt(Prompt):
 
         model.train(orig_mode)
 
-        mk_task_acc.avg = np.array([np.round(v, 3) for v in mk_task_acc.avg])
+        # mk_task_acc.avg = np.array([np.round(v, 3) for v in mk_task_acc.avg])
         if slot_recon_loss:
             if verbal:
                 self.log(' * Val Recon Loss {recon_losses.avg:.3e}, '
@@ -1826,7 +1826,8 @@ class SLOTPrompt(Prompt):
                          .format(recon_losses=recon_losses, silhouette_score=silhouette_scores,
                                  max_attn=max_attns,
                                  # mk_acc=mk_acc, mk_task_acc=mk_task_acc,
-                                 time=batch_timer.toc(), collect_top_k=collect_top_k))
+                                 time=batch_timer.toc(),    # collect_top_k=collect_top_k
+                                 ))
                 # 'MK Acc {mk_acc.avg:.3f}, '
                 # 'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
             return max_attns.avg
@@ -1837,7 +1838,8 @@ class SLOTPrompt(Prompt):
                          'Total time {time:.2f}'
                          .format(acc=acc,
                                  # mk_acc=mk_acc, mk_task_acc=mk_task_acc,
-                                 time=batch_timer.toc(), collect_top_k=collect_top_k))
+                                 time=batch_timer.toc(),    # collect_top_k=collect_top_k
+                                 ))
                 # 'MK Acc {mk_acc.avg:.3f}, '
                 # 'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
             return acc.avg
