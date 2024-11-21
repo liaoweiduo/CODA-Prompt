@@ -30,7 +30,13 @@ class Prompt(NormalNN):
     def update_model(self, inputs, targets):
 
         # logits
-        logits, prompt_loss = self.model(inputs, train=True)
+        out = self.model(inputs, train=True)
+        if len(out) == 2:
+            logits, prompt_loss = out
+            prompt_loss = prompt_loss.sum()
+        else:
+            logits = out
+            prompt_loss = 0
         logits = logits[:,:self.valid_out_dim]
 
         # # debug
@@ -47,7 +53,7 @@ class Prompt(NormalNN):
         # print(f'classification loss: {total_loss}')
 
         # ce loss
-        total_loss = total_loss + prompt_loss.sum()
+        total_loss = total_loss + prompt_loss
 
         # step
         self.optimizer.zero_grad()
