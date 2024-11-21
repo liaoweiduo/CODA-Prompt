@@ -30,7 +30,7 @@ mkdir -p $OUTDIR
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
 slot_lrs=(1e-4); temps=(80)
-intra_cons_coeffs=(0.5); slot_vsI_coeffs=(0.5)
+intra_cons_coeffs=(0.01); slot_vsI_coeffs=(0.5)
 devices=(0); i=-1
 for slot_run_id in 0; do
 for temp_run_id in 0; do
