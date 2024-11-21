@@ -626,7 +626,7 @@ class SLOTPrompt(Prompt):
             if self.intra_consistency_coeff > 0:
                 img_slots = slots.reshape(bs, t * k, h)
                 weights = self.cross_attn(img_slots)        # [bs, k]
-                cross_enhanced_slots = torch.einsum('bkh,bk->bh', slots, weights)
+                cross_enhanced_slots = torch.einsum('bkh,bk->bh', img_slots, weights)
 
                 # find a positive sample for each sample (if only has one sample in this batch, use itself)
                 posi_slots = []
