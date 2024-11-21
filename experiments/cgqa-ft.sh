@@ -91,8 +91,8 @@ mkdir -p $OUTDIR
 #done
 
 # vit-pretrain
-#  pro sub non noc
-for mode in sys
+#
+for mode in sys pro sub non noc
 do
   docker run --rm --runtime=nvidia --gpus device=6 \
     -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
@@ -102,7 +102,7 @@ do
       --learner_type prompt --learner_name Prompt \
       --prompt_param 10 10 -1 \
       --log_dir ${OUTDIR}/vit_pretrain \
-      --eval_every_epoch \
       --mode ${mode}
   date
 done
+#      --eval_every_epoch \
