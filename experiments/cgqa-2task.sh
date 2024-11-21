@@ -120,15 +120,15 @@ done
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#docker run -d --rm --runtime=nvidia --gpus device=2 \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPrompt \
-#    --prompt_param 100 40 0.0 \
-#    --lr 0.001 \
-#    --log_dir ${OUTDIR}/coda-imagenet-l40
+docker run -d --rm --runtime=nvidia --gpus device=2 \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPrompt \
+    --prompt_param 100 40 0.0 \
+    --lr 0.001 \
+    --log_dir ${OUTDIR}/coda-imagenet-l40
 
 # DualPrompt
 #
