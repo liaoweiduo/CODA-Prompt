@@ -94,6 +94,8 @@ if __name__ == '__main__':
     if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
     log_out = args.log_dir + '/output.log'
     sys.stdout = Logger(log_out)
+    log_err = args.log_dir + '/err.log'
+    sys.stderr = Logger(log_err, 'w')
 
     print(vars(args))
 
