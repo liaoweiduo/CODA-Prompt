@@ -172,8 +172,11 @@ class Trainer:
             self.learner.add_valid_output_dim(len(self.tasks_logits[0]))      # only for one task
             # this is important in model updating (mask out valid_out_dim)
             # load model
-            model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+f'/task-{self.test_model}/'
-            self.learner.load_model(model_save_dir, drop_last=True,  freeze=True)
+            try:
+                model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+f'/task-{self.test_model}/'
+                self.learner.load_model(model_save_dir, drop_last=True,  freeze=True)
+            except:
+                print('WARNING: model does not find, test on init model.')
             # only last is trainable
 
             # set task id for model (needed for prompting)

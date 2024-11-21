@@ -107,19 +107,22 @@ if __name__ == '__main__':
         for skey in save_keys: avg_metrics[mkey][skey] = []
 
     # make sure continual training has finished
-    save_file = args.log_dir + '/results-acc/global.yaml'
-    with open(save_file, 'r') as yaml_file:
-        yaml_result = yaml.safe_load(yaml_file)
-        his = np.asarray(yaml_result['history'])
+    if args.learner_name == 'Prompt':
+        print('WARNING: test on pretrained-vit')
+    else:
+        save_file = args.log_dir + '/results-acc/global.yaml'
+        with open(save_file, 'r') as yaml_file:
+            yaml_result = yaml.safe_load(yaml_file)
+            his = np.asarray(yaml_result['history'])
 
-    # num of repeats for few-shot testing
-    finished_repeats = his.shape[-1]
-    if args.test_model == -1:
-        # change to the last model
-        args.test_model = his.shape[0]    # test model id starting from 1
+        # num of repeats for few-shot testing
+        finished_repeats = his.shape[-1]
+        if args.test_model == -1:
+            # change to the last model
+            args.test_model = his.shape[0]    # test model id starting from 1
 
-    assert (finished_repeats >= args.repeat
-            ), f"haven't finish continual training: finished:target={finished_repeats}:{args.repeat}."
+        assert (finished_repeats >= args.repeat
+                ), f"haven't finish continual training: finished:target={finished_repeats}:{args.repeat}."
 
     # load results
     if args.overwrite:
