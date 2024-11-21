@@ -53,6 +53,7 @@ def create_args():
     parser.add_argument('--mode', type=str, default='continual',
                         help="choices: [continual, sys, pro, sub, non, noc]")
     parser.add_argument('--test_model', type=int, default=-1, help="-1 for last model, starting from 1. ")
+    parser.add_argument('--eval_every_epoch', default=False, action='store_true')
 
     # Config Arg
     parser.add_argument('--config', type=str, default="configs/config.yaml",
