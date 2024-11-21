@@ -6,7 +6,7 @@ schedule:
 - [100, 0, 50]   # epochs for slots, enhance reuse, learn new prompt
 schedule_type: cosine
 slot_schedule_type: cosine
-batch_size: 32
+#batch_size: 32
 optimizer: Adam
 #lr:
 #- 0.0005

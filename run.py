@@ -31,6 +31,7 @@ def create_args():
     parser.add_argument('--repeat', type=int, default=1, help="Repeat the experiment N times")
     parser.add_argument('--overwrite', type=int, default=0, metavar='N', help='Train regardless of whether saved model exists')
     parser.add_argument('--lr', nargs="+", type=float, default=[0.001, 0.001], help="lr")
+    parser.add_argument('--batch_size', type=int, default=32, help="temperature for distillation")
 
     # CL Args          
     parser.add_argument('--oracle_flag', default=False, action='store_true',

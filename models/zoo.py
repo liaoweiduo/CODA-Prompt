@@ -45,11 +45,11 @@ class SlotPrompt(nn.Module):
             SlotAttention(emb_d, n_slots=self.n_slots, key_dim=key_dim,
                           n_iter=self.n_iters, temp=self.temp)])
 
-        # class key for mk during phase I
-        self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
+        # # class key for mk during phase I
+        # self.slot_attn_class_key = init_tensor(np.max(self.tasks)+1, self.key_d, ortho=True)
 
-        # aux classifier for prompt-concept alignment loss during phase II
-        self.prompt_concept_alignment_classifier = nn.Linear(768, np.max(self.tasks)+1)     # [100, 768]
+        # # aux classifier for prompt-concept alignment loss during phase II
+        # self.prompt_concept_alignment_classifier = nn.Linear(768, np.max(self.tasks)+1)     # [100, 768]
 
         # # slot mapping ortho
         # self.slot_attn_mapping_k = init_tensor(self.e_pool_size, self.key_d)

@@ -61,7 +61,7 @@ class SLOTPrompt(Prompt):
         self.weight_coeff = float(config[6])
         self.onehot_coeff = float(config[7])
         self.cross_attn_temp = float(config[8])
-        self.mk_coeff = float(config[9])
+        self.intra_consistency_coeff = float(config[9])
         self.slot_vsI_coeff = float(config[10])
         self.selection_ortho_coeff = float(config[11])
         self.prompt_concept_alignment_coeff = float(config[12])
@@ -107,7 +107,13 @@ class SLOTPrompt(Prompt):
             filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
                         slot_pre_learn_model + f'/models/repeat-{self.seed+1}/task-{task_id+1}/')
             print(f'redirect loading slot model from {filename}.')
-            state_dict = torch.load(filename + 'class.pth')
+            try:
+                state_dict = torch.load(filename + 'class.pth')
+            except:
+                filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
+                            slot_pre_learn_model + f'/models/repeat-{self.seed+1}/task-1/')
+                print(f'WARNING, donot find model file, assuming a MT model, redirect loading from {filename}')
+                state_dict = torch.load(filename + 'class.pth')
             # complete with/without module and collect slot
             for key in list(state_dict.keys()):
                 if 'slot_attn' in key:
@@ -319,7 +325,7 @@ class SLOTPrompt(Prompt):
                 # for CFST, slot_pre_learn_model is not none, so will not be going to fine-tune slots
                 self.log(f'Phase I： training slots')
                 losses = AverageMeter()
-                mk_losses = AverageMeter()
+                intra_consistency_losses = AverageMeter()
                 slot_sim_mses = AverageMeter()
                 alpha1s = AverageMeter()
                 alpha2s = AverageMeter()
@@ -374,7 +380,7 @@ class SLOTPrompt(Prompt):
 
                             # model update
                             loss, output, loss_dict = self.update_model(x, y, learn_slots=True)
-                            mk_loss = loss_dict['mk_loss']
+                            intra_consistency_loss = loss_dict['intra_consistency_loss']
                             slot_sim_mse = loss_dict['slot_sim_mse']
                             # alpha = loss_dict['alpha']
 
@@ -385,7 +391,7 @@ class SLOTPrompt(Prompt):
                             # measure accuracy and record loss
                             y = y.detach()
                             losses.update(loss, y.size(0))
-                            mk_losses.update(mk_loss, y.size(0))
+                            intra_consistency_losses.update(intra_consistency_loss, y.size(0))
                             slot_sim_mses.update(slot_sim_mse, y.size(0))
                             # alpha1s.update(alpha[0], y.size(0))
                             # alpha2s.update(alpha[1], y.size(0))
@@ -397,16 +403,16 @@ class SLOTPrompt(Prompt):
                             'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
                         self.log(
                             ' * Loss {loss.avg:.3f} a({alpha1.avg:.3f}) | '
-                            'MK Loss {mk_loss.avg:.3f} a({alpha2.avg:.3f}) | '
+                            'Intra Cons Loss {intra_consistency_loss.avg:.3f} a({alpha2.avg:.3f}) | '
                             'Slot Sim MSE {slot_sim_mse.avg:.3f} a({alpha3.avg:.3f}) | '
                             'Time {time:.3f}s ({i} batches)'.format(
-                                loss=losses, mk_loss=mk_losses, slot_sim_mse=slot_sim_mses,
+                                loss=losses, intra_consistency_loss=intra_consistency_losses, slot_sim_mse=slot_sim_mses,
                                 alpha1=alpha1s, alpha2=alpha2s, alpha3=alpha3s,
                                 time=batch_time.avg*len(train_loader), i=len(train_loader)))
 
                         # reset
                         losses = AverageMeter()
-                        mk_losses = AverageMeter()
+                        intra_consistency_losses = AverageMeter()
                         slot_sim_mses = AverageMeter()
                         alpha1s = AverageMeter()
                         alpha2s = AverageMeter()
@@ -454,7 +460,7 @@ class SLOTPrompt(Prompt):
                     losses = AverageMeter()
                     onehot_losses = AverageMeter()
                     s2p_losses = AverageMeter()
-                    mk_losses = AverageMeter()
+                    # mk_losses = AverageMeter()
                     selection_ortho_losses = AverageMeter()
                     prompt_concept_alignment_losses = AverageMeter()
                     acc = AverageMeter()
@@ -496,7 +502,7 @@ class SLOTPrompt(Prompt):
                             loss, output, loss_dict = self.update_model(
                                 x, y, prompt_phase=prompt_phase)  # , task
                             onehot_loss, s2p_loss = loss_dict['onehot_loss'], loss_dict['s2p_loss']
-                            mk_loss = loss_dict['mk_loss']
+                            # mk_loss = loss_dict['mk_loss']
                             selection_ortho_loss = loss_dict['selection_ortho_loss']
                             prompt_concept_alignment_loss = loss_dict['prompt_concept_alignment_loss']
 
@@ -509,7 +515,7 @@ class SLOTPrompt(Prompt):
                             accumulate_acc(output, y, task, acc, topk=(self.top_k,))
                             losses.update(loss, y.size(0))
                             onehot_losses.update(onehot_loss, y.size(0))
-                            mk_losses.update(mk_loss, y.size(0))
+                            # mk_losses.update(mk_loss, y.size(0))
                             s2p_losses.update(s2p_loss, y.size(0))
                             selection_ortho_losses.update(selection_ortho_loss, y.size(0))
                             prompt_concept_alignment_losses.update(prompt_concept_alignment_loss, y.size(0))
@@ -521,7 +527,6 @@ class SLOTPrompt(Prompt):
                                 epoch=self.epoch + 1, total=epochs, phase=prompt_phase))
                         self.log(
                             ' * Loss {loss.avg:.3f} | '
-                            'MK Loss {mk_loss.avg:.3f} | '
                             'Onehot Loss {onehot_loss.avg:.3f} | '
                             'So Loss {selection_ortho_loss.avg:.3f} | '
                             'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
@@ -529,18 +534,19 @@ class SLOTPrompt(Prompt):
                             'Time {time:.3f}s ({i} batches)'.format(
                                 loss=losses,
                                 onehot_loss=onehot_losses,   # s2p_loss=s2p_losses,
-                                mk_loss=mk_losses,
+                                # mk_loss=mk_losses,
                                 acc=acc,
                                 # prompt_ortho_loss=prompt_ortho_losses,
                                 selection_ortho_loss=selection_ortho_losses,
                                 prompt_concept_alignment_loss=prompt_concept_alignment_losses,
                                 time=batch_time.avg*len(train_loader), i=len(train_loader)))
                         # 'S2P Loss {s2p_loss.avg:.3f} | '
+                        #     'MK Loss {mk_loss.avg:.3f} | '
 
                         # reset
                         losses = AverageMeter()
                         onehot_losses = AverageMeter()
-                        mk_losses = AverageMeter()
+                        # mk_losses = AverageMeter()
                         s2p_losses = AverageMeter()
                         selection_ortho_losses = AverageMeter()
                         prompt_concept_alignment_losses = AverageMeter()
@@ -592,17 +598,17 @@ class SLOTPrompt(Prompt):
         prompts, selections, slots, attn, recon_loss = q
         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
 
-        # slot_attn_class_key
-        K = model.prompt.slot_attn_class_key        # [c100, h128]
-        s = self.last_valid_out_dim
-        mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
-
-        mk_logit[:, :s] = -float('inf')
-        mk_loss = F.cross_entropy(mk_logit, targets.long())
-
-        self.epoch_log['scaler']['Tag'].append('loss/mk_loss')
-        self.epoch_log['scaler']['Idx'].append(self.epoch)
-        self.epoch_log['scaler']['Value'].append(mk_loss.item())
+        # # mk
+        # K = model.prompt.slot_attn_class_key        # [c100, h128]
+        # s = self.last_valid_out_dim
+        # mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
+        #
+        # mk_logit[:, :s] = -float('inf')
+        # mk_loss = F.cross_entropy(mk_logit, targets.long())
+        #
+        # self.epoch_log['scaler']['Tag'].append('loss/mk_loss')
+        # self.epoch_log['scaler']['Idx'].append(self.epoch)
+        # self.epoch_log['scaler']['Value'].append(mk_loss.item())
 
         if learn_slots:
             # only update slot attn
@@ -614,6 +620,29 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Tag'].append('loss/slot_recon_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(recon_loss.item())
+
+            # supercon on positive samples to enhance intra-class consistency
+            intra_consistency_loss = torch.zeros(1).mean().to(recon_loss.device)
+            if self.intra_consistency_coeff > 0:
+                img_slots = slots.reshape(bs, t * k, h)
+                weights = self.cross_attn(img_slots)        # [bs, k]
+                cross_enhanced_slots = torch.einsum('bkh,bk->bh', slots, weights)
+
+                # find a positive sample for each sample (if only has one sample in this batch, use itself)
+                posi_slots = []
+                for sid in range(bs):
+                    target = targets[sid]
+                    selected_idxs = torch.where(targets == target)[0]
+                    selected_idx = selected_idxs[torch.randperm(selected_idxs.size(0))][0]
+                    posi_slot = cross_enhanced_slots[selected_idx]
+                    posi_slots.append(posi_slot)
+                posi_slots = torch.stack(posi_slots)    # [bs, h]
+                dist = nn.PairwiseDistance(p=1)     # l1-distance
+                intra_consistency_loss = dist(cross_enhanced_slots, posi_slots).mean()
+
+                self.epoch_log['scaler']['Tag'].append('loss/intra_consistency_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(intra_consistency_loss.item())
 
             # image-wise mse for slot cosine sim vs I
             slot_sim_mse = torch.zeros(1).mean().to(recon_loss.device)
@@ -637,7 +666,9 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_sim_mse.item())
 
-            loss = recon_loss + self.mk_coeff * mk_loss + self.slot_vsI_coeff * slot_sim_mse
+            loss = (recon_loss +
+                    self.intra_consistency_coeff * intra_consistency_loss +
+                    self.slot_vsI_coeff * slot_sim_mse)
 
             # alpha = model.prompt.slot_attn_alpha    # [3]
             # for alpha_idx in range(len(alpha)):
@@ -656,7 +687,7 @@ class SLOTPrompt(Prompt):
 
             logits = None
             return loss.detach(), logits, {'recon_loss': recon_loss.detach(),
-                                           'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(),
+                                           'intra_consistency_loss': intra_consistency_loss.detach(),
                                            'slot_sim_mse': slot_sim_mse.detach(),
                                            # 'alpha': alpha.detach(),
                                            }
@@ -903,9 +934,9 @@ class SLOTPrompt(Prompt):
 
                 loss = loss + self.onehot_coeff * onehot_loss
 
-            self.epoch_log['scaler']['Tag'].append('loss/onehot_loss')
-            self.epoch_log['scaler']['Idx'].append(self.epoch)
-            self.epoch_log['scaler']['Value'].append(onehot_loss.item())
+                self.epoch_log['scaler']['Tag'].append('loss/onehot_loss')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(onehot_loss.item())
 
             # out = out[:, :, :self.valid_out_dim]
             # bs, n_slots, n_cls = out.shape
@@ -1062,11 +1093,24 @@ class SLOTPrompt(Prompt):
             out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [bs, n_cls]
             return (loss.detach(), out,
                     {'onehot_loss': onehot_loss.detach(), 's2p_loss': s2p_loss.detach(),
-                     'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(), 'mk_weights': mk_weights.detach(),
+                     # 'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(), 'mk_weights': mk_weights.detach(),
                      # 'prompt_ortho_loss': prompt_ortho_loss.detach(),
                      'selection_ortho_loss': selection_ortho_loss.detach(),
                      'prompt_concept_alignment_loss': prompt_concept_alignment_loss.detach(),
                      })
+
+    def cross_attn(self, slots):
+        # cross-attn and sum for all bs*k slots
+        bs, k, h = slots.shape
+        q = nn.functional.normalize(slots, dim=-1)
+        # q = nn.functional.normalize(slots.detach(), dim=-1)
+        # q = q.reshape(bs, -1, h)  # [bs, k, h]
+        weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs * k, h), dim=-1)
+        # [bs, k, bs*k] cosine sim matrix
+        weights = torch.mean(weights, dim=-1)  # [bs, k]
+        weights = weights * self.cross_attn_temp  # cross_attn_temp: 0.1
+        weights = torch.softmax(weights, dim=-1)  # [b, k]; sum over k == 1
+        return weights
 
     def forward_mk(self, slots, K):
         # slot_attn_class_key
@@ -1077,17 +1121,8 @@ class SLOTPrompt(Prompt):
             K = torch.cat((K[:s].detach().clone(), K[s:f]), dim=0)
         n_K = nn.functional.normalize(K, dim=1)
 
-        # cross-attn and sum for all bs*k slots
-        bs, k, h = slots.shape
-        q = nn.functional.normalize(slots, dim=-1)
-        # q = nn.functional.normalize(slots.detach(), dim=-1)
-        # q = q.reshape(bs, -1, h)  # [bs, k, h]
-        weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs * k, h), dim=-1)
-        # [bs, k, bs*k] cosine sim matrix
-        weights = torch.mean(weights, dim=-1)  # [bs, k]
-        weights = weights * self.cross_attn_temp  # cross_attn_temp: 0.1
-        weights = torch.softmax(weights, dim=-1)  # sum over k == 1
-        q = torch.einsum('bkh,bk->bh', q, weights)
+        weights = self.cross_attn(slots)
+        q = torch.einsum('bkh,bk->bh', slots, weights)
 
         mk_logit = torch.einsum('bh,ch->bc', q, n_K)  # wei-sum over h -> cos sim
         return mk_logit, weights
@@ -1580,43 +1615,43 @@ class SLOTPrompt(Prompt):
                     bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                     assert t == 1
 
-                    # slot_attn_class_key
-                    K = model.prompt.slot_attn_class_key  # [c100, h128]
-                    s = self.last_valid_out_dim
-                    mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
-
-                    if self.debug_mode and i == 0:
-                        print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
-
-                    # mk_class_acc
-                    mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
-
-                    task_ids = torch.empty_like(target)     # [bs]
-                    _, mk_pred = mk_logit.topk(collect_top_k[-1], 1, True, True)    # [bs, topk]
-                    mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
-                    for idx in range(bs):
-                        for idxx in range(collect_top_k[-1]):
-                            mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
-                        task_ids[idx] = label_task_map[target[idx].item()]
-
-                    if self.debug_mode and i == 0:
-                        print(f'task_ids: {task_ids.shape} {task_ids[0]}'
-                              f'mk_task_pred: {mk_task_pred.shape} {mk_task_pred[0]}')
-
-                    mk_task_pred = mk_task_pred.t()
-                    correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
-                    # correct: BOOL [topk, bs]
-
-                    if self.debug_mode and i == 0:
-                        print(f'correct: {correct.shape} {correct[0]}')
-
-                    res = []
-                    for k in collect_top_k:
-                        # correct_k = correct[:k].reshape(-1).float().sum().item()
-                        correct_k = correct[:k].float().sum(dim=0)
-                        correct_k = (correct_k > 0).sum().item()        # >0 -> True for multiple correct
-                        res.append(correct_k * 100.0 / bs)
-                    mk_task_acc.update(res, bs)
+                    # # slot_attn_class_key
+                    # K = model.prompt.slot_attn_class_key  # [c100, h128]
+                    # s = self.last_valid_out_dim
+                    # mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
+                    #
+                    # if self.debug_mode and i == 0:
+                    #     print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
+                    #
+                    # # mk_class_acc
+                    # mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
+                    #
+                    # task_ids = torch.empty_like(target)     # [bs]
+                    # _, mk_pred = mk_logit.topk(collect_top_k[-1], 1, True, True)    # [bs, topk]
+                    # mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
+                    # for idx in range(bs):
+                    #     for idxx in range(collect_top_k[-1]):
+                    #         mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
+                    #     task_ids[idx] = label_task_map[target[idx].item()]
+                    #
+                    # if self.debug_mode and i == 0:
+                    #     print(f'task_ids: {task_ids.shape} {task_ids[0]}'
+                    #           f'mk_task_pred: {mk_task_pred.shape} {mk_task_pred[0]}')
+                    #
+                    # mk_task_pred = mk_task_pred.t()
+                    # correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
+                    # # correct: BOOL [topk, bs]
+                    #
+                    # if self.debug_mode and i == 0:
+                    #     print(f'correct: {correct.shape} {correct[0]}')
+                    #
+                    # res = []
+                    # for k in collect_top_k:
+                    #     # correct_k = correct[:k].reshape(-1).float().sum().item()
+                    #     correct_k = correct[:k].float().sum(dim=0)
+                    #     correct_k = (correct_k > 0).sum().item()        # >0 -> True for multiple correct
+                    #     res.append(correct_k * 100.0 / bs)
+                    # mk_task_acc.update(res, bs)
 
                     recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
@@ -1713,38 +1748,38 @@ class SLOTPrompt(Prompt):
                         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                         assert t == 1
 
-                        # slot_attn_class_key
-                        K = model.prompt.slot_attn_class_key  # [c100, h128]
-                        s = self.last_valid_out_dim
-                        mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
-
-                        if self.debug_mode and i == 0:
-                            print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
-
-                        # mk_class_acc
-                        if not task_global:
-                            mk_logit = mk_logit[:, task_in]
-                        if task_global:
-                            mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
-                        else:
-                            mk_acc = accumulate_acc(mk_logit, target - task_in[0], task, mk_acc, topk=(self.top_k,))
-
-                        task_ids = torch.empty_like(target)     # [bs]
-                        _, mk_pred = mk_logit.topk(collect_top_k[-1], 1, True, True)    # [bs, topk]
-                        mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
-                        for idx in range(bs):
-                            for idxx in range(collect_top_k[-1]):
-                                mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
-                            task_ids[idx] = label_task_map[target[idx].item()]
-                        mk_task_pred = mk_task_pred.t()
-                        correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
-                        res = []
-                        for k in collect_top_k:
-                            # correct_k = correct[:k].reshape(-1).float().sum().item()
-                            correct_k = correct[:k].float().sum(dim=0)
-                            correct_k = (correct_k > 0).sum().item()
-                            res.append(correct_k * 100.0 / bs)
-                        mk_task_acc.update(res, bs)
+                        # # slot_attn_class_key
+                        # K = model.prompt.slot_attn_class_key  # [c100, h128]
+                        # s = self.last_valid_out_dim
+                        # mk_logit, mk_weights = self.forward_mk(slots.reshape(bs, t*k, h), K)
+                        #
+                        # if self.debug_mode and i == 0:
+                        #     print(f'mk_logit: {mk_logit.shape} {mk_logit[0]}')
+                        #
+                        # # mk_class_acc
+                        # if not task_global:
+                        #     mk_logit = mk_logit[:, task_in]
+                        # if task_global:
+                        #     mk_acc = accumulate_acc(mk_logit, target, task, mk_acc, topk=(self.top_k,))
+                        # else:
+                        #     mk_acc = accumulate_acc(mk_logit, target - task_in[0], task, mk_acc, topk=(self.top_k,))
+                        #
+                        # task_ids = torch.empty_like(target)     # [bs]
+                        # _, mk_pred = mk_logit.topk(collect_top_k[-1], 1, True, True)    # [bs, topk]
+                        # mk_task_pred = torch.empty_like(mk_pred)    # [bs, topk]
+                        # for idx in range(bs):
+                        #     for idxx in range(collect_top_k[-1]):
+                        #         mk_task_pred[idx, idxx] = label_task_map[mk_pred[idx, idxx].item()]
+                        #     task_ids[idx] = label_task_map[target[idx].item()]
+                        # mk_task_pred = mk_task_pred.t()
+                        # correct = mk_task_pred.eq(task_ids.reshape(1, -1).expand_as(mk_task_pred))
+                        # res = []
+                        # for k in collect_top_k:
+                        #     # correct_k = correct[:k].reshape(-1).float().sum().item()
+                        #     correct_k = correct[:k].float().sum(dim=0)
+                        #     correct_k = (correct_k > 0).sum().item()
+                        #     res.append(correct_k * 100.0 / bs)
+                        # mk_task_acc.update(res, bs)
 
                         recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
@@ -1787,23 +1822,24 @@ class SLOTPrompt(Prompt):
                 self.log(' * Val Recon Loss {recon_losses.avg:.3e}, '
                          'Silhouette Score {silhouette_score.avg:.3f}, '
                          'Avg Max Attn {max_attn.avg:.3f}, '
-                         'MK Acc {mk_acc.avg:.3f}, '
-                         'Total time {time:.2f}\n'
-                         'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
+                         'Total time {time:.2f}'
                          .format(recon_losses=recon_losses, silhouette_score=silhouette_scores,
                                  max_attn=max_attns,
-                                 mk_acc=mk_acc, mk_task_acc=mk_task_acc,
+                                 # mk_acc=mk_acc, mk_task_acc=mk_task_acc,
                                  time=batch_timer.toc(), collect_top_k=collect_top_k))
+                # 'MK Acc {mk_acc.avg:.3f}, '
+                # 'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
             return max_attns.avg
             # return recon_losses.avg
         else:
             if verbal:
                 self.log(' * Val Acc {acc.avg:.3f}, '
-                         'MK Acc {mk_acc.avg:.3f}, '
-                         'Total time {time:.2f}\n'
-                         'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
-                         .format(acc=acc, mk_acc=mk_acc, mk_task_acc=mk_task_acc,
+                         'Total time {time:.2f}'
+                         .format(acc=acc,
+                                 # mk_acc=mk_acc, mk_task_acc=mk_task_acc,
                                  time=batch_timer.toc(), collect_top_k=collect_top_k))
+                # 'MK Acc {mk_acc.avg:.3f}, '
+                # 'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
             return acc.avg
 
     def collect_slot_pool(self, train_loader, train_dataset, model=None):

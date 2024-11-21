@@ -112,7 +112,10 @@ class Prompt(NormalNN):
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule, gamma=0.1)
 
     def create_model(self):
-        pass
+        # create vit-baseline without prompt
+        cfg = self.config
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'None',prompt_param=self.prompt_param)
+        return model
 
     def cuda(self):
         torch.cuda.set_device(self.config['gpuid'][0])
