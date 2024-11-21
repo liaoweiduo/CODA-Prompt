@@ -121,10 +121,11 @@ mkdir -p $OUTDIR
 #  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPrompt \
-    --prompt_param 100 40 0.0 \
-    --lr 0.0005 \
+    --prompt_param 1 40 0.0 \
+    --lr 0.001 \
     --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/MT-coda-imagenet-l40-lr5e-4
+    --log_dir ${OUTDIR}/MT-one-prompt-imagenet-l40-lr1e-3
+    # MT-coda-imagenet-l40
 
 # DualPrompt
 #
