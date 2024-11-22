@@ -265,7 +265,7 @@ class CGQA(CFSTDataset):
             self.benchmark = cgqa.fewshot_testing_benchmark(
                 100, image_size=(224, 224), mode=self.mode, task_offset=10,
                 seed=self.seed,
-                train_transform=cgqa.build_transform_for_vit(is_train=True),
+                train_transform=cgqa.build_transform_for_vit(is_train=False),
                 eval_transform=cgqa.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 load_set=load_set,
@@ -293,7 +293,7 @@ class COBJ(CFSTDataset):
             self.benchmark = cobj.fewshot_testing_benchmark(
                 100, image_size=(224, 224), mode=self.mode, task_offset=3,
                 seed=self.seed,
-                train_transform=cobj.build_transform_for_vit(is_train=True),
+                train_transform=cobj.build_transform_for_vit(is_train=False),
                 eval_transform=cobj.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 load_set=load_set,
