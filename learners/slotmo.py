@@ -1574,6 +1574,12 @@ class SLOTPrompt(Prompt):
         orig_mode = model.training
         model.eval()
 
+        if len(self.cls_stats) != 0:
+            cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
+            # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+            cls_stats = nn.functional.normalize(cls_stats, dim=1)
+        else:
+            cls_stats = None
         # # load statistics for evaluating
         # self.load_statistics()
 
@@ -1712,8 +1718,7 @@ class SLOTPrompt(Prompt):
                         output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
                     else:
                         features = features.reshape(bs, -1)     # [bs, 1, 768] -> [bs, 768]
-                        cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
-                        # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                        features = nn.functional.normalize(features, dim=1)
                         output = torch.einsum('bd,cd->bc', features, cls_stats)
 
                     # if logit_task_mask_top_k > 0:
@@ -1812,20 +1817,19 @@ class SLOTPrompt(Prompt):
                             output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
                         else:
                             features = features.reshape(bs, -1)  # [bs, 1, 768] -> [bs, 768]
-                            cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
-                            # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                            features = nn.functional.normalize(features, dim=1)
                             output = torch.einsum('bd,cd->bc', features, cls_stats)
 
-                            if not task_global:
-                                output = output[:, task_in]
+                            # if not task_global:
+                            #     output = output[:, task_in]
 
                         if task_global:
                             # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
-                            # output = output[:, :self.valid_out_dim]
+                            output = output[:, :self.valid_out_dim]
                             acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
                         else:
                             # output = model.forward(input, task_id=task[0].item())[:, task_in]
-                            # output = output[:, task_in]
+                            output = output[:, task_in]
                             acc = accumulate_acc(output, target - task_in[0], task, acc, topk=(self.top_k,))
 
         model.train(orig_mode)

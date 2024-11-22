@@ -271,6 +271,14 @@ class NormalNN(nn.Module):
 
         orig_mode = model.training
         model.eval()
+
+        if len(self.cls_stats) != 0:
+            cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
+            # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+            cls_stats = nn.functional.normalize(cls_stats, dim=1)
+        else:
+            cls_stats = None
+
         for i, sample in enumerate(dataloader):
             concepts = None
             if len(sample) == 3:
@@ -297,8 +305,7 @@ class NormalNN(nn.Module):
                 if len(self.cls_stats) == 0:
                     output = output[:, :self.valid_out_dim]
                 else:
-                    cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
-                    # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                    features = nn.functional.normalize(features, dim=1)
                     output = torch.einsum('bd,cd->bc', features, cls_stats)
 
                 acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
@@ -316,12 +323,8 @@ class NormalNN(nn.Module):
                         output, features = model.forward(input, pen=True)
 
                     if len(self.cls_stats) != 0:
-                        cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
-                        # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
-                        if task_global:
-                            output = torch.einsum('bd,cd->bc', features, cls_stats)
-                        else:
-                            output = torch.einsum('bd,cd->bc', features, cls_stats)
+                        features = nn.functional.normalize(features, dim=1)
+                        output = torch.einsum('bd,cd->bc', features, cls_stats)
 
                     if task_global:
                         # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
