@@ -67,6 +67,10 @@ class Prompt(NormalNN):
         if schedule is None:
             schedule = self.schedule
 
+        if type(self.config['lr']) is float:
+            lr = self.config['lr']
+        else:
+            lr = self.config['lr'][0]
         # parse optimizer args
         # Multi-GPU
         if len(self.config['gpuid']) > 1:
@@ -96,7 +100,7 @@ class Prompt(NormalNN):
         print(f'optimizer params: {"all" if target is None else target} len {len(params_to_opt)}')
 
         optimizer_arg = {'params':params_to_opt,
-                         'lr':self.config['lr'],
+                         'lr':lr,
                          'weight_decay':self.config['weight_decay']}
         if self.config['optimizer'] in ['SGD','RMSprop']:
             optimizer_arg['momentum'] = self.config['momentum']
