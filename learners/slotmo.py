@@ -1917,6 +1917,7 @@ class SLOTPrompt(Prompt):
 
         # refresh cls_stats for different tasks
         self.cls_stats = {}
+        self.cls_stats_n = {}
 
         batch_timer = Timer()
         batch_timer.tic()
@@ -1967,12 +1968,12 @@ class SLOTPrompt(Prompt):
 
                     if label in self.cls_stats.keys():
                         prev_features = self.cls_stats[label]
-                        prev_n_img = self.cls_stats[f'{label}_n']
+                        prev_n_img = self.cls_stats_n[label]
                         avg_features = (prev_features * prev_n_img + avg_features * n_img) / (prev_n_img + n_img)
                         n_img = prev_n_img + n_img
 
                     self.cls_stats[label] = avg_features
-                    self.cls_stats[f'{label}_n'] = n_img
+                    self.cls_stats_n[label] = n_img
 
         model.train(orig_mode)
 
