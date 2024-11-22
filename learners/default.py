@@ -34,6 +34,9 @@ class NormalNN(nn.Module):
         self.top_k = learner_config['top_k']
         self.seed = learner_config['seed']
 
+        # cls statistics
+        self.cls_stats = {}
+
         # replay memory parameters
         self.memory_size = self.config['memory']
         self.task_count = 0
@@ -84,6 +87,62 @@ class NormalNN(nn.Module):
     ##########################################
     #           MODEL TRAINING               #
     ##########################################
+
+    def collect_statistics(self, train_loader, train_dataset, model=None):
+        if model is None:
+            model = self.model
+
+        # refresh cls_stats for different tasks
+        self.cls_stats = {}
+
+        batch_timer = Timer()
+        batch_timer.tic()
+
+        orig_mode = model.training
+        model.eval()
+        batch_timer.tic()
+        for i, sample in enumerate(train_loader):
+            concepts = None
+            if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
+                x, y, concepts, task = sample
+            else:
+                x, y, task = sample
+
+            # verify in train mode
+            self.model.train()
+
+            # send data to gpu
+            if self.gpu:
+                x = x.cuda()
+                y = y.cuda()
+
+            with torch.no_grad():
+                _, features = model.forward(x, pen=True, forward_last=False)
+
+                # label-wise collecting prototypes
+                labels = torch.unique(y)
+                for label in labels:
+                    label = label.item()
+
+                    # collect slots with this label
+                    labeled_features = features[y == label]  # [n_img, 768]
+                    n_img = labeled_features.size(0)
+                    avg_features = torch.mean(labeled_features, dim=0)
+
+                    if label in self.cls_stats.keys():
+                        prev_features = self.cls_stats[label]
+                        prev_n_img = self.cls_stats[f'{label}_n']
+                        avg_features = (prev_features * prev_n_img + avg_features * n_img) / (prev_n_img + n_img)
+                        n_img = prev_n_img + n_img
+
+                    self.cls_stats[label] = avg_features
+                    self.cls_stats[f'{label}_n'] = n_img
+
+        model.train(orig_mode)
+
+        self.log(' * Collect statistics: Total time {time:.2f}'
+                 .format(time=batch_timer.toc()))
+
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
@@ -227,10 +286,18 @@ class NormalNN(nn.Module):
                         concepts = concepts.cuda()  # [bs, 224, 224]        # do not use
             if task_in is None:
                 # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
-                output = model.forward(input)[:, :self.valid_out_dim]
+                with torch.no_grad():
+                    output, features = model.forward(input, pen=True)
 
                 # if self.debug_mode:
                 #     print(f'batch{i}: \noutput:{output}')
+
+                if len(self.cls_stats) == 0:
+                    output = output[:, :self.valid_out_dim]
+                else:
+                    cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
+                    # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                    output = torch.einsum('bd,cd->bc', features, cls_stats)
 
                 acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
             else:
@@ -243,15 +310,26 @@ class NormalNN(nn.Module):
                 input, target = input[mask_ind], target[mask_ind]
                 
                 if len(target) > 1:
+                    with torch.no_grad():
+                        output, features = model.forward(input, pen=True)
+
+                    if len(self.cls_stats) != 0:
+                        cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
+                        # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                        if task_global:
+                            output = torch.einsum('bd,cd->bc', features, cls_stats)
+                        else:
+                            output = torch.einsum('bd,cd->bc', features, cls_stats)
+
                     if task_global:
                         # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
-                        output = model.forward(input)[:, :self.valid_out_dim]
+                        output = output[:, :self.valid_out_dim]
                         acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
                     else:
                         # output = model.forward(input, task_id=task[0].item())[:, task_in]
-                        output = model.forward(input)[:, task_in]
+                        output = output[:, task_in]
                         acc = accumulate_acc(output, target-task_in[0], task, acc, topk=(self.top_k,))
-            
+
         model.train(orig_mode)
 
         if verbal:

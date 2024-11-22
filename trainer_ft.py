@@ -92,7 +92,7 @@ class Trainer:
         self.oracle_flag = args.oracle_flag
         self.add_dim = self.num_tasks
 
-        args.schedule = [100]
+        args.schedule = [0]
 
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
@@ -209,10 +209,15 @@ class Trainer:
             # model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
             # if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
             # set model_save_dir to None to enable training
-            if self.args.eval_every_epoch:
-                avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, test_loader)
+            if self.args.schedule[0] > 0:
+                if self.args.eval_every_epoch:
+                    avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, test_loader)
+                else:
+                    avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, None)
             else:
-                avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, None)
+                # collect class statistics as average of features.
+                self.learner.collect_statistics(train_loader, self.train_dataset)
+                avg_train_time = 0
 
             # # save model
             # self.learner.save_model(model_save_dir)

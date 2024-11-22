@@ -78,8 +78,8 @@ class SLOTPrompt(Prompt):
         # self.e_pool_size = prompt.e_pool_size       # 100
         self.key_d = prompt.key_d                   # 64
 
-        # cls statistics
-        self.cls_stats = {}
+        # # cls statistics   old, put to NormalNN
+        # self.cls_stats = {}
 
         # s2p regularizer
         self.s2p_copy = None
@@ -1572,7 +1572,7 @@ class SLOTPrompt(Prompt):
         max_attns = AverageMeter()
         batch_timer.tic()
 
-        logit_task_mask_top_k = self.config['logit_task_mask_top_k']
+        # logit_task_mask_top_k = self.config['logit_task_mask_top_k']
 
         orig_mode = model.training
         model.eval()
@@ -1704,27 +1704,33 @@ class SLOTPrompt(Prompt):
                         group_by_labels=False,
                         return_features=True,
                     )
-                    out = out[:, :, :self.valid_out_dim]
-                    # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
+                    if len(self.cls_stats) == 0:
+                        out = out[:, :, :self.valid_out_dim]
+                        # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
-                    if self.debug_mode and i == 0:
-                        print(f'out: {out[0, 0]}')
-                        print(f'valid_out_dim: {self.valid_out_dim}')
+                        if self.debug_mode and i == 0:
+                            print(f'out: {out[0, 0]}')
+                            print(f'valid_out_dim: {self.valid_out_dim}')
 
-                    output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
-
-                    if logit_task_mask_top_k > 0:
-                        # apply logit_task_mask_top_k on output
-                        logit = torch.zeros_like(output) * -float('inf')
-                        mk_task_pred = mk_task_pred.t()     # [bs, topk]
-
-                        for sample_id in range(bs):
-                            for task_id in range(logit_task_mask_top_k):
-                                ta = mk_task_pred[sample_id, task_id].item()
-                                logit[sample_id, self.tasks[ta]] = output[sample_id, self.tasks[ta]]
-
+                        output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
                     else:
-                        logit = output
+                        features = features.reshape(bs, -1)     # [bs, 1, 768] -> [bs, 768]
+                        cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
+                        # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                        output = torch.einsum('bd,cd->bc', features, cls_stats)
+
+                    # if logit_task_mask_top_k > 0:
+                    #     # apply logit_task_mask_top_k on output
+                    #     logit = torch.zeros_like(output) * -float('inf')
+                    #     mk_task_pred = mk_task_pred.t()     # [bs, topk]
+                    #
+                    #     for sample_id in range(bs):
+                    #         for task_id in range(logit_task_mask_top_k):
+                    #             ta = mk_task_pred[sample_id, task_id].item()
+                    #             logit[sample_id, self.tasks[ta]] = output[sample_id, self.tasks[ta]]
+                    #
+                    # else:
+                    logit = output
 
                     if self.debug_mode and i == 0:
                         print(f'masked logit: {logit.shape} {logit[0]}')
@@ -1799,12 +1805,23 @@ class SLOTPrompt(Prompt):
                             group_by_labels=False,
                             return_features=True,
                         )
-                        out = out[:, :, :self.valid_out_dim]
+                        if len(self.cls_stats) == 0:
+                            out = out[:, :, :self.valid_out_dim]
+                            # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
-                        if not task_global:
-                            out = out[:, :, task_in]
+                            if not task_global:
+                                out = out[:, :, task_in]
 
-                        output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [s, n_cls]
+                            output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
+                        else:
+                            features = features.reshape(bs, -1)  # [bs, 1, 768] -> [bs, 768]
+                            cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
+                            # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                            output = torch.einsum('bd,cd->bc', features, cls_stats)
+
+                            if not task_global:
+                                output = output[:, task_in]
+
                         if task_global:
                             # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
                             # output = output[:, :self.valid_out_dim]
@@ -1895,6 +1912,74 @@ class SLOTPrompt(Prompt):
         print('=> Save Done')
 
     def collect_statistics(self, train_loader, train_dataset, model=None):
+        if model is None:
+            model = self.model
+
+        # refresh cls_stats for different tasks
+        self.cls_stats = {}
+
+        batch_timer = Timer()
+        batch_timer.tic()
+
+        orig_mode = model.training
+        model.eval()
+        batch_timer.tic()
+        for i, sample in enumerate(train_loader):
+            concepts = None
+            if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
+                x, y, concepts, task = sample
+            else:
+                x, y, task = sample
+
+            # send data to gpu
+            if self.gpu:
+                x = x.cuda()
+                y = y.cuda()
+                # if concepts is not None:
+                #     concepts = concepts.cuda()      # [bs, 224, 224]
+                # task = task.cuda()
+
+            with torch.no_grad():
+                # get slots
+                q = model.obtain_q(x, learn_slots=False)
+                prompts, _, _, _, _ = q  # [bs, 1, k5, d128]
+                bs, t, k, e, p, d = prompts.shape
+                prompts = prompts.reshape(bs, t*k, e, p, d)
+
+                sum_prompts = torch.sum(prompts, dim=1)  # [bs, e, p, d]
+
+                # pen: penultimate features; train: same forward as batch training.
+                _, features = model(
+                    x, q=sum_prompts,
+                    forward_last=False,
+                    pen=True, train=False)
+                # features: [bs, 768]
+
+                # label-wise collecting prototypes
+                labels = torch.unique(y)
+                for label in labels:
+                    label = label.item()
+
+                    # collect slots with this label
+                    labeled_features = features[y == label]  # [n_img, 768]
+                    n_img = labeled_features.size(0)
+                    avg_features = torch.mean(labeled_features, dim=0)
+
+                    if label in self.cls_stats.keys():
+                        prev_features = self.cls_stats[label]
+                        prev_n_img = self.cls_stats[f'{label}_n']
+                        avg_features = (prev_features * prev_n_img + avg_features * n_img) / (prev_n_img + n_img)
+                        n_img = prev_n_img + n_img
+
+                    self.cls_stats[label] = avg_features
+                    self.cls_stats[f'{label}_n'] = n_img
+
+        model.train(orig_mode)
+
+        self.log(' * Collect statistics: Total time {time:.2f}'
+                 .format(time=batch_timer.toc()))
+
+    def collect_slot_statistics(self, train_loader, train_dataset, model=None, save=False):
         t = train_dataset.t
         if model is None:
             model = self.model
@@ -1975,12 +2060,13 @@ class SLOTPrompt(Prompt):
         self.log(' * Collect statistics: Total time {time:.2f}'
                  .format(time=batch_timer.toc()))
 
-        # save statistics
-        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
-        print('=> Saving statistics to:', stats_path)
-        with open(stats_path, 'wb') as f:
-            pickle.dump(self.cls_stats, f)
-        print('=> Save Done')
+        if save:
+            # save statistics
+            stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats.pkl')
+            print('=> Saving statistics to:', stats_path)
+            with open(stats_path, 'wb') as f:
+                pickle.dump(self.cls_stats, f)
+            print('=> Save Done')
 
     def load_statistics(self, t=0):
         stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats_{t}.pkl')

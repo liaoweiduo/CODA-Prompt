@@ -46,10 +46,10 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 for mode in sys pro sub non noc
 do
-#  docker run --rm --runtime=nvidia --gpus device=6 \
-#    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#    -v ~/.cache:/workspace/.cache \
-#    --shm-size 8G liaoweiduo/hide:2.0 \
+  docker run --rm --runtime=nvidia --gpus device=6 \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
   python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
       --learner_type prompt --learner_name CODAPrompt \
       --prompt_param 1 40 0.0 \
