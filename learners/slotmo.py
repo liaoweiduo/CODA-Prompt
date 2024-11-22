@@ -78,9 +78,6 @@ class SLOTPrompt(Prompt):
         # self.e_pool_size = prompt.e_pool_size       # 100
         self.key_d = prompt.key_d                   # 64
 
-        # # cls statistics   old, put to NormalNN
-        # self.cls_stats = {}
-
         # s2p regularizer
         self.s2p_copy = None
 
