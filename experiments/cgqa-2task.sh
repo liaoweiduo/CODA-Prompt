@@ -77,7 +77,7 @@ lr=${lrs[${lr_run_id}]}
 temp=${temps[${temp_run_id}]}
 coeff=${coeffs[${coef_run_id}]}
 device=${devices[${i}]}
-LOGNAME=1-slot_prompt-sMT-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-l1_sol1-dilate1_contrast_cos_pcac${coeff}-lr${lr}
+LOGNAME=1-slot_prompt-s0-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-l1_sol1-dilate1_contrast_cos_pcac${coeff}-lr${lr}
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
@@ -85,7 +85,7 @@ LOGNAME=1-slot_prompt-sMT-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim${temp}-
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 40 10 5 1.0 ${temp} 0.0 1.0 80 0.5 0.0 1.0 ${coeff} \
-    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+    --slot_pre_learn_model 0-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
