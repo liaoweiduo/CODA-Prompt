@@ -30,8 +30,8 @@ do
   python -u run_ft.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 40 10 5 1.0 10 0.0 0.0 0.0 0.0 80 0.0 0.0 0.0 0.0 \
-    --log_dir ${OUTDIR}/1-slot_prompt-sMT-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim10-l1_sol1-dilate1_contrast_cos_pcac0.05-lr1e-3 \
-    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+    --log_dir ${OUTDIR}/1-slot_prompt-s0-p100-l40-k10-nt5-ln-wA-sigmoid-onehotl1-cossim10-l1_sol1-dilate1_contrast_cos_pcac0.05-lr1e-3 \
+    --slot_pre_learn_model 0-slot_attn-pos-k10-nt5-recon_noLN-mk0.5-crosssim80-slot_vsI0.5-slot_lr1e-4 \
     --lr 0.001 \
     --mode ${mode}
   date
