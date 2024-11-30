@@ -52,6 +52,9 @@ def create_args():
     parser.add_argument('--slot_lr', type=float, default=0.0003, help="slot lr")
     parser.add_argument('--slot_schedule_type', type=str, default='cosine')
 
+    # MO Args
+    parser.add_argument('--eval_class_wise', default=False, action='store_true')
+
     # CFST Args
     parser.add_argument('--mode', type=str, default='continual',
                         help="choices: [continual, sys, pro, sub, non, noc]")

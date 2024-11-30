@@ -100,7 +100,7 @@ class Trainer:
         else:
             resize_imnet = False
 
-        return_concepts = False
+        return_concepts = True      # not for training
         train_transform = dataloaders.utils.get_transform(dataset=args.dataset, phase='train', aug=args.train_aug, resize_imnet=resize_imnet)
         test_transform  = dataloaders.utils.get_transform(dataset=args.dataset, phase='test', aug=args.train_aug, resize_imnet=resize_imnet)
         self.train_dataset = Dataset(args.dataroot, train=True, lab = True, tasks=self.tasks,
@@ -108,7 +108,7 @@ class Trainer:
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // 10,
                                      other_split_size=args.other_split_size // 10,
-                                     return_concepts=return_concepts,       # mute for normal
+                                     return_concepts=return_concepts,
                                      mode=args.mode,
                                      )
         # if args.debug_mode == 1:
@@ -118,7 +118,7 @@ class Trainer:
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // 10,
                                      other_split_size=args.other_split_size // 10,
-                                     return_concepts=return_concepts,       # mute for normal
+                                     return_concepts=return_concepts,
                                      mode=args.mode,
                                      )
 
@@ -192,6 +192,27 @@ class Trainer:
             return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
         else:
             return self.learner.validation(test_loader, task_metric=task)
+
+    def class_eval(self, c_index, local=False, task='acc'):
+        # local not impl
+        print('validation class index:', c_index)
+
+        # eval
+        test_dataset = self.test_dataset.get_single_class_dataset(c_index)
+        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False,
+                                 num_workers=self.workers)
+        if self.args.only_learn_slot:
+            # if local:
+            #     return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task,
+            #                                    slot_recon_loss=True)
+            # else:
+            return self.learner.validation(test_loader, task_metric=task,
+                                               slot_recon_loss=True)
+
+        # if local:
+        #     return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
+        # else:
+        return self.learner.validation(test_loader, task_metric=task)
 
     def train(self, avg_metrics):
     
@@ -268,8 +289,28 @@ class Trainer:
             acc_table = []
             acc_table_ssl = []
             self.reset_cluster_labels = True
+
+            if self.args.eval_class_wise:
+                class_wise_acc_table = []
+                unique_labels = self.test_dataset.get_unique_labels()
+                for label in unique_labels:
+                    class_wise_acc_table.append(self.class_eval(label))
+
+                # log
+                for label_id, label in enumerate(unique_labels):
+                    self.learner.epoch_log['scaler']['Tag'].append(f'val_acc/class_{label}')
+                    self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
+                    self.learner.epoch_log['scaler']['Value'].append(class_wise_acc_table[label_id])
+
             for j in range(i+1):
-                acc_table.append(self.task_eval(j))
+                task_acc = self.task_eval(j)
+                acc_table.append(task_acc)
+
+                # log
+                self.learner.epoch_log['scaler']['Tag'].append(f'val_acc/task_{j}')
+                self.learner.epoch_log['scaler']['Idx'].append(i)
+                self.learner.epoch_log['scaler']['Value'].append(task_acc)
+
             temp_table['acc'].append(np.asarray([*acc_table, *[0 for _ in range(i+1, self.max_task)], np.mean(np.asarray(acc_table))]))      # pt and mean
 
             # save temporary acc results

@@ -99,15 +99,18 @@ mkdir -p $OUTDIR
 #    arg 5 = mask: 0.0; -10000: randn; -10001: uniform; -10002: ortho; -10003: None
 #    arg 6 = mask_mode: 0: maskout or 1: use
 #    arg 7 = hv coeff, -1 to use LCQP
-#    --oracle_flag --upper_bound_flag \
-#LEARNERTYPE=pmo
-#LEARNERNAME=PMOPrompt
-#LOGNAME=pmo-f4m-epoch30-first30-min2
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type ${LEARNERTYPE} --learner_name ${LEARNERNAME} \
-#    --prompt_param 21 2 0.0 2 -10003 1 -1 \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#date
+LOGNAME=MT-pmo-f4m-
+docker run -d --rm --runtime=nvidia --gpus device=5 \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type pmo --learner_name PMOPrompt \
+    --prompt_param 21 2 0.0 2 -10003 1 -1 \
+    --eval_class_wise \
+    --oracle_flag --upper_bound_flag \
+    --log_dir ${OUTDIR}/${LOGNAME}
+date
 
 # CODA-P
 #
@@ -119,13 +122,13 @@ mkdir -p $OUTDIR
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name CODAPrompt \
-    --prompt_param 100 40 0.0 \
-    --lr 0.0005 \
-    --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/MT-coda-imagenet-l40-lr5e-4
-    # MT-coda-imagenet-l40
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPrompt \
+#    --prompt_param 100 40 0.0 \
+#    --lr 0.0005 \
+#    --oracle_flag --upper_bound_flag \
+#    --log_dir ${OUTDIR}/MT-coda-imagenet-l40-lr5e-4
+#    # MT-coda-imagenet-l40
 
 # DualPrompt
 #

@@ -118,7 +118,7 @@ class CFSTDataset(data.Dataset):
             else:
                 self.dataset = torch.utils.data.ConcatDataset(
                     [self.target_datasets[ti] for ti in load_task_range])
-
+                self.dataset.targets = np.concatenate([self.target_datasets[ti].targets for ti in load_task_range])
         self.t = t
 
     def get_single_class_dataset(self, label):
@@ -255,7 +255,7 @@ class CGQA(CFSTDataset):
             self.benchmark = cgqa.continual_training_benchmark(
                 10, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
-                train_transform=cgqa.build_transform_for_vit(is_train=True),
+                train_transform=cgqa._build_default_transform(is_train=True),
                 eval_transform=cgqa.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,
@@ -283,7 +283,7 @@ class COBJ(CFSTDataset):
             self.benchmark = cobj.continual_training_benchmark(
                 3, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
-                train_transform=cobj.build_transform_for_vit(is_train=True),
+                train_transform=cobj._build_default_transform(is_train=True),
                 eval_transform=cobj.build_transform_for_vit(is_train=False),
                 dataset_root=os.path.join(self.root, 'CFST'),
                 memory_size=0,

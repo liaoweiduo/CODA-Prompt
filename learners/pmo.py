@@ -37,37 +37,42 @@ class PMOPrompt(CODAPromptCond):
         # self.pool = Pool(self.pool_size, self.seed)
 
         self.train_dataset = None
+        self.t = 0
         self.epoch = 0
+        self.epochs = 0     # total epoch in this task
 
-        # load aux
-        # aux_dataset = dataloaders.CGQA(
-        #     self.config['aux_root'],
-        #     train=False, validation=True, download_flag=False, seed=self.config['seed'])
-        # aux_dataset.load_dataset(9, train=False)   # consider all samples: 100 classes with 5000 samples.
-        # self.aux = Auxiliary(aux_dataset)
+        # # load aux
+        # # aux_dataset = dataloaders.CGQA(
+        # #     self.config['aux_root'],
+        # #     train=False, validation=True, download_flag=False, seed=self.config['seed'])
+        # # aux_dataset.load_dataset(9, train=False)   # consider all samples: 100 classes with 5000 samples.
+        # # self.aux = Auxiliary(aux_dataset)
         self.aux = Auxiliary()
 
+        config = self.config['prompt_param'][1]
+        while len(config) < 3:      # deal with old exps that have not enough config
+            config.append(0)
         # mo
-        self.n_obj = int(self.config['prompt_param'][1][3])
-        self.num_aux_sampling = int(self.config['num_aux_sampling'])
-        self.mask = self.config['prompt_param'][1][4]               # constant float or randn or uniform or ortho
-        self.mask_mode = int(self.config['prompt_param'][1][5])     # maskout or use
-        if int(self.mask) == -10000:
-            self.mask = 'randn'
-        elif int(self.mask) == -10001:
-            self.mask = 'uniform'
-        elif int(self.mask) == -10002:
-            self.mask = 'ortho'
-        elif int(self.mask) == -10003:
-            self.mask = None
-        if self.mask_mode == 0:
-            self.mask_mode = 'maskout'
-        elif self.mask_mode == 1:
-            self.mask_mode = 'use'
-        else:
-            raise Exception(f'Unknown mask mode {self.mask_mode}')
-        print(f'Mask info: {self.mask_mode}->{self.mask}')
-        self.hv_coeff = self.config['prompt_param'][1][6]     # -1 if use LCQP
+        # self.n_obj = int(self.config['prompt_param'][1][3])
+        # self.num_aux_sampling = int(self.config['num_aux_sampling'])
+        # self.mask = self.config['prompt_param'][1][4]               # constant float or randn or uniform or ortho
+        # self.mask_mode = int(self.config['prompt_param'][1][5])     # maskout or use
+        # if int(self.mask) == -10000:
+        #     self.mask = 'randn'
+        # elif int(self.mask) == -10001:
+        #     self.mask = 'uniform'
+        # elif int(self.mask) == -10002:
+        #     self.mask = 'ortho'
+        # elif int(self.mask) == -10003:
+        #     self.mask = None
+        # if self.mask_mode == 0:
+        #     self.mask_mode = 'maskout'
+        # elif self.mask_mode == 1:
+        #     self.mask_mode = 'use'
+        # else:
+        #     raise Exception(f'Unknown mask mode {self.mask_mode}')
+        # print(f'Mask info: {self.mask_mode}->{self.mask}')
+        # self.hv_coeff = self.config['prompt_param'][1][6]     # -1 if use LCQP
 
         try:
             prompt = self.model.module.prompt
@@ -81,34 +86,21 @@ class PMOPrompt(CODAPromptCond):
         # cls statistics
         self.cls_stats = {}
 
-        # log
-        self.epoch_log = dict()
-        self.init_train_log()
-
-    def init_train_log(self):
-        self.epoch_log = dict()
-        # Tag: acc/loss
-        self.epoch_log['mo'] = {'Tag': [], 'Pop_id': [], 'Obj_id': [], 'Epoch_id': [], 'Inner_id': [], 'Value': []}
-        # 'loss/hv_loss'
-        self.epoch_log['scaler'] = {'Tag': [], 'Idx': [], 'Value': []}
-
-    def train_log_to_df(self):
-        self.epoch_log['mo'] = pd.DataFrame(self.epoch_log['mo'])
-        self.epoch_log['scaler'] = pd.DataFrame(self.epoch_log['scaler'])
-
-    def create_model(self, use_vit_emb=False, use_vit_fea=False):
+    def create_model(self):
         cfg = self.config
-        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'pmo',prompt_param=self.prompt_param, use_vit_emb=use_vit_emb, use_vit_fea=use_vit_fea)
+        model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'pmo',prompt_param=self.prompt_param, use_vit_emb=True, use_vit_fea=False)
         return model
 
+    # data weighting
+    def data_weighting(self, dataset, num_seen=None):
+        # for ablation
+        self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
+        # cuda
+        if self.cuda:
+            self.dw_k = self.dw_k.cuda()
+
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
-        """Difference:
-        Init training log for mo.
-        Change aux dataset.
-        Save batch_idx
-        See nvidia-smi.
-        """
-        return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
+        # return self.learn_batch_diff_stage(train_loader, train_dataset, model_save_dir, val_loader)
 
         self.init_train_log()
 
@@ -129,13 +121,15 @@ class PMOPrompt(CODAPromptCond):
             self.log('Optimizer is reset!')
             self.init_optimizer()
 
-        # data weighting
-        self.data_weighting(train_dataset)
         if need_train:
             losses = AverageMeter()
             acc = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
+
+            # data weighting
+            self.data_weighting(train_dataset)
+
             for epoch in range(self.config['schedule'][-1]):
                 self.epoch = epoch
 
@@ -159,15 +153,15 @@ class PMOPrompt(CODAPromptCond):
                     if self.gpu:
                         x = x.cuda()
                         y = y.cuda()
-                        # if concepts is not None:
-                        #     concepts = concepts.cuda()      # [bs, 224, 224]
+                        if concepts is not None:
+                            concepts = concepts.cuda()      # [bs, 224, 224]
                         # task = task.cuda()
 
                     # # debug
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output = self.update_model_pop_prompt(x, y)      # , task
+                    loss, output = self.update_model(x, y)      # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())

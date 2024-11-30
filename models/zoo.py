@@ -715,9 +715,12 @@ class PatchPrompt(CodaPromptCond):
         return p_return, loss, x_block
 
 
-class PmoPrompt(CodaPromptCond):
+class PmoPrompt(CodaPrompt):
     def __init__(self, emb_d, n_tasks, prompt_param, key_dim=768):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
+
+        # trigger fixed prompt size (FPS)
+        self.FPS = False         # set to False to use origin coda-p
 
         if self.FPS:
             self.n_prompt_per_task = int(self.e_pool_size)  # num of prompts
@@ -821,10 +824,21 @@ class PmoPrompt(CodaPromptCond):
             mask_mode: 'maskout' or 'use'
             pre_learn: True to only use ViT or old prompt
         """
-        return self.forward_image_wise(x_querry, l, x_block, train, task_id,
-                                       hard_obj_idx, hard_l, mask, mask_mode,
-                                       pre_learn, debug_mode, return_aqk=return_aqk, concepts=concepts,
-                                       **kwargs)
+        return self.forward_ori(
+            x_querry, l, x_block, train, task_id,
+            hard_obj_idx, hard_l, mask, mask_mode,
+            pre_learn, debug_mode, return_aqk=return_aqk, concepts=concepts,
+            **kwargs)
+
+    def handle_x_querry(self, x_querry, x_block, l):
+        if x_querry is None:
+            raise ValueError('x_querry is None')
+        # x_querry should be
+        return x_querry
+
+    def forward_with_index(self, ):
+        """x_querry is the indices of prompts used for each image sample"""
+        pass
 
     def forward_ori(self, x_querry, l, x_block, train=False, task_id=None,
                 hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
@@ -1552,6 +1566,10 @@ def tensor_prompt(a, b=None, c=None, d=None, ortho=False) -> torch.nn.Parameter:
 class ViTZoo(nn.Module):
     def __init__(self, num_classes=10, pt=False, prompt_flag=False, prompt_param=None,
                  use_vit_emb=True, use_vit_fea=False):
+        """
+        use_vit_emb: True if use vit as backbone to obtain image/task-conditioned prompt
+        use_vit_fea: True if use vit's patch-wise features.
+        """
         super(ViTZoo, self).__init__()
 
         self.num_classes = num_classes
@@ -1644,7 +1662,7 @@ class ViTZoo(nn.Module):
         if self.prompt is not None:
             if self.use_vit_emb and q is None:
                 with torch.no_grad():
-                    if cond_x is not None:  # condition model
+                    if cond_x is not None:  # condition input
                         q, _, _ = self.feat(cond_x)
                     else:
                         q, _, _ = self.feat(x)
