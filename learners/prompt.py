@@ -94,7 +94,10 @@ class Prompt(NormalNN):
             params_to_opt = [param for key, param in prompt.named_parameters()
                              if 'e_k_' in key or 'e_a_' in key] + list(last.parameters())
         else:
-            params_to_opt = list(prompt.parameters()) + list(last.parameters())
+            if prompt is None:
+                params_to_opt = list(last.parameters())
+            else:
+                params_to_opt = list(prompt.parameters()) + list(last.parameters())
 
         print('******************* init optimizer **********************')
         print(f'optimizer params: {"all" if target is None else target} len {len(params_to_opt)}')

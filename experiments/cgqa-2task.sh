@@ -177,4 +177,3 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --eval_class_wise \
     --oracle_flag --upper_bound_flag \
     --log_dir ${OUTDIR}/MT-vit_pretrain
-date
