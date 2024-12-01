@@ -129,7 +129,7 @@ mkdir -p $OUTDIR
 #    --log_dir ${OUTDIR}/MT-1p-l40
 
 REPEAT=1
-for cls_id in {0..99}; do
+for c_id in {0..20}; do
 docker run --rm --runtime=nvidia --gpus device=1 \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
@@ -138,10 +138,10 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 1 40 0.0 \
     --lr 0.001 \
-    --learn_class_id ${cls_id} \
+    --target_concept_id ${c_id} \
     --eval_class_wise \
     --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/MT-cls-1p-l40/${cls_id}
+    --log_dir ${OUTDIR}/MT-concept-1p-l40/${c_id}
 done
 
 

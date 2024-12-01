@@ -204,31 +204,40 @@ class CFSTDataset(data.Dataset):
         label_str = ori_label_2_str[ori_label]
         return label_str, [task_id, label_id]
 
-    def get_concepts(self, index, mode='label'):
+    def get_concepts(self, index=-1, mode='label'):
         """Obtain concepts [Option:
         'label': concept labels [1, 2] # additional dim for dataloader;
         'mask': img mask [224, 224] ]
         """
         if self.target_sample_info is not None and mode in ['label', 'mask']:
             map_int_concepts_label_to_str = self.benchmark.label_info[3]['map_int_concepts_label_to_str']
-            concepts = self.target_sample_info[index][2]    # e.g., [10, 15]
-            concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
-            if mode == 'label':
-                concepts = torch.tensor(concepts).long()
-                concepts = self.process_concepts(concepts, self.num_concepts)
-                concepts = concepts.reshape(1, concepts.size(0))    # shape [1, 21]
-                return concepts, None, concepts_str
-            elif mode == 'mask':
-                img_shape = self.benchmark.x_dim[1:]        # [3, 224, 224] -> [224, 224]
-                concepts = torch.tensor(concepts).long()
-                position = self.target_sample_info[index][3]    # e.g., [4, 3]
-                position = torch.tensor(position).long()
-                mask = torch.zeros(4).long()
-                mask[position-1] = concepts
-                mask[mask == 0] = self.num_concepts
-                mask = mask.reshape(2, 2).repeat_interleave(
-                    img_shape[0]//2, dim=0).repeat_interleave(img_shape[1]//2, dim=1)
-                return mask, position.numpy().tolist(), concepts_str
+
+            if index >= 0:
+                concepts = self.target_sample_info[index][2]    # e.g., [10, 15]
+                concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
+                if mode == 'label':
+                    concepts = torch.tensor(concepts).long()
+                    concepts = self.process_concepts(concepts, self.num_concepts)
+                    concepts = concepts.reshape(1, concepts.size(0))    # shape [1, 21]
+                    return concepts, None, concepts_str
+                elif mode == 'mask':
+                    img_shape = self.benchmark.x_dim[1:]        # [3, 224, 224] -> [224, 224]
+                    concepts = torch.tensor(concepts).long()
+                    position = self.target_sample_info[index][3]    # e.g., [4, 3]
+                    position = torch.tensor(position).long()
+                    mask = torch.zeros(4).long()
+                    mask[position-1] = concepts
+                    mask[mask == 0] = self.num_concepts
+                    mask = mask.reshape(2, 2).repeat_interleave(
+                        img_shape[0]//2, dim=0).repeat_interleave(img_shape[1]//2, dim=1)
+                    return mask, position.numpy().tolist(), concepts_str
+            else:   # return all label's concept
+                concepts_list = [
+                    self.process_concepts(
+                        torch.tensor(self.target_sample_info[idx][2]).long(), self.num_concepts
+                    ) for idx in range(len(self))]
+                concepts_list = torch.stack(concepts_list)  # [len_datasets, n_concepts]
+                return concepts_list
 
         return None, None, None
 

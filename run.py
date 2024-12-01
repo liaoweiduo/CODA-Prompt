@@ -32,7 +32,6 @@ def create_args():
     parser.add_argument('--overwrite', type=int, default=0, metavar='N', help='Train regardless of whether saved model exists')
     parser.add_argument('--lr', nargs="+", type=float, default=[0.001, 0.001], help="lr")
     parser.add_argument('--batch_size', type=int, default=32, help="temperature for distillation")
-    parser.add_argument('--learn_class_id', type=int, default=-1, help="specify specific class to train")
 
     # CL Args          
     parser.add_argument('--oracle_flag', default=False, action='store_true',
@@ -55,6 +54,7 @@ def create_args():
 
     # MO Args
     parser.add_argument('--eval_class_wise', default=False, action='store_true')
+    parser.add_argument('--target_concept_id', type=int, default=-1, help="specify specific concept to weight")
 
     # CFST Args
     parser.add_argument('--mode', type=str, default='continual',
