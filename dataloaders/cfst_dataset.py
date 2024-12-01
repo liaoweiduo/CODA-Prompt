@@ -129,7 +129,7 @@ class CFSTDataset(data.Dataset):
         else:
             targets = np.concatenate([self.dataset.datasets[t].targets for t in self.dataset.datasets])
         cls_indices = np.where(targets == label)[0]
-        return torch.utils.data.Subset(self.dataset, cls_indices)
+        return torch.utils.data.Subset(self, cls_indices)
 
     def get_unique_labels(self):
         targets = self.dataset.targets
