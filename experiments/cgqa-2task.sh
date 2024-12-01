@@ -101,14 +101,14 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    --oracle_flag --upper_bound_flag \
-#LOGNAME=MT-pmo-1p-all
+#LOGNAME=MT-pmo-cls-1p-l40
 #docker run -d --rm --runtime=nvidia --gpus device=6 \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
 #python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type pmo --learner_name PMOPrompt \
-#    --prompt_param 1 40 0.0 \
+#    --prompt_param 100 40 0.0 \
 #    --eval_class_wise \
 #    --oracle_flag --upper_bound_flag \
 #    --log_dir ${OUTDIR}/${LOGNAME}
@@ -120,10 +120,6 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#docker run -d --rm --runtime=nvidia --gpus device=2 \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
 #python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type prompt --learner_name CODAPrompt \
 #    --prompt_param 1 40 0.0 \
@@ -131,6 +127,23 @@ mkdir -p $OUTDIR
 #    --eval_class_wise \
 #    --oracle_flag --upper_bound_flag \
 #    --log_dir ${OUTDIR}/MT-1p-l40
+
+REPEAT=1
+for cls_id in {0..99}; do
+docker run --rm --runtime=nvidia --gpus device=1 \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPrompt \
+    --prompt_param 1 40 0.0 \
+    --lr 0.001 \
+    --learn_class_id ${cls_id} \
+    --eval_class_wise \
+    --oracle_flag --upper_bound_flag \
+    --log_dir ${OUTDIR}/MT-cls-1p-l40/${cls_id}
+done
+
 
 # DualPrompt
 #
@@ -167,13 +180,13 @@ mkdir -p $OUTDIR
 
 # vit-pretrain
 #
-docker run -d --rm --runtime=nvidia --gpus device=0 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name Prompt \
-    --prompt_param 10 10 -1 \
-    --eval_class_wise \
-    --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/MT-vit_pretrain
+#docker run -d --rm --runtime=nvidia --gpus device=0 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name Prompt \
+#    --prompt_param 10 10 -1 \
+#    --eval_class_wise \
+#    --oracle_flag --upper_bound_flag \
+#    --log_dir ${OUTDIR}/MT-vit_pretrain
