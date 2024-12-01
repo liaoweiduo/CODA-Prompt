@@ -47,6 +47,7 @@ class CFSTDataset(data.Dataset):
         if len(self.benchmark.label_info) == 4 and return_concepts:
             if 'concept_set' in self.benchmark.label_info[3].keys():
                 self.num_concepts = len(self.benchmark.label_info[3]['concept_set'])
+                print(f'num_concepts: {self.num_concepts}.')
                 if self.train:
                     self.target_sample_info = self.benchmark.label_info[3]['train_list']
                 elif self.validation:
