@@ -261,7 +261,12 @@ class Trainer:
             # self.train_dataset.update_coreset(self.learner.memory_size, np.arange(self.learner.last_valid_out_dim))
 
             # load dataloader
-            train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=int(self.workers))
+            if self.args.learn_class_id == -1:
+                train_dataset = self.train_dataset
+            else:
+                train_dataset = self.train_dataset.get_single_class_dataset(self.args.learn_class_id)
+                print(f'Train on class {self.args.learn_class_id} with len {len(train_dataset)}.')
+            train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=int(self.workers))
 
             # increment task id in prompting modules
             if i > 0:

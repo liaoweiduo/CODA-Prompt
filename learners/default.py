@@ -145,7 +145,6 @@ class NormalNN(nn.Module):
         self.log(' * Collect statistics: Total time {time:.2f}'
                  .format(time=batch_timer.toc()))
 
-
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
         
