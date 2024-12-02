@@ -46,7 +46,9 @@ class Prompt(NormalNN):
         if self.memory_size == 0:       # replay-based will have old tasks which may cause inf loss
             logits[:,:self.last_valid_out_dim] = -float('inf')
             # logits[:,:self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
-        dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
+        
+        dw_cls = self.dw_k[targets.long()]
+        # dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
         total_loss = self.criterion(logits, targets.long(), dw_cls)
 
         # # debug

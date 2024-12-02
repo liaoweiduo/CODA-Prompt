@@ -160,6 +160,7 @@ class Trainer:
             'slot_lr': args.slot_lr,
             'logit_task_mask_top_k': args.logit_task_mask_top_k,
             'slot_schedule_type': args.slot_schedule_type,
+            'target_concept_id': args.target_concept_id, 
         }
         # pmo settings
         if len(args.prompt_param) > 3:

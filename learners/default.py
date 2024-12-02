@@ -33,6 +33,7 @@ class NormalNN(nn.Module):
         self.tasks = learner_config['tasks']
         self.top_k = learner_config['top_k']
         self.seed = learner_config['seed']
+        self.target_concept_id = learner_config['target_concept_id']
 
         # cls statistics
         self.cls_stats = {}
@@ -347,12 +348,16 @@ class NormalNN(nn.Module):
 
     # data weighting
     def data_weighting(self, dataset, num_seen=None):
-        # if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
-        #     pass
-        #     # concepts = dataset.get_concepts()
-        #
-        # else:
+        
         self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
+        # if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
+        if dataset.target_sample_info is not None:
+            concepts = dataset.get_concepts()   # [n_cls * [list of concepts: e.g., 1, 10]]
+            target_concept = self.target_concept_id 
+            for cls_id in range(self.valid_out_dim): 
+                if target_concept in concepts[cls_id]: 
+                    self.dw_k[cls_id] = 2
+            
         # cuda
         if self.cuda:
             self.dw_k = self.dw_k.cuda()

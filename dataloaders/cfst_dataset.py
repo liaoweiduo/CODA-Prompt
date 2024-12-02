@@ -45,17 +45,18 @@ class CFSTDataset(data.Dataset):
         # for concepts
         self.target_sample_info = None
         if len(self.benchmark.label_info) == 4 and return_concepts:
-            if 'concept_set' in self.benchmark.label_info[3].keys():
+            if 'concept_set' in self.benchmark.label_info[3].keys():    # continual
                 self.num_concepts = len(self.benchmark.label_info[3]['concept_set'])
                 print(f'num_concepts: {self.num_concepts}.')
+                self.map_int_label_to_concept = self.benchmark.label_info[3]['map_int_label_to_concept']
                 if self.train:
                     self.target_sample_info = self.benchmark.label_info[3]['train_list']
                 elif self.validation:
                     self.target_sample_info = self.benchmark.label_info[3]['val_list']
                 else:
                     self.target_sample_info = self.benchmark.label_info[3]['test_list']
-            else:
-                self.target_sample_info = self.benchmark.label_info[3]['img_list']
+            # else:       # CFST
+            #     self.target_sample_info = self.benchmark.label_info[3]['img_list']
 
         # Pool
         self.memory = Pool(0, self.seed)   # memory size will change in update_coreset()
@@ -211,7 +212,7 @@ class CFSTDataset(data.Dataset):
         """
         if self.target_sample_info is not None and mode in ['label', 'mask']:
             map_int_concepts_label_to_str = self.benchmark.label_info[3]['map_int_concepts_label_to_str']
-
+            map_int_label_to_concept = self.benchmark.label_info[3]['map_int_label_to_concept']
             if index >= 0:
                 concepts = self.target_sample_info[index][2]    # e.g., [10, 15]
                 concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
@@ -232,13 +233,16 @@ class CFSTDataset(data.Dataset):
                         img_shape[0]//2, dim=0).repeat_interleave(img_shape[1]//2, dim=1)
                     return mask, position.numpy().tolist(), concepts_str
             else:   # return all label's concept
-                concepts_list = [
-                    self.process_concepts(
-                        torch.tensor(self.target_sample_info[idx][2]).long(), self.num_concepts
-                    ) for idx in range(len(self))]
-                concepts_list = torch.stack(concepts_list)  # [len_datasets, n_concepts]
+                concepts = [map_int_label_to_concept[label] for label in range(len(map_int_label_to_concept.keys()))]
+                # [n_cls * [list of concepts: e.g., 1, 10]]
+                
+                # concepts_list = [
+                #     self.process_concepts(
+                #         torch.tensor(self.target_sample_info[idx][2]).long(), self.num_concepts
+                #     ) for idx in range(len(self))]
+                # concepts_list = torch.stack(concepts_list)  # [len_datasets, n_concepts]
 
-                return concepts_list
+                return concepts
 
         return None, None, None
 

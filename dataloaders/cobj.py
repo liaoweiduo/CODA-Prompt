@@ -526,6 +526,13 @@ def _get_obj365_datasets(
         preprocess_label_to_integer(val_img_info, map_tuple_label_to_int, prefix='continual/val/')
         preprocess_label_to_integer(test_img_info, map_tuple_label_to_int, prefix='continual/test/')
 
+        '''map label to concepts'''
+        map_int_label_to_concept = dict()
+        for item in val_img_info:
+            if item['label'] not in map_int_label_to_concept.keys(): 
+                map_int_label_to_concept[item['label']] = item['concepts']
+        # 0: [1, 10]...
+        
         '''if num_samples_each_label provided, sample images to balance each class for train set'''
         selected_train_images = []
         if num_samples_each_label is not None and num_samples_each_label > 0:
@@ -588,6 +595,7 @@ def _get_obj365_datasets(
             "concept_set": concept_set,
             "mapping_tuple_label_to_int_concepts": mapping_tuple_label_to_int_concepts,
             "map_int_concepts_label_to_str": map_int_concepts_label_to_str,
+            "map_int_label_to_concept": map_int_label_to_concept, 
             "train_list": train_list, "val_list": val_list, "test_list": test_list}
         label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
