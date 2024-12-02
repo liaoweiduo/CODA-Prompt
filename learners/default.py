@@ -382,8 +382,8 @@ class NormalNN(nn.Module):
             #     del state_dict['last.weight']; del state_dict['last.bias']
             # self.model.load_state_dict(state_dict, strict=False)
         self.model.load_state_dict(state_dict, strict=False)
-        # self.log('=> Load Done')
-        self.log(f'=> Load Done with params {list(state_dict.keys())}')
+        self.log('=> Load Done')
+        # self.log(f'=> Load Done with params {list(state_dict.keys())}')
 
         if freeze:
             self.log('=> Freeze backbone')     # on CFST

@@ -327,7 +327,7 @@ class Trainer:
             if avg_train_time is not None: avg_metrics['time']['global'][i] = avg_train_time
 
             '''save epoch log'''
-            if hasattr(self.learner, 'epoch_log') and not os.path.exists(temp_dir + f'log_t{i}' + '.pkl'):
+            if hasattr(self.learner, 'epoch_log') and not os.path.exists(temp_dir + f'log_seed{self.seed}_t{i}' + '.pkl'):
                 self.learner.train_log_to_df()
                 epoch_log = self.learner.epoch_log
 
