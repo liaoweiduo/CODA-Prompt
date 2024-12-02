@@ -347,12 +347,12 @@ class NormalNN(nn.Module):
 
     # data weighting
     def data_weighting(self, dataset, num_seen=None):
-        if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
-            pass
-            # concepts = dataset.get_concepts()
-
-        else:
-            self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
+        # if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
+        #     pass
+        #     # concepts = dataset.get_concepts()
+        #
+        # else:
+        self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
         # cuda
         if self.cuda:
             self.dw_k = self.dw_k.cuda()

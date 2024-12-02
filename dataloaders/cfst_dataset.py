@@ -237,6 +237,7 @@ class CFSTDataset(data.Dataset):
                         torch.tensor(self.target_sample_info[idx][2]).long(), self.num_concepts
                     ) for idx in range(len(self))]
                 concepts_list = torch.stack(concepts_list)  # [len_datasets, n_concepts]
+
                 return concepts_list
 
         return None, None, None
