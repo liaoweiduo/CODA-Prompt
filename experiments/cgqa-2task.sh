@@ -120,29 +120,29 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPrompt \
-#    --prompt_param 1 40 0.0 \
-#    --lr 0.001 \
-#    --eval_class_wise \
-#    --oracle_flag --upper_bound_flag \
-#    --log_dir ${OUTDIR}/MT-1p-l40
-
-REPEAT=1
-for c_id in {0..20}; do
-docker run --rm --runtime=nvidia --gpus device=1 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 1 40 0.0 \
     --lr 0.001 \
-    --target_concept_id ${c_id} \
     --eval_class_wise \
     --oracle_flag --upper_bound_flag \
-    --log_dir ${OUTDIR}/MT-concept-1p-l40/${c_id}
-done
+    --log_dir ${OUTDIR}/MT-1p-l40
+
+#REPEAT=1
+#for c_id in {0..20}; do
+#docker run --rm --runtime=nvidia --gpus device=1 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name CODAPrompt \
+#    --prompt_param 1 40 0.0 \
+#    --lr 0.001 \
+#    --target_concept_id ${c_id} \
+#    --eval_class_wise \
+#    --oracle_flag --upper_bound_flag \
+#    --log_dir ${OUTDIR}/MT-concept-1p-l40/${c_id}
+#done
 
 
 # DualPrompt
