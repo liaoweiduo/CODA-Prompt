@@ -212,7 +212,8 @@ class CFSTDataset(data.Dataset):
         """
         if self.target_sample_info is not None and mode in ['label', 'mask']:
             map_int_concepts_label_to_str = self.benchmark.label_info[3]['map_int_concepts_label_to_str']
-            map_int_label_to_concept = self.benchmark.label_info[3]['map_int_label_to_concept']
+            map_int_label_to_concept = self.benchmark.label_info[3]['map_int_label_to_concept']     # exact label
+            original_classes_in_exp = self.benchmark.original_classes_in_exp.flatten()
             if index >= 0:
                 concepts = self.target_sample_info[index][2]    # e.g., [10, 15]
                 concepts_str = [map_int_concepts_label_to_str[idxx] for idxx in concepts]
@@ -233,7 +234,9 @@ class CFSTDataset(data.Dataset):
                         img_shape[0]//2, dim=0).repeat_interleave(img_shape[1]//2, dim=1)
                     return mask, position.numpy().tolist(), concepts_str
             else:   # return all label's concept
-                concepts = [map_int_label_to_concept[label] for label in range(len(map_int_label_to_concept.keys()))]
+                concepts = [
+                    map_int_label_to_concept[original_classes_in_exp[label]]
+                    for label in range(len(map_int_label_to_concept.keys()))]
                 # [n_cls * [list of concepts: e.g., 1, 10]]
                 
                 # concepts_list = [

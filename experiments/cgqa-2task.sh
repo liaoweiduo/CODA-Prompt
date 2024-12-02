@@ -133,8 +133,8 @@ mkdir -p $OUTDIR
 #     --log_dir ${OUTDIR}/MT-1p-l40
 
 REPEAT=1
-devices=(0 1 2 3 4 5 6); i=-1
-for c_id in {0..6}; do
+devices=(0 1 2 3 4); i=-1
+for c_id in {0..4}; do
 ((i++))
 device=${devices[${i}]}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
