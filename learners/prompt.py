@@ -82,27 +82,42 @@ class Prompt(NormalNN):
             last = self.model.last
             prompt = self.model.prompt
 
+        params_to_opt, names = [], []
         if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
             # if fewshot testing self.config['mode'], only learn classifier: model.last
-            params_to_opt = list(last.parameters())
+            for k, p in self.model.named_parameters():
+                if 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'last':
-            params_to_opt = list(last.parameters())
+            for k, p in self.model.named_parameters():
+                if 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'prompt':
-            params_to_opt = list(prompt.parameters())
+            for k, p in self.model.named_parameters():
+                if 'prompt' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'p':
-            params_to_opt = [param for key, param in prompt.named_parameters()
-                             if 'e_p_' in key] + list(last.parameters())
+            for k, p in self.model.named_parameters():
+                if 'e_p_' in k or 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         elif target == 'ka':
-            params_to_opt = [param for key, param in prompt.named_parameters()
-                             if 'e_k_' in key or 'e_a_' in key] + list(last.parameters())
+            for k, p in self.model.named_parameters():
+                if 'e_k_' in k or 'e_a_' in k or 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
         else:
-            if prompt is None:
-                params_to_opt = list(last.parameters())
-            else:
-                params_to_opt = list(prompt.parameters()) + list(last.parameters())
+            for k, p in self.model.named_parameters():
+                if 'prompt' in k or 'last' in k:
+                    params_to_opt.append(p)
+                    names.append(k)
 
         print('******************* init optimizer **********************')
         print(f'optimizer params: {"all" if target is None else target} len {len(params_to_opt)}')
+        print(f'{names}')
 
         optimizer_arg = {'params':params_to_opt,
                          'lr':lr,

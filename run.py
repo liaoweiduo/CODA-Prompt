@@ -54,6 +54,7 @@ def create_args():
 
     # MO Args
     parser.add_argument('--eval_class_wise', default=False, action='store_true')
+    parser.add_argument('--concept_weight', default=False, action='store_true')
     parser.add_argument('--target_concept_id', type=int, default=-1, help="specify specific concept to weight")
 
     # CFST Args

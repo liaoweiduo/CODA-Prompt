@@ -102,30 +102,19 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    --oracle_flag --upper_bound_flag \
 LOGNAME=pmo-concept-1p-l40
-docker run -d --rm --runtime=nvidia --gpus device=6 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
+#docker run -d --rm --runtime=nvidia --gpus device=6 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type pmo --learner_name PMOPrompt \
     --prompt_param 21 40 0.0 \
+    --lr 0.001 \
+    --concept_weight \
     --eval_class_wise \
+    --oracle_flag --upper_bound_flag \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
-
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 1 40 0.0 \
-   --lr 0.001 \
-   --target_concept_id ${c_id} \
-   --eval_class_wise \
-   --oracle_flag --upper_bound_flag \
-   --log_dir ${OUTDIR}/MT-concept-1p-l40/${c_id}
-
 
 # CODA-P
 #

@@ -259,7 +259,8 @@ class NormalNN(nn.Module):
         self.optimizer.step()
         return total_loss.detach(), logits
 
-    def validation(self, dataloader, model=None, task_in = None, task_metric='acc',  verbal = True, task_global=False):
+    def validation(self, dataloader, model=None, task_in = None, task_metric='acc',  verbal = True, task_global=False,
+                   **kwargs):
         # pass task to forward if task-awareness
         if model is None:
             model = self.model
@@ -297,7 +298,7 @@ class NormalNN(nn.Module):
             if task_in is None:
                 # output = model.forward(input, task_id=task[0].item())[:, :self.valid_out_dim]
                 with torch.no_grad():
-                    output, features = model.forward(input, pen=True)
+                    output, features = model.forward(input, pen=True, **kwargs)
 
                 # if self.debug_mode:
                 #     print(f'batch{i}: \noutput:{output}')
@@ -320,7 +321,7 @@ class NormalNN(nn.Module):
                 
                 if len(target) > 1:
                     with torch.no_grad():
-                        output, features = model.forward(input, pen=True)
+                        output, features = model.forward(input, pen=True, **kwargs)
 
                     if len(self.cls_stats) != 0:
                         features = nn.functional.normalize(features, dim=1)

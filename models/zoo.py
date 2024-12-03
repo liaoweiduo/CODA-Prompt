@@ -816,7 +816,7 @@ class PmoPrompt(CodaPrompt):
     def forward(self, x_querry, l, x_block, train=False, task_id=None,
                 hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',
                 pre_learn=False,
-                debug_mode=False, return_aqk=False, concepts=None, **kwargs):
+                debug_mode=False, return_aqk=False, concepts=None, prompt_id=-1, **kwargs):
         """Differences:
             Use hard_obj_idx and hard_l to locate mask for prompt.
             hard_obj_idx can be -1 to select all old prompts.
@@ -824,11 +824,13 @@ class PmoPrompt(CodaPrompt):
             mask_mode: 'maskout' or 'use'
             pre_learn: True to only use ViT or old prompt
         """
-        return self.forward_ori(
-            x_querry, l, x_block, train, task_id,
-            hard_obj_idx, hard_l, mask, mask_mode,
-            pre_learn, debug_mode, return_aqk=return_aqk, concepts=concepts,
-            **kwargs)
+
+        # return self.forward_ori(
+        #     x_querry, l, x_block, train, task_id,
+        #     hard_obj_idx, hard_l, mask, mask_mode,
+        #     pre_learn, debug_mode, return_aqk=return_aqk, concepts=concepts,
+        #     **kwargs)
+        return self.forward_separately(x_querry, l, x_block, train=train, prompt_id=prompt_id)
 
     def handle_x_querry(self, x_querry, x_block, l):
         if x_querry is None:
@@ -836,9 +838,53 @@ class PmoPrompt(CodaPrompt):
         # x_querry should be
         return x_querry
 
-    def forward_with_index(self, ):
-        """x_querry is the indices of prompts used for each image sample"""
-        pass
+    def forward_separately(self, x_querry, l, x_block, train=False, prompt_id=-1):
+        x_querry = self.handle_x_querry(x_querry, x_block, l)   # [bs, 768]
+        # e prompts
+        e_valid = False
+        if l in self.e_layers:
+            e_valid = True
+            B, C = x_querry.shape  # [bs, 768]
+            K, A, p, s, f = self.KAPselection(l, False, train)
+            if prompt_id >= 0:
+                aq_k = torch.zeros((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
+                aq_k[:, prompt_id] = 1
+            else:       # select using attn
+                # b = bs, d = 768, k = 100, l=8
+                # with attention and cosine sim
+                # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+                a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+                # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+                n_K = nn.functional.normalize(K, dim=1)
+                q = nn.functional.normalize(a_querry, dim=2)
+                aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+
+            # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
+            P_ = torch.einsum('bk,kld->bld', aq_k, p)
+
+            # select prompts
+            i = int(self.e_p_length / 2)  # 8 / 2
+            Ek = P_[:, :i, :]
+            Ev = P_[:, i:, :]
+
+            # ortho penalty
+            if train and self.ortho_mu > 0:
+                loss = ortho_penalty(K) * self.ortho_mu
+                loss += ortho_penalty(A) * self.ortho_mu
+                loss += ortho_penalty(p.view(p.shape[0], -1)) * self.ortho_mu
+            else:
+                loss = 0
+        else:
+            loss = 0
+
+        # combine prompts for prefix tuning
+        if e_valid:
+            p_return = [Ek, Ev]
+        else:
+            p_return = None
+
+        # return
+        return p_return, loss, x_block
 
     def forward_ori(self, x_querry, l, x_block, train=False, task_id=None,
                 hard_obj_idx=None, hard_l=None, mask=None, mask_mode='use',

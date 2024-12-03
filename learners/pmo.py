@@ -38,6 +38,7 @@ class PMOPrompt(Prompt):
         self.t = 0
         self.epoch = 0
         self.epochs = 0     # total epoch in this task
+        self.concept_weight = self.config['concept_weight']  # True to use concept to weight data.
 
         config = self.config['prompt_param'][1]
         while len(config) < 3:      # deal with old exps that have not enough config
@@ -51,7 +52,7 @@ class PMOPrompt(Prompt):
             prompt = self.model.prompt
         self.e_layers = prompt.e_layers
         self.n_prompt_per_task = prompt.n_prompt_per_task
-        self.n_obj_avail = prompt.n_obj
+        # self.n_obj_avail = prompt.n_obj
         self.FPS = prompt.FPS
 
         # cls statistics
@@ -62,17 +63,58 @@ class PMOPrompt(Prompt):
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'pmo',prompt_param=self.prompt_param, use_vit_emb=True, use_vit_fea=False)
         return model
 
+    def load_model(self, filename, drop_last=False, freeze=False):
+        state_dict = torch.load(filename + 'class.pth')
+        # complete with/without module.
+        for key in list(state_dict.keys()):
+            if 'module' in key:
+                state_dict[key[7:]] = state_dict[key]
+            else:
+                state_dict[f'module.{key}'] = state_dict[key]
+        if drop_last:
+            del state_dict['module.last.weight']; del state_dict['module.last.bias']
+            del state_dict['last.weight']; del state_dict['last.bias']
+            # if 'module.last.weight' in state_dict:
+            #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
+            # else:
+            #     del state_dict['last.weight']; del state_dict['last.bias']
+            # self.model.load_state_dict(state_dict, strict=False)
+        self.model.load_state_dict(state_dict, strict=False)
+        self.log('=> Load Done')
+        # self.log(f'=> Load Done with params {list(state_dict.keys())}')
+
+        if freeze:
+            self.log('=> Freeze backbone')     # on CFST
+            for k, p in self.model.named_parameters():
+                if 'last' not in k:
+                    p.requires_grad = False
+
+        # freeze selection when concept_weight = True
+        if self.config['concept_weight']:
+            for k, p in self.model.prompt.named_parameters():
+                if 'e_k_' in k or 'e_a_' in k:
+                    p.requires_grad = False
+
+        if self.gpu:
+            self.model = self.model.cuda()
+        self.model.eval()
+
     # data weighting
     def data_weighting(self, dataset, num_seen=None):
-
-        self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
-        # if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
-        if dataset.target_sample_info is not None:
+        # assign specific weight on cls with target concept.
+        # if dataset.target_sample_info is not None:      # continual
+        if self.concept_weight:
             concepts = dataset.get_concepts()  # [n_cls * [list of concepts: e.g., 1, 10]]
-            target_concept = self.target_concept_id
-            for cls_id in range(self.valid_out_dim):
-                if target_concept in concepts[cls_id]:
-                    self.dw_k[cls_id] = 2
+            num_concepts = dataset.num_concepts
+            self.dw_k = torch.tensor(np.ones((num_concepts, self.valid_out_dim + 1), dtype=np.float32))
+
+            for target_concept in range(num_concepts):
+                # target_concept = self.target_concept_id
+                for cls_id in range(self.valid_out_dim):
+                    if target_concept in concepts[cls_id]:
+                        self.dw_k[target_concept, cls_id] = 2
+        else:
+            self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
 
         # cuda
         if self.cuda:
@@ -84,7 +126,8 @@ class PMOPrompt(Prompt):
         self.init_train_log()
 
         self.train_dataset = train_dataset
-        self.aux.update_source(train_dataset)       # aux samples from the current task
+        if hasattr(train_loader, 'num_concepts'):
+            self.num_concepts = train_dataset.num_concepts
 
         # try to load model
         need_train = True
@@ -98,7 +141,10 @@ class PMOPrompt(Prompt):
         # trains
         if self.reset_optimizer:  # Reset optimizer before learning each task
             self.log('Optimizer is reset!')
-            self.init_optimizer()
+            target = None
+            if self.concept_weight:
+                target = 'p'
+            self.init_optimizer(target=target)
 
         if need_train:
             losses = AverageMeter()
@@ -161,7 +207,8 @@ class PMOPrompt(Prompt):
                     'Time {time.avg:.3f}*{i}'.format(
                         loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
 
-                if self.epoch % 10 == 0:
+                # if self.epoch % 10 == 0:
+                if self.epoch == 0:
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
 
@@ -169,13 +216,13 @@ class PMOPrompt(Prompt):
                 losses = AverageMeter()
                 acc = AverageMeter()
 
-                # validation
-                if val_loader is not None:
-                    val_acc = self.validation(val_loader)
-                    # log
-                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                    self.epoch_log['scaler']['Idx'].append(self.epoch)
-                    self.epoch_log['scaler']['Value'].append(val_acc)
+                # # validation
+                # if val_loader is not None:
+                #     val_acc = self.validation(val_loader)
+                #     # log
+                #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                #     self.epoch_log['scaler']['Idx'].append(self.epoch)
+                #     self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 
@@ -306,7 +353,72 @@ class PMOPrompt(Prompt):
         except:
             return None
 
-    def update_model(self, inputs, targets, pre_learn=False):
+    def update_model(self, inputs, targets):
+        """normal update model"""
+
+        if self.concept_weight:
+            total_loss = []
+            for concept_id in range(self.num_concepts):
+                # logits
+                out = self.model(inputs, train=True, prompt_id=concept_id)      # specify prompt to use
+                # out -> [bs, 100]
+                if len(out) == 2:
+                    logits, prompt_loss = out
+                    prompt_loss = prompt_loss.sum()
+                else:
+                    logits = out
+                    prompt_loss = 0
+                logits = logits[:, :self.valid_out_dim]
+
+                # ce with heuristic
+                if self.memory_size == 0:  # replay-based will have old tasks which may cause inf loss
+                    logits[:, :self.last_valid_out_dim] = -float('inf')
+                    # logits[:,:self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+
+                dw_cls = self.dw_k[concept_id, targets.long()]
+                # dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
+                ce_loss = self.criterion(logits, targets.long(), dw_cls)
+
+                # ce loss
+                total_loss.append(ce_loss + prompt_loss)
+
+            total_loss = torch.stack(total_loss).mean()
+
+        else:
+            # logits
+            out = self.model(inputs, train=True)        # use selection
+            # out -> learning prompt: [bs, n_concepts, 100] or learning selection: [bs, 100]
+            if len(out) == 2:
+                logits, prompt_loss = out
+                prompt_loss = prompt_loss.sum()
+            else:
+                logits = out
+                prompt_loss = 0
+            logits = logits[:, :self.valid_out_dim]
+
+            # ce with heuristic
+            if self.memory_size == 0:  # replay-based will have old tasks which may cause inf loss
+                logits[:, :self.last_valid_out_dim] = -float('inf')
+                # logits[:,:self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+
+            dw_cls = self.dw_k[targets.long()]
+            # dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
+            total_loss = self.criterion(logits, targets.long(), dw_cls)
+
+            # # debug
+            # print(f'classification loss: {total_loss}')
+
+            # ce loss
+            total_loss = total_loss + prompt_loss
+
+        # step
+        self.optimizer.zero_grad()
+        total_loss.backward()
+        self.optimizer.step()
+
+        return total_loss.detach(), logits
+
+    def update_model_with_hv(self, inputs, targets, pre_learn=False):
         """Difference:
             Cal mo loss matrix and hv loss.
             backward one loss by one since hv loss is huge
@@ -1046,7 +1158,19 @@ class PMOPrompt(Prompt):
 
         return ncc_losses
 
-    def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False):
+    def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False,
+                   **kwargs):
+        if not self.concept_weight:
+            return super().validation(dataloader, model, task_in, task_metric, verbal, task_global)
+        else:
+            accs = []
+            for concept_id in range(self.num_concepts):
+                acc = super().validation(dataloader, model, task_in, task_metric, verbal, task_global,
+                                         prompt_id=concept_id)
+                accs.append(acc)
+            return accs
+
+    def validation_forward_mo(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False):
         """Different: forward mo and use cls statistics for logits"""
         # pass task to forward if task-awareness
         if model is None:

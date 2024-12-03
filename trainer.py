@@ -160,14 +160,15 @@ class Trainer:
             'slot_lr': args.slot_lr,
             'logit_task_mask_top_k': args.logit_task_mask_top_k,
             'slot_schedule_type': args.slot_schedule_type,
-            'target_concept_id': args.target_concept_id, 
+            'target_concept_id': args.target_concept_id,
+            'concept_weight': args.concept_weight if hasattr(args, 'concept_weight') else False,
         }
-        # pmo settings
-        if len(args.prompt_param) > 3:
-            self.learner_config.update({
-                'aux_root': args.dataroot,  # no use, use train dataset instead
-                'num_aux_sampling': 8,
-            })
+        # # pmo settings
+        # if len(args.prompt_param) > 3:
+        #     self.learner_config.update({
+        #         'aux_root': args.dataroot,  # no use, use train dataset instead
+        #         'num_aux_sampling': 8,
+        #     })
 
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
@@ -298,19 +299,26 @@ class Trainer:
             self.reset_cluster_labels = True
 
             if self.args.eval_class_wise:
-                class_wise_acc_table = []
                 unique_labels = self.test_dataset.get_unique_labels()
-                for label in unique_labels:
-                    class_wise_acc_table.append(self.class_eval(label))
-
-                # log
                 for label_id, label in enumerate(unique_labels):
-                    self.learner.epoch_log['scaler']['Tag'].append(f'val_acc/class_{label}')
-                    self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
-                    self.learner.epoch_log['scaler']['Value'].append(class_wise_acc_table[label_id])
+                    acc = self.class_eval(label)
+                    if type(acc) is list:
+                        for prompt_id in range(acc):
+                            # log
+                            self.learner.epoch_log['scaler']['Tag'].append(
+                                f'val_acc/prompt_{prompt_id}/class_{label}')
+                            self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
+                            self.learner.epoch_log['scaler']['Value'].append(acc[prompt_id])
+                    else:
+                        # log
+                        self.learner.epoch_log['scaler']['Tag'].append(f'val_acc/class_{label}')
+                        self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
+                        self.learner.epoch_log['scaler']['Value'].append(acc)
 
             for j in range(i+1):
                 task_acc = self.task_eval(j)
+                if type(task_acc) is list:      # on all prompts
+                    task_acc = np.mean(task_acc)
                 acc_table.append(task_acc)
 
                 # log
@@ -454,10 +462,16 @@ class Trainer:
             self.reset_cluster_labels = True
             for j in range(i+1):
                 val_name = self.task_names[j]
-                metric_table['acc'][val_name][self.task_names[i]] = self.task_eval(j)
+                acc = self.task_eval(j)
+                if type(acc) is list:      # on all prompts
+                    acc = np.mean(acc)
+                metric_table['acc'][val_name][self.task_names[i]] = acc
             for j in range(i+1):
                 val_name = self.task_names[j]
-                metric_table_local['acc'][val_name][self.task_names[i]] = self.task_eval(j, local=True)
+                acc = self.task_eval(j, local=True)
+                if type(acc) is list:      # on all prompts
+                    acc = np.mean(acc)
+                metric_table_local['acc'][val_name][self.task_names[i]] = acc
 
         # summarize metrics
         avg_metrics['acc'] = self.summarize_acc(avg_metrics['acc'], metric_table['acc'],  metric_table_local['acc'])
