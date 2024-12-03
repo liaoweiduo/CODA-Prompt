@@ -126,7 +126,7 @@ class PMOPrompt(Prompt):
         self.init_train_log()
 
         self.train_dataset = train_dataset
-        if hasattr(train_loader, 'num_concepts'):
+        if hasattr(train_dataset, 'num_concepts'):
             self.num_concepts = train_dataset.num_concepts
 
         # try to load model
