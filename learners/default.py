@@ -33,7 +33,7 @@ class NormalNN(nn.Module):
         self.tasks = learner_config['tasks']
         self.top_k = learner_config['top_k']
         self.seed = learner_config['seed']
-        self.target_concept_id = learner_config['target_concept_id']
+        self.target_concept_id = learner_config.get('target_concept_id')    # can be None for CFST
 
         # cls statistics
         self.cls_stats = {}
