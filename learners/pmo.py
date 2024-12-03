@@ -29,25 +29,15 @@ from mo_optimizers.functions_evaluation import fastNonDominatedSort
 import dataloaders
 
 
-# Our PMO (Pool & Multi-Objective)
-class PMOPrompt(CODAPromptCond):
+# Our PMO (Prompt & Multi-Objective)
+class PMOPrompt(Prompt):
     def __init__(self, learner_config):
         super(PMOPrompt, self).__init__(learner_config)
-        # self.pool_size = self.prompt_param[1][3]        # =0 if do not enable pool hv loss
-        # self.pool = Pool(self.pool_size, self.seed)
 
         self.train_dataset = None
         self.t = 0
         self.epoch = 0
         self.epochs = 0     # total epoch in this task
-
-        # # load aux
-        # # aux_dataset = dataloaders.CGQA(
-        # #     self.config['aux_root'],
-        # #     train=False, validation=True, download_flag=False, seed=self.config['seed'])
-        # # aux_dataset.load_dataset(9, train=False)   # consider all samples: 100 classes with 5000 samples.
-        # # self.aux = Auxiliary(aux_dataset)
-        self.aux = Auxiliary()
 
         config = self.config['prompt_param'][1]
         while len(config) < 3:      # deal with old exps that have not enough config
@@ -55,25 +45,6 @@ class PMOPrompt(CODAPromptCond):
         # mo
         # self.n_obj = int(self.config['prompt_param'][1][3])
         # self.num_aux_sampling = int(self.config['num_aux_sampling'])
-        # self.mask = self.config['prompt_param'][1][4]               # constant float or randn or uniform or ortho
-        # self.mask_mode = int(self.config['prompt_param'][1][5])     # maskout or use
-        # if int(self.mask) == -10000:
-        #     self.mask = 'randn'
-        # elif int(self.mask) == -10001:
-        #     self.mask = 'uniform'
-        # elif int(self.mask) == -10002:
-        #     self.mask = 'ortho'
-        # elif int(self.mask) == -10003:
-        #     self.mask = None
-        # if self.mask_mode == 0:
-        #     self.mask_mode = 'maskout'
-        # elif self.mask_mode == 1:
-        #     self.mask_mode = 'use'
-        # else:
-        #     raise Exception(f'Unknown mask mode {self.mask_mode}')
-        # print(f'Mask info: {self.mask_mode}->{self.mask}')
-        # self.hv_coeff = self.config['prompt_param'][1][6]     # -1 if use LCQP
-
         try:
             prompt = self.model.module.prompt
         except:
@@ -93,8 +64,16 @@ class PMOPrompt(CODAPromptCond):
 
     # data weighting
     def data_weighting(self, dataset, num_seen=None):
-        # for ablation
+
         self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
+        # if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
+        if dataset.target_sample_info is not None:
+            concepts = dataset.get_concepts()  # [n_cls * [list of concepts: e.g., 1, 10]]
+            target_concept = self.target_concept_id
+            for cls_id in range(self.valid_out_dim):
+                if target_concept in concepts[cls_id]:
+                    self.dw_k[cls_id] = 2
+
         # cuda
         if self.cuda:
             self.dw_k = self.dw_k.cuda()

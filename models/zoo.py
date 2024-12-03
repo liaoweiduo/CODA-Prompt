@@ -720,7 +720,7 @@ class PmoPrompt(CodaPrompt):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
         # trigger fixed prompt size (FPS)
-        self.FPS = False         # set to False to use origin coda-p
+        self.FPS = False         # set to False to add prompt for each task
 
         if self.FPS:
             self.n_prompt_per_task = int(self.e_pool_size)  # num of prompts
