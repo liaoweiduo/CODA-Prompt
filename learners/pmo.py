@@ -210,7 +210,7 @@ class PMOPrompt(Prompt):
                         loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
 
                 # if self.epoch % 10 == 0:
-                if self.epoch == 0:
+                if self.epoch == 0 and self.batch_idx == 5:
                     '''nvidia-smi'''
                     self.log(os.system('nvidia-smi'))
 
