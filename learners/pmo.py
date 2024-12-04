@@ -200,6 +200,11 @@ class PMOPrompt(Prompt):
                     losses.update(loss, y.size(0))
                     batch_timer.tic()
 
+                    # if self.epoch % 10 == 0:
+                    if self.epoch == 0 and self.batch_idx == 5:
+                        '''nvidia-smi'''
+                        self.log(os.system('nvidia-smi'))
+
                 # eval update
                 self.log(
                     'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=self.config['schedule'][-1]))
@@ -208,11 +213,6 @@ class PMOPrompt(Prompt):
                     'Train Acc {acc.avg:.3f} | '
                     'Time {time.avg:.3f}*{i}'.format(
                         loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
-
-                # if self.epoch % 10 == 0:
-                if self.epoch == 0 and self.batch_idx == 5:
-                    '''nvidia-smi'''
-                    self.log(os.system('nvidia-smi'))
 
                 # reset
                 losses = AverageMeter()
