@@ -39,7 +39,6 @@ class PMOPrompt(Prompt):
         self.epoch = 0
         self.epochs = 0     # total epoch in this task
         self.concept_weight = self.config['concept_weight']  # True to use concept to weight data.
-        self.test_mode = self.config['test_mode']       # True to only train on concept 0
 
         config = self.config['prompt_param'][1]
         while len(config) < 3:      # deal with old exps that have not enough config
