@@ -7,7 +7,7 @@ N_CLASS=100
 OUTDIR=outputs/${DATASET}/2-task
 
 # hard coded inputs
-GPUID='0 1 2 3'   # '0 1 2 3'
+GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot_2task.yaml
 CONFIG=configs/cgqa_prompt_2task.yaml
 REPEAT=3
@@ -101,7 +101,7 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    --oracle_flag --upper_bound_flag \
-LOGNAME=pmo-concept-1p-l40-titan
+LOGNAME=pmo-concept_w.9_.1-1p-l40-test0
 #docker run -d --rm --runtime=nvidia --gpus device=6 \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
@@ -112,6 +112,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --lr 0.001 \
     --concept_weight \
     --eval_class_wise \
+    --target_concept_id 0 \
     --oracle_flag --upper_bound_flag \
     --log_dir ${OUTDIR}/${LOGNAME}
 date

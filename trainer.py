@@ -150,7 +150,7 @@ class Trainer:
             'tasks': self.tasks_logits,
             'top_k': self.top_k,
             'prompt_param':[self.num_tasks,args.prompt_param],
-            'mode': args.mode,
+            'mode': args.mode,      # CFST mode
             'seed': self.seed,
             'log_dir': args.log_dir,
             # slot training args

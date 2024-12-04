@@ -39,6 +39,7 @@ class PMOPrompt(Prompt):
         self.epoch = 0
         self.epochs = 0     # total epoch in this task
         self.concept_weight = self.config['concept_weight']  # True to use concept to weight data.
+        self.test_mode = self.config['test_mode']       # True to only train on concept 0
 
         config = self.config['prompt_param'][1]
         while len(config) < 3:      # deal with old exps that have not enough config
@@ -80,7 +81,7 @@ class PMOPrompt(Prompt):
             #     del state_dict['last.weight']; del state_dict['last.bias']
             # self.model.load_state_dict(state_dict, strict=False)
         self.model.load_state_dict(state_dict, strict=False)
-        self.log('=> Load Done')
+        self.log(f'=> Load Done from {filename}')
         # self.log(f'=> Load Done with params {list(state_dict.keys())}')
 
         if freeze:
@@ -112,7 +113,9 @@ class PMOPrompt(Prompt):
                 # target_concept = self.target_concept_id
                 for cls_id in range(self.valid_out_dim):
                     if target_concept in concepts[cls_id]:
-                        self.dw_k[target_concept, cls_id] = 2
+                        self.dw_k[target_concept, cls_id] = 0.9
+                    else:
+                        self.dw_k[target_concept, cls_id] = 0.1
         else:
             self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
 
@@ -358,7 +361,9 @@ class PMOPrompt(Prompt):
 
         if self.concept_weight:
             total_loss = []
-            for concept_id in range(self.num_concepts):
+            candidate_concepts = [
+                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.num_concepts))
+            for concept_id in candidate_concepts:
                 # logits
                 out = self.model(inputs, train=True, prompt_id=concept_id)      # specify prompt to use
                 # out -> [bs, 100]
@@ -1164,7 +1169,9 @@ class PMOPrompt(Prompt):
             return super().validation(dataloader, model, task_in, task_metric, verbal, task_global)
         else:
             accs = []
-            for concept_id in range(self.num_concepts):
+            candidate_concepts = [
+                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.num_concepts))
+            for concept_id in candidate_concepts:
                 acc = super().validation(dataloader, model, task_in, task_metric, verbal, task_global,
                                          prompt_id=concept_id)
                 accs.append(acc)
