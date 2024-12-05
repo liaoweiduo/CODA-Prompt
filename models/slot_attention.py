@@ -333,8 +333,23 @@ class Slot2Prompt(nn.Module):
                                                      ).scatter_(-1, index, 1.0)
                         aq_k_repa = aq_k_repa - aq_k.detach() + aq_k
 
-                # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
-                P = torch.einsum('bnk,kld->bnld', aq_k_repa, p)   # wei-sum over k -> bnld
+                # slot-wise selection for prompt using aq_k
+                # # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
+                # P = torch.einsum('bnk,kld->bnld', aq_k_repa, p)   # wei-sum over k -> bnld
+
+                # image-wise selection for prompt
+                avg_slots = slots.mean(dim=1)       # [b, n10]
+                slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
+                slots_ = nn.functional.normalize(slots_, dim=-1)
+                w = torch.einsum('bkh,kh->bk', slots_, K)  # aq_k [bs, n10, k30]
+                w = w * temp
+                if sigmoid:
+                    w = torch.sigmoid(w)
+                else:
+                    w = torch.softmax(w, dim=-1)
+                P = torch.einsum('bk,kld->bld', w, p)
+                P = P.unsqueeze(1)      # make shape consistent: [bld] -> [bnld]
+
                 prompts.append(P)
                 selections.append(aq_k)
             prompts = torch.stack(prompts, dim=2)       # [bs, n10, e, l, d]   n is num_slots

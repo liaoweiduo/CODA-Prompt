@@ -723,12 +723,13 @@ class SLOTPrompt(Prompt):
             #
             # loss = torch.mean(sorted_mo_matrix, dim=1)        # [bs]
             # loss = torch.mean(loss)
+            if self.debug_mode:
+                print('samples:', inputs.shape, 'prompts:', prompts.shape)
+
+            # slot-wise prompt
             bs, t, k, e, p, d = prompts.shape
             prompts = prompts.reshape(bs, t*k, e, p, d)  # [bs,t*k, e, p, d]
             assert t == 1       # if not 1, should permutate t with e then reshape to t*k
-
-            if self.debug_mode:
-                print('samples:', inputs.shape, 'prompts:', prompts.shape)
 
             sum_prompts = torch.sum(prompts, dim=1)     # [bs, e, p, d]
 
