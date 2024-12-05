@@ -303,12 +303,16 @@ class Trainer:
                 for label_id, label in enumerate(unique_labels):
                     acc = self.class_eval(label)
                     if type(acc) is list:
-                        for prompt_id in range(acc):
+                        if self.args.target_concept_id >= 0:
+                            prompt_list = [self.args.target_concept_id]
+                        else:
+                            prompt_list = list(range(len(acc)))
+                        for index_id, prompt_id in enumerate(prompt_list):
                             # log
                             self.learner.epoch_log['scaler']['Tag'].append(
                                 f'val_acc/prompt_{prompt_id}/class_{label}')
                             self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
-                            self.learner.epoch_log['scaler']['Value'].append(acc[prompt_id])
+                            self.learner.epoch_log['scaler']['Value'].append(acc[index_id])
                     else:
                         # log
                         self.learner.epoch_log['scaler']['Tag'].append(f'val_acc/class_{label}')
