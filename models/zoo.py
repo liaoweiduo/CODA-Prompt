@@ -59,9 +59,10 @@ class SlotPrompt(nn.Module):
         # nn.init.constant_(self.slot_attn_alpha, 1)
 
         # output setting
-        self.s2p_temp = float(prompt_param[5])     # 1.2 temperature to control how sharp are slot attns
+        self.s2p_temp = float(prompt_param[5])     # temperature to control how sharp are slot attns
+        self.s2p_mode = int(prompt_param[6])     # -1 -> slot-avg; 1 -> learn to select slot to avg
         self.s2p = Slot2Prompt(emb_d, self.n_tasks, self.e_pool_size, self.e_p_length, self.e_layers,
-                               FPS=self.FPS, temp=self.s2p_temp, key_dim=key_dim)
+                               FPS=self.FPS, temp=self.s2p_temp, key_dim=key_dim, mode=self.s2p_mode)
 
         # prompt_map = tensor_prompt(self.key_d, len(self.e_layers), self.e_p_length, self.emb_d)  # [64, 12,  8, 768]
         # # # [bs, 64] @ [64, 12, 8, 768] -> [bs, 12, 8, 768]
@@ -97,7 +98,7 @@ class SlotPrompt(nn.Module):
         #     # self.expert_predictor.append(new_exp_pre)
 
     def handle_q(self, q, all=True, learn_slots=True, train=False,
-                 temp=None, n_iter=None, prompt_temp=None, prompt_phase=1):
+                 temp=None, n_iter=None, prompt_phase=1):
         """all control slot-attn: True all slot-attn module, False the last slot-attn module"""
         # obtain slot-prompts
         if q is None:
@@ -119,7 +120,7 @@ class SlotPrompt(nn.Module):
                 with torch.no_grad():       # this phase does not learn slot attn
                     _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp, n_iter=n_iter)
                 _recon_loss = 0
-            _prompts, _selection = self.s2p(_slots, temp=prompt_temp, train=train, phase=prompt_phase)
+            _prompts, _selection = self.s2p(_slots, train=train, phase=prompt_phase)
             prompts.append(_prompts)
             selection.append(_selection)
             slots.append(_slots)

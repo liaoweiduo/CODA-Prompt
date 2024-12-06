@@ -58,13 +58,13 @@ class SLOTPrompt(Prompt):
         config = self.config['prompt_param'][1]
         while len(config) < 15:
             config.append(0)
-        self.weight_coeff = float(config[6])
-        self.onehot_coeff = float(config[7])
-        self.cross_attn_temp = float(config[8])
-        self.intra_consistency_coeff = float(config[9])
-        self.slot_vsI_coeff = float(config[10])
-        self.selection_ortho_coeff = float(config[11])
-        self.prompt_concept_alignment_coeff = float(config[12])
+        self.weight_coeff = float(config[7])
+        self.onehot_coeff = float(config[8])
+        self.cross_attn_temp = float(config[9])
+        self.intra_consistency_coeff = float(config[10])
+        self.slot_vsI_coeff = float(config[11])
+        self.selection_ortho_coeff = float(config[12])
+        self.prompt_concept_alignment_coeff = float(config[13])
 
         self.selection_ortho_type = 'l1'
         self.selection_onehot_type = 'l1'

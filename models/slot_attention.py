@@ -149,7 +149,7 @@ def init_tensor(a, b=None, c=None, d=None, ortho=False):
 
 
 class Slot2Prompt(nn.Module):
-    def __init__(self, emb_d, n_tasks, e_pool_size, e_p_length, e_layers, FPS, key_dim=128, temp=1.):
+    def __init__(self, emb_d, n_tasks, e_pool_size, e_p_length, e_layers, FPS, key_dim=128, temp=1., mode=1):
         super().__init__()
         self.task_count = 0
         self.emb_d = emb_d
@@ -161,7 +161,9 @@ class Slot2Prompt(nn.Module):
         self.e_p_length = e_p_length    # 8
         self.e_layers = e_layers        # [0, 1, 2, 3, 4, 5]
         self.FPS = FPS          # or can be True all the time?
-        self.temp = temp
+        self.select_slot_temp = temp
+        self.select_prompt_temp = 1.0
+        self.cond_mode = mode        # -1 -> slot-avg; 1 -> learn to select slot to avg
 
         self.selector_mode = 'attn'     # [gate, mlp, attn]
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
@@ -228,7 +230,7 @@ class Slot2Prompt(nn.Module):
                     setattr(self, f'e_k_{e}', K)
                     setattr(self, f'e_a_{e}', A)
 
-    def forward(self, slots, s2p=None, train=False, temp=None, phase=1, sigmoid=True):
+    def forward(self, slots, s2p=None, train=False, phase=1, select_mode='coda'):
         """phase 0: only use detached old prompts """
         # train control the detach of old K and p
         # slots [bs, n20, h64]
@@ -253,6 +255,7 @@ class Slot2Prompt(nn.Module):
             # [bs, e, l, d]
         else:
             slots = self.slot_ln(slots)  # apply layernorm to alleviate shifting in slots
+            avg_slots = slots.mean(dim=1)       # [b, n10]
             # # or min max scale to [-1, 1]
             # slots = slots.reshape(bs*n, h)
             # slots = slots - slots.min(dim=0)[0]  # norm on each axis
@@ -301,54 +304,58 @@ class Slot2Prompt(nn.Module):
                 # b = bs, n = 10 (# slots), h=128, d = 768, k = 30 (# prompts), l=8
                 # with attention and cosine sim
 
-                # without A
+                # # without A
                 # K = nn.functional.normalize(K, dim=-1)
                 # slots_ = nn.functional.normalize(slots, dim=-1)
                 # aq_k = torch.einsum('bnh,kh->bnk', slots_, K)  # aq_k [bs, n10, k30]
 
-                # with A
-                # print(f'slots: {slots_.shape}; A: {A.shape}; K: {K.shape}')
-                slots_ = torch.einsum('bnh,kh->bnkh', slots, A)      # attended slots
-                K = nn.functional.normalize(K, dim=-1)
-                slots_ = nn.functional.normalize(slots_, dim=-1)
-                aq_k = torch.einsum('bnkh,kh->bnk', slots_, K)  # aq_k [bs, n10, k30]
-
-                # apply temp
-                if temp is None:
-                    temp = self.temp
-                # aq_k = ((self.key_d ** (-0.5)) * aq_k) * temp
-                aq_k = aq_k * temp
-                # over slot pool, thus each slot sharply select one slot in the pool
-                if sigmoid:
-                    aq_k = torch.sigmoid(aq_k)
-                    aq_k_repa = aq_k
-                else:
-                    aq_k = torch.softmax(aq_k, dim=-1)
-                    if train:
-                        aq_k_repa = aq_k
-                    else:
-                        # Reparametrization trick.
-                        index = aq_k.max(-1, keepdim=True)[1]
-                        aq_k_repa = torch.zeros_like(aq_k, memory_format=torch.legacy_contiguous_format
-                                                     ).scatter_(-1, index, 1.0)
-                        aq_k_repa = aq_k_repa - aq_k.detach() + aq_k
-
+                # # with A
+                # # print(f'slots: {slots_.shape}; A: {A.shape}; K: {K.shape}')
+                # slots_ = torch.einsum('bnh,kh->bnkh', slots, A)      # attended slots
+                # K = nn.functional.normalize(K, dim=-1)
+                # slots_ = nn.functional.normalize(slots_, dim=-1)
+                # aq_k = torch.einsum('bnkh,kh->bnk', slots_, K)  # aq_k [bs, n10, k30]
+                #
+                # # apply temp
+                # temp = self.select_prompt_temp
+                # # aq_k = ((self.key_d ** (-0.5)) * aq_k) * temp
+                # aq_k = aq_k * temp
+                # # over slot pool, thus each slot sharply select one slot in the pool
+                # if select_mode == 'sigmoid':
+                #     aq_k = torch.sigmoid(aq_k)
+                #     aq_k_repa = aq_k
+                # elif select_mode == 'softmax':
+                #     aq_k = torch.softmax(aq_k, dim=-1)
+                #     if train:
+                #         aq_k_repa = aq_k
+                #     else:
+                #         # Reparametrization trick.
+                #         index = aq_k.max(-1, keepdim=True)[1]
+                #         aq_k_repa = torch.zeros_like(aq_k, memory_format=torch.legacy_contiguous_format
+                #                                      ).scatter_(-1, index, 1.0)
+                #         aq_k_repa = aq_k_repa - aq_k.detach() + aq_k
+                # else:   # 'coda'
+                #     aq_k_repa = aq_k
+                #
                 # slot-wise selection for prompt using aq_k
                 # # aq_k = torch.ones((B, f)).to(p.device)      # just use all prompts with 1; un-condition type
                 # P = torch.einsum('bnk,kld->bnld', aq_k_repa, p)   # wei-sum over k -> bnld
 
                 # image-wise selection for prompt
-                avg_slots = slots.mean(dim=1)       # [b, n10]
                 slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
                 slots_ = nn.functional.normalize(slots_, dim=-1)
-                w = torch.einsum('bkh,kh->bk', slots_, K)  # aq_k [bs, n10, k30]
-                w = w * temp
-                if sigmoid:
-                    w = torch.sigmoid(w)
-                else:
-                    w = torch.softmax(w, dim=-1)
-                P = torch.einsum('bk,kld->bld', w, p)
+                n_K = nn.functional.normalize(K, dim=-1)
+                aq_k = torch.einsum('bkh,kh->bk', slots_, n_K)  # aq_k [bs, k30]
+                aq_k = aq_k * self.select_prompt_temp   # 1
+                if select_mode == 'sigmoid':
+                    aq_k = torch.sigmoid(aq_k)
+                elif select_mode == 'softmax':
+                    aq_k = torch.softmax(aq_k, dim=-1)
+                else:   # 'coda'
+                    pass
+                P = torch.einsum('bk,kld->bld', aq_k, p)
                 P = P.unsqueeze(1)      # make shape consistent: [bld] -> [bnld]
+                aq_k = aq_k.unsqueeze(1)      # make shape consistent: [bk] -> [bnk]
 
                 prompts.append(P)
                 selections.append(aq_k)
