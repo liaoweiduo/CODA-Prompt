@@ -342,7 +342,10 @@ class Slot2Prompt(nn.Module):
                 # P = torch.einsum('bnk,kld->bnld', aq_k_repa, p)   # wei-sum over k -> bnld
 
                 # image-wise selection for prompt
-                slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
+                if self.cond_mode == -1:
+                    slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
+                else:
+                    raise Exception(f'Non-implemented cond_mode {self.cond_mode}.')
                 slots_ = nn.functional.normalize(slots_, dim=-1)
                 n_K = nn.functional.normalize(K, dim=-1)
                 aq_k = torch.einsum('bkh,kh->bk', slots_, n_K)  # aq_k [bs, k30]
