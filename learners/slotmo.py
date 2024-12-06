@@ -1831,6 +1831,9 @@ class SLOTPrompt(Prompt):
                         else:
                             # output = model.forward(input, task_id=task[0].item())[:, task_in]
                             output = output[:, task_in]
+
+                            print(f'DEBUG: task_in: {task_in}\n output: {output.shape}\n target: {target}')
+
                             acc = accumulate_acc(output, target - task_in[0], task, acc, topk=(self.top_k,))
 
         model.train(orig_mode)
