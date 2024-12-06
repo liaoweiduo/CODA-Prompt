@@ -218,13 +218,15 @@ class PMOPrompt(Prompt):
                 losses = AverageMeter()
                 acc = AverageMeter()
 
-                # # validation
-                # if val_loader is not None:
-                #     val_acc = self.validation(val_loader)
-                #     # log
-                #     self.epoch_log['scaler']['Tag'].append(f'val_acc')
-                #     self.epoch_log['scaler']['Idx'].append(self.epoch)
-                #     self.epoch_log['scaler']['Value'].append(val_acc)
+                # validation
+                if val_loader is not None:
+                    val_acc = self.validation(val_loader)
+                    if type(val_acc) is list:
+                        val_acc = np.mean(val_acc)
+                    # log
+                    self.epoch_log['scaler']['Tag'].append(f'val_acc')
+                    self.epoch_log['scaler']['Idx'].append(self.epoch)
+                    self.epoch_log['scaler']['Value'].append(val_acc)
 
         self.model.eval()
 
