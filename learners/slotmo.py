@@ -1748,6 +1748,11 @@ class SLOTPrompt(Prompt):
                     mask_ind = mask.nonzero().view(-1)
                     input, target = input[mask_ind], target[mask_ind]
 
+                    # if i == 0:
+                    #     print('DEBUG: '
+                    #         f'eval batch{i}: \nlen: {len(target)} target:{(target.min(), target.max())} '
+                    #         f'task:{(task.min(), task.max())}')
+
                     if len(target) > 1:
                         q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
                         prompts, selection, slots, attn, recon_loss = q
@@ -1798,6 +1803,11 @@ class SLOTPrompt(Prompt):
 
                         # forward all prompts
                         bs, t, k, e, p, d = prompts.shape
+
+                        # if i == 0:
+                        #     print('DEBUG: '
+                        #           f'prompts: {prompts.shape}')
+
                         prompts = prompts.reshape(bs, t * k, e, p, d)
                         prompts = torch.sum(prompts, dim=1, keepdim=True)     # sum over k [bs, 1, e, p, d]
                         _, features, out = self.obtain_mo_matrix(
@@ -1811,9 +1821,6 @@ class SLOTPrompt(Prompt):
                         if len(self.cls_stats) == 0:
                             out = out[:, :, :self.valid_out_dim]
                             # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
-
-                            if not task_global:
-                                out = out[:, :, task_in]
 
                             output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
                         else:
@@ -1832,7 +1839,7 @@ class SLOTPrompt(Prompt):
                             # output = model.forward(input, task_id=task[0].item())[:, task_in]
                             output = output[:, task_in]
 
-                            print(f'DEBUG: task_in: {task_in}\n output: {output.shape}\n target: {target}')
+                            # print(f'DEBUG: task_in: {task_in}\n output: {output.shape}\n target: {target}')
 
                             acc = accumulate_acc(output, target - task_in[0], task, acc, topk=(self.top_k,))
 
