@@ -143,7 +143,9 @@ def init_tensor(a, b=None, c=None, d=None, ortho=False):
         p = torch.nn.Parameter(torch.FloatTensor(a, b, c, d), requires_grad=True)
     if ortho:
         nn.init.orthogonal_(p)
-    else:
+    elif b is None:         # for bias
+        nn.init.constant_(p, 0)
+    else:               # for weight
         nn.init.xavier_uniform_(p)
     return p
 
@@ -203,6 +205,12 @@ class Slot2Prompt(nn.Module):
                 setattr(self, f'e_p_{e}', p)
                 setattr(self, f'e_k_{e}', k)
                 setattr(self, f'e_a_{e}', a)
+
+            # task query
+            self.task_key = init_tensor(self.key_d)       # [128] or [self.n_tasks, 128]
+            self.slot_selection_w = init_tensor(self.key_d, self.key_d)   # [128, 128] or [self.n_tasks, 128, 128]
+            self.slot_selection_b = init_tensor(self.key_d)   # [128] or [self.n_tasks, 128]
+
         else:
             raise NotImplementedError
 
@@ -262,6 +270,32 @@ class Slot2Prompt(nn.Module):
             # slots = slots / slots.max(dim=0)[0]
             # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
             # slots = slots.reshape(bs, n, h)
+
+            w = None
+            w_slots = None
+            if self.cond_mode == 1:
+                # learn to weights slots as inputs to select prompt
+                slot_selection_w = self.slot_selection_w  # [128, 128] or [self.n_tasks, 128, 128]
+                slot_selection_b = self.slot_selection_b  # [128] or [self.n_tasks, 128]
+                # [bs, n10, h128] @ [h128, d128] -> [bs, n10, d128]
+                mapped_slots = torch.einsum('bnh,hd->bnd', slots, slot_selection_w)
+                mapped_slots = mapped_slots + slot_selection_b
+                mapped_slots = torch.tanh(mapped_slots)
+                task_key = self.task_key  # [128] or [self.n_tasks, 128]
+                w = torch.einsum('bnd,d->bn', mapped_slots, task_key)
+                w = w * (task_key.shape[-1] ** -0.5)
+                w = w * self.select_slot_temp
+                w = torch.sigmoid(w)
+
+                # # or cosine sim
+                # # normalization
+                # n_mapped_slots = nn.functional.normalize(mapped_slots, dim=-1)
+                # n_task_key = nn.functional.normalize(task_key, dim=-1)
+                # w = torch.einsum('bnd,d->bn', n_mapped_slots, n_task_key)
+                # w = w * self.select_slot_temp
+                # w = torch.sigmoid(w)
+
+                w_slots = torch.einsum('bnh,bn->bh', slots, w)  # weighted slots
 
             prompts = []
             selections = []
@@ -343,9 +377,13 @@ class Slot2Prompt(nn.Module):
 
                 # image-wise selection for prompt
                 if self.cond_mode == -1:
+                    # use average slots as inputs to select prompt
                     slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
+                elif self.cond_mode == 1:
+                    slots_ = torch.einsum('bn,kh->bkh', w_slots, A)      # attended slots
                 else:
-                    raise Exception(f'Non-implemented cond_mode {self.cond_mode}.')
+                    raise Exception(f'Un-implemented {self.cond_mode}.')
+
                 slots_ = nn.functional.normalize(slots_, dim=-1)
                 n_K = nn.functional.normalize(K, dim=-1)
                 aq_k = torch.einsum('bkh,kh->bk', slots_, n_K)  # aq_k [bs, k30]
@@ -369,7 +407,8 @@ class Slot2Prompt(nn.Module):
         # # [bs, k20, h64] @ [h64, e12, p8, d768] -> [bs, k20, e12, p8, d768]
         # prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
 
-        return prompts, selections
+        # w: [bs, n10]
+        return prompts, selections, w
 
     # code for this function is modified from:
     # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py

@@ -592,7 +592,7 @@ class SLOTPrompt(Prompt):
         FPS = self.FPS
 
         q = model.obtain_q(inputs, learn_slots=learn_slots, train=True, prompt_phase=prompt_phase)
-        prompts, selections, slots, attn, recon_loss = q
+        prompts, selections, ws, slots, attn, recon_loss = q
         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
 
         # # mk
@@ -1143,7 +1143,7 @@ class SLOTPrompt(Prompt):
         #     prompts = model.obtain_q(inputs, all=False)      # [bs, 1, k20, e12, p8, d768]
         #     # all=False: only use new slots
         q = model.obtain_q(inputs, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
-        prompts, selection, slots, attn, recon_loss = q
+        prompts, selection, ws, slots, attn, recon_loss = q
 
         if learn_slots:
             # only update slot attn
@@ -1416,7 +1416,7 @@ class SLOTPrompt(Prompt):
                 except:
                     model = self.model
                 q = model.obtain_q(samples)        # [bs, t, k20, e12, p8, d768]
-                prompts, selection, slots, attn, recon_loss = q
+                prompts, selection, ws, slots, attn, recon_loss = q
                 bs, t, k, e, p, d = prompts.shape
                 prompts = prompts.reshape(bs, t*k, e, p, d)
 
@@ -1615,7 +1615,7 @@ class SLOTPrompt(Prompt):
                     #                        )[:, :self.valid_out_dim]
 
                     q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
-                    prompts, selection, slots, attn, recon_loss = q
+                    prompts, selection, ws, slots, attn, recon_loss = q
                     bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                     assert t == 1
 
@@ -1755,7 +1755,7 @@ class SLOTPrompt(Prompt):
 
                     if len(target) > 1:
                         q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
-                        prompts, selection, slots, attn, recon_loss = q
+                        prompts, selection, ws, slots, attn, recon_loss = q
                         # bs, t, k, e, p, d = prompts.shape
                         # prompts = prompts.reshape(bs, t * k, e, p, d)
                         # # slots = model_single.prompt.match_pool(slots)
@@ -1901,7 +1901,7 @@ class SLOTPrompt(Prompt):
 
                 # get slots
                 q = model.obtain_q(x, learn_slots=False)
-                _, _, slots, _, _ = q  # [bs, 1, k5, d128]
+                _, _, _, slots, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
                 slots_collection.append(slots)
@@ -1955,7 +1955,7 @@ class SLOTPrompt(Prompt):
             with torch.no_grad():
                 # get slots
                 q = model.obtain_q(x, learn_slots=False)
-                prompts, _, _, _, _ = q  # [bs, 1, k5, d128]
+                prompts, _, _, _, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, e, p, d = prompts.shape
                 prompts = prompts.reshape(bs, t*k, e, p, d)
 
@@ -2028,7 +2028,7 @@ class SLOTPrompt(Prompt):
             with torch.no_grad():
                 # get slots
                 q = model.obtain_q(x, learn_slots=False)
-                _, _, slots, _, _ = q  # [bs, 1, k5, d128]
+                _, _, _, slots, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
 

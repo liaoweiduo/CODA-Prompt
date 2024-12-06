@@ -93,18 +93,17 @@ mkdir -p $OUTDIR
 #done
 ##    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
 
-temp=10
+temp=1
 lr=1e-3
-device=3
-#LOGNAME=3-slot_prompt-sMT-p100-l8-k10-nt5-sigmoid-cossim${temp}-lr${lr}
-LOGNAME=3-slot_prompt-sMT-p100-l8-k10-nt5-avgslot-lr${lr}
+device=4
+LOGNAME=3-slot_prompt-sMT-p100-l8-k10-nt5-sig_noT_temp${temp}-lr${lr}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 8 10 5 1.0 ${temp} -1 0.0 0.0 80 0.0 0.0 0.0 0.0 \
+    --prompt_param 100 8 10 5 1.0 ${temp} 1 0.0 0.0 80 0.0 0.0 0.0 0.0 \
     --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
     --log_dir ${OUTDIR}/${LOGNAME}
