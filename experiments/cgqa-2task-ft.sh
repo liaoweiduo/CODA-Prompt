@@ -20,9 +20,9 @@ mkdir -p $OUTDIR
 
 
 # SLOT-Prompt
-for mode in sys pro sub non noc
-do
-  # do not use -d to avoid running in parallel
+#for mode in sys pro sub non noc
+#do
+# # do not use -d to avoid running in parallel
 #  docker run --rm --runtime=nvidia --gpus device=6 \
 #    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #    -v ~/.cache:/workspace/.cache \
