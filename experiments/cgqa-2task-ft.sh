@@ -53,7 +53,7 @@ do
   python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
       --learner_type prompt --learner_name CODAPrompt \
       --prompt_param 100 8 0.0 \
-      --log_dir ${OUTDIR}/coda-l8 \
+      --log_dir ${OUTDIR}/code-l8 \
       --mode ${mode}
   date
 done
