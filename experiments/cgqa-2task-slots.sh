@@ -95,7 +95,7 @@ mkdir -p $OUTDIR
 
 temp=1
 lr=1e-3
-device=4
+device=2
 LOGNAME=3-slot_prompt-sMT-p100-l8-k10-nt5-cos_FPS-lr${lr}
 #  -d
 docker run --rm --runtime=nvidia --gpus device=${device} \
