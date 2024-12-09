@@ -179,6 +179,7 @@ class SLOTPrompt(Prompt):
 
     # sets model optimizers
     def init_optimizer(self, t=0, target=None, schedule=None, phase=0):
+        # phase = 0: learn slot; phase = 1: learn prompt
         if phase == 0:
             lr = self.config['slot_lr']
         else:
@@ -208,68 +209,86 @@ class SLOTPrompt(Prompt):
             last = self.model.last
             prompt = self.model.prompt
 
-        params_to_opt, names = [], []
+        params_to_opt_p, names_p = [], []
+        params_to_opt_l, names_l = [], []
         if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
             # if fewshot testing self.config['mode'], only learn classifier: model.last
             for k, p in self.model.named_parameters():
                 if 'last' in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+                    params_to_opt_l.append(p)
+                    names_l.append(k)
         elif target == 'last':
             for k, p in self.model.named_parameters():
                 if 'last' in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+                    params_to_opt_l.append(p)
+                    names_l.append(k)
         elif target == 'prompt':
             for k, p in self.model.named_parameters():
                 if 'prompt' in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+                    params_to_opt_p.append(p)
+                    names_p.append(k)
         elif target == 'expert':
-            for k, p in self.model.named_parameters():
-                if 'expert_' in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+            raise Exception(f'init {target} optimizer error')
+            # for k, p in self.model.named_parameters():
+            #     if 'expert_' in k:
+            #         params_to_opt.append(p)
+            #         names.append(k)
         elif target == 'slot':
             for k, p in self.model.named_parameters():
                 if 'slot_attn' in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+                    params_to_opt_p.append(p)
+                    names_p.append(k)
         elif target == '/slot':
             for k, p in self.model.named_parameters():
                 if 'prompt' in k and 'slot_attn' not in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+                    params_to_opt_p.append(p)
+                    names_p.append(k)
                 elif 'last' in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+                    params_to_opt_l.append(p)
+                    names_l.append(k)
                     # params_to_opt.append(p[self.task[t]])
                     # names.append(f'{k}[{np.min(self.task[t])}-{self.task[t]}]')
         else:
             for k, p in self.model.named_parameters():
-                if 'prompt' in k or 'last' in k:
-                    params_to_opt.append(p)
-                    names.append(k)
+                if 'prompt' in k:
+                    params_to_opt_p.append(p)
+                    names_p.append(k)
+                elif 'last' in k:
+                    params_to_opt_l.append(p)
+                    names_l.append(k)
 
         print('******************* init optimizer **********************')
-        print(f'optimizer params: {"all" if target is None else target} len {len(params_to_opt)}')
-        print(f'{names}')
+        print(f'optimizer params: {"all" if target is None else target} '
+              f'len {[len(params_to_opt_p), len(params_to_opt_l)]}')
+        print(f'{names_p}')
+        print(f'{names_l}')
 
-        optimizer_arg = {'params':params_to_opt,
-                         'lr':lr,
-                         'weight_decay':self.config['weight_decay']}
-        if self.config['optimizer'] in ['SGD','RMSprop']:
-            optimizer_arg['momentum'] = self.config['momentum']
-        elif self.config['optimizer'] in ['Rprop']:
-            optimizer_arg.pop('weight_decay')
-        elif self.config['optimizer'] == 'amsgrad':
-            optimizer_arg['amsgrad'] = True
-            self.config['optimizer'] = 'Adam'
-        elif self.config['optimizer'] == 'Adam':
-            optimizer_arg['betas'] = (self.config['momentum'],0.999)
+        lrs = [lr/5, lr]
+        params = [params_to_opt_p, params_to_opt_l]
+        print(f'lrs: {lrs}')
+
+        opt_args = []
+        for idx in range(len(lrs)):
+            _lr = lrs[idx]
+            _params = params[idx]
+            if len(_params) > 0:
+                optimizer_arg = {'params':_params,
+                                 'lr':_lr,
+                                 'weight_decay':self.config['weight_decay']}
+                if self.config['optimizer'] in ['SGD','RMSprop']:
+                    optimizer_arg['momentum'] = self.config['momentum']
+                elif self.config['optimizer'] in ['Rprop']:
+                    optimizer_arg.pop('weight_decay')
+                elif self.config['optimizer'] == 'amsgrad':
+                    optimizer_arg['amsgrad'] = True
+                    self.config['optimizer'] = 'Adam'
+                elif self.config['optimizer'] == 'Adam':
+                    optimizer_arg['betas'] = (self.config['momentum'],0.999)
+                opt_args.append(optimizer_arg)
 
         # create optimizers
-        self.optimizer = torch.optim.__dict__[self.config['optimizer']](**optimizer_arg)
+        self.optimizer = torch.optim.__dict__[self.config['optimizer']](opt_args, lr=lr)    # default lr
+        # self.optimizer = torch.optim.__dict__[self.config['optimizer']](**optimizer_arg)
 
         # create schedules
         if target == 'slot':
