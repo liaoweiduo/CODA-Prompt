@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/2-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot_2task.yaml
 CONFIG=configs/cgqa_prompt_2task.yaml
-REPEAT=3
+REPEAT=1
 OVERWRITE=0
 
 ###############################################################
@@ -26,16 +26,47 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
- docker run -d --rm --runtime=nvidia --gpus device=0 \
-   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-   -v ~/.cache:/workspace/.cache \
-   --shm-size 8G liaoweiduo/hide:2.0 \
- python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-     --learner_type prompt --learner_name CODAPrompt \
-     --prompt_param 100 40 0.0 \
-     --lr 0.001 \
-     --eval_class_wise \
-     --log_dir ${OUTDIR}/coda-l40
+# -d
+LOGNAME=coda-l40
+docker run --rm --runtime=nvidia --gpus device=0 \
+ -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+ -v ~/.cache:/workspace/.cache \
+ --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 40 0.0 \
+   --lr 0.001 \
+   --eval_class_wise \
+   --log_dir ${OUTDIR}/${LOGNAME}
+
+# cfst
+for mode in sys pro sub non noc
+do
+  docker run --rm --runtime=nvidia --gpus device=0 \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+      --learner_type prompt --learner_name CODAPrompt \
+      --prompt_param 100 40 0.0 \
+      --log_dir ${OUTDIR}/${LOGNAME} \
+      --mode ${mode}
+  date
+done
+
+# finish other runs
+REPEAT=3
+docker run --rm --runtime=nvidia --gpus device=0 \
+ -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+ -v ~/.cache:/workspace/.cache \
+ --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 40 0.0 \
+   --lr 0.001 \
+   --eval_class_wise \
+   --log_dir ${OUTDIR}/${LOGNAME}
+
 
 # DualPrompt
 #
@@ -52,6 +83,7 @@ mkdir -p $OUTDIR
 #    --prompt_param 10 40 10 \
 #    --lr 0.001 \
 #    --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10
+
 
 # L2P++
 #
