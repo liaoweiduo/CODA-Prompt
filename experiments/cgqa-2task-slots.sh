@@ -95,8 +95,8 @@ mkdir -p $OUTDIR
 
 temp=1
 lr=1e-3
-device=1
-LOGNAME=3-slot_prompt-sMT-p100-l8-k10-nt5-cos_FPS-lr${lr}-100epochs
+device=3
+LOGNAME=3-slot_prompt-sMT-p100-l8-k10-nt5-cos_FPS-pllr${lr}
 #  -d
 docker run --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \

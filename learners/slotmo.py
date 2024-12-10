@@ -263,7 +263,7 @@ class SLOTPrompt(Prompt):
         print(f'{names_p}')
         print(f'{names_l}')
 
-        lrs = [lr/5, lr]
+        lrs = [lr, lr]
         params = [params_to_opt_p, params_to_opt_l]
         print(f'lrs: {lrs}')
 
