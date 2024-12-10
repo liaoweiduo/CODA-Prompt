@@ -112,9 +112,9 @@ class PMOPrompt(Prompt):
                 # target_concept = self.target_concept_id
                 for cls_id in range(self.valid_out_dim):
                     if target_concept in concepts[cls_id]:
-                        self.dw_k[target_concept, cls_id] = 0.9
+                        self.dw_k[target_concept, cls_id] = 2         # 2, 0.9
                     else:
-                        self.dw_k[target_concept, cls_id] = 0.1
+                        self.dw_k[target_concept, cls_id] = 1         # 1, 0.1
         else:
             self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
 
