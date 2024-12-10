@@ -609,6 +609,14 @@ def _get_obj365_datasets(
         map_tuple_label_to_int = dict((item, idx + label_offset) for idx, item in enumerate(label_set))
         map_int_label_to_tuple = dict((idx + label_offset, item) for idx, item in enumerate(label_set))
         preprocess_label_to_integer(img_info, map_tuple_label_to_int, prefix=f'fewshot/{mode}/')
+        concept_set = sorted(list(set([concept for item in img_info for concept in item['label']])))
+        mapping_tuple_label_to_int_concepts = dict((item, idx) for idx, item in enumerate(concept_set))
+        map_int_concepts_label_to_str = dict((idx, item) for idx, item in enumerate(concept_set))
+        preprocess_concept_to_integer(img_info, mapping_tuple_label_to_int_concepts)
+        map_int_label_to_concept = dict()
+        for item in img_info:
+            if item['label'] not in map_int_label_to_concept.keys():
+                map_int_label_to_concept[item['label']] = item['concepts']
         img_list = formulate_img_tuples(img_info)
         dataset = PathsDataset(
             root=img_folder_path,
@@ -619,7 +627,12 @@ def _get_obj365_datasets(
         )
 
         datasets = {'dataset': dataset}
-        meta_info = {"img_list": img_list}
+        meta_info = {
+            "concept_set": concept_set,
+            "mapping_tuple_label_to_int_concepts": mapping_tuple_label_to_int_concepts,
+            "map_int_concepts_label_to_str": map_int_concepts_label_to_str,
+            "map_int_label_to_concept": map_int_label_to_concept,
+            "img_list": img_list}
         label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
     else:

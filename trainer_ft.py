@@ -151,43 +151,45 @@ class Trainer:
         temp_dir = self.log_dir + '/temp/'
         if not os.path.exists(temp_dir): os.makedirs(temp_dir)
 
-        # for each task
+        # prepare learner and model
+        self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
+
+        # do prompt increases, since prompt may extend as num_task increasing for some methods
+        for j in range(self.test_model):        # load task-args.test_model model
+            # increment task id in prompting modules
+            if j > 0:
+                try:
+                    if self.learner.model.module.prompt is not None:
+                        self.learner.model.module.prompt.process_task_count()
+                except:
+                    if self.learner.model.prompt is not None:
+                        self.learner.model.prompt.process_task_count()
+            self.learner.task_count = j
+            self.learner.pre_steps()
+
+        self.learner.add_valid_output_dim(len(self.tasks_logits[0]))      # only for one task
+        # this is important in model updating (mask out valid_out_dim)
+        # load model
+        try:
+            model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+f'/task-{self.test_model}/'
+            self.learner.load_model(model_save_dir, drop_last=True,  freeze=True)
+        except:
+            print('WARNING: model does not find, test on init model.')
+        # only last is trainable
+        last_init_state = self.learner.model.last.state_dict()
+
+        # set task id for model (needed for prompting)
+        try:
+            self.learner.model.module.task_id = self.num_tasks
+            # use task_offset. this num_tasks is continual training's num_tasks
+        except:
+            self.learner.model.task_id = self.num_tasks
+
+        # save current task index
+        self.current_t_index = self.num_tasks
+
+        # for each few-shot task
         for i in range(self.max_task):      # for few-shot testing, it should start from an offset
-
-            self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
-
-            # do prompt increases, since prompt may extend as num_task increasing for some methods
-            for j in range(self.test_model):        # load task-args.test_model model
-                # increment task id in prompting modules
-                if j > 0:
-                    try:
-                        if self.learner.model.module.prompt is not None:
-                            self.learner.model.module.prompt.process_task_count()
-                    except:
-                        if self.learner.model.prompt is not None:
-                            self.learner.model.prompt.process_task_count()
-                self.learner.task_count = j
-                self.learner.pre_steps()
-
-            self.learner.add_valid_output_dim(len(self.tasks_logits[0]))      # only for one task
-            # this is important in model updating (mask out valid_out_dim)
-            # load model
-            try:
-                model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+f'/task-{self.test_model}/'
-                self.learner.load_model(model_save_dir, drop_last=True,  freeze=True)
-            except:
-                print('WARNING: model does not find, test on init model.')
-            # only last is trainable
-
-            # set task id for model (needed for prompting)
-            try:
-                self.learner.model.module.task_id = self.num_tasks
-                # use task_offset. this num_tasks is continual training's num_tasks
-            except:
-                self.learner.model.task_id = self.num_tasks
-
-            # save current task index
-            self.current_t_index = self.num_tasks
 
             # print name
             train_name = self.task_names[i]
@@ -210,6 +212,10 @@ class Trainer:
             # if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
             # set model_save_dir to None to enable training
             if self.args.schedule[0] > 0:
+
+                # prepare last for model
+                self.learner.model.last.load_state_dict(last_init_state)
+
                 if self.args.eval_every_epoch:
                     avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, test_loader)
                 else:

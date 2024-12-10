@@ -45,18 +45,19 @@ class CFSTDataset(data.Dataset):
         # for concepts
         self.target_sample_info = None
         if len(self.benchmark.label_info) == 4 and return_concepts:
-            if 'concept_set' in self.benchmark.label_info[3].keys():    # continual
+            if 'concept_set' in self.benchmark.label_info[3].keys():
                 self.num_concepts = len(self.benchmark.label_info[3]['concept_set'])
                 print(f'num_concepts: {self.num_concepts}.')
                 self.map_int_label_to_concept = self.benchmark.label_info[3]['map_int_label_to_concept']
-                if self.train:
-                    self.target_sample_info = self.benchmark.label_info[3]['train_list']
-                elif self.validation:
-                    self.target_sample_info = self.benchmark.label_info[3]['val_list']
-                else:
-                    self.target_sample_info = self.benchmark.label_info[3]['test_list']
-            # else:       # CFST
-            #     self.target_sample_info = self.benchmark.label_info[3]['img_list']
+                if 'train_list' in self.benchmark.label_info[3].keys():      # continual
+                    if self.train:
+                        self.target_sample_info = self.benchmark.label_info[3]['train_list']
+                    elif self.validation:
+                        self.target_sample_info = self.benchmark.label_info[3]['val_list']
+                    else:
+                        self.target_sample_info = self.benchmark.label_info[3]['test_list']
+                else:       # CFST
+                    self.target_sample_info = self.benchmark.label_info[3]['img_list']
 
         # Pool
         self.memory = Pool(0, self.seed)   # memory size will change in update_coreset()
@@ -68,7 +69,8 @@ class CFSTDataset(data.Dataset):
     def debug_mode(self):
         self.target_datasets = self.benchmark.val_datasets
         if len(self.benchmark.label_info) == 4 and self.return_concepts:
-            self.target_sample_info = self.benchmark.label_info[3]['val_list']
+            if 'train_list' in self.benchmark.label_info[3].keys():
+                self.target_sample_info = self.benchmark.label_info[3]['val_list']
 
     def __getitem__(self, index, simple = False):
         data = self.dataset[index]
