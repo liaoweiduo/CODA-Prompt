@@ -26,9 +26,10 @@ mkdir -p $OUTDIR
 #    arg 1 = prompt component pool size     20 for fixed prompt size
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
+# --oracle_flag --upper_bound_flag \
 # -d
-LOGNAME=coda-l8-p21
-device=2
+LOGNAME=MT-coda-l8-p21
+device=4
 docker run --rm --runtime=nvidia --gpus device=${device} \
  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
  -v ~/.cache:/workspace/.cache \
@@ -37,6 +38,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --learner_type prompt --learner_name CODAPrompt \
    --prompt_param 21 8 0.0 \
    --lr 0.001 \
+   --oracle_flag --upper_bound_flag \
    --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
 
@@ -65,6 +67,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --learner_type prompt --learner_name CODAPrompt \
    --prompt_param 21 8 0.0 \
    --lr 0.001 \
+   --oracle_flag --upper_bound_flag \
    --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
 
