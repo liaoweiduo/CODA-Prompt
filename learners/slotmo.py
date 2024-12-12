@@ -302,6 +302,9 @@ class SLOTPrompt(Prompt):
         elif schedule_type == 'cosann':
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 self.optimizer, T_0=int(schedule[phase]/2), T_mult=1, eta_min=lr/100)
+        else:       # no change
+            self.scheduler = type('empty_scheduler', (), {})()
+            self.scheduler.step = lambda x=0: None       # empty object scheduler with empty step() func.
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()

@@ -52,6 +52,7 @@ class PMOPrompt(Prompt):
             prompt = self.model.prompt
         self.e_layers = prompt.e_layers
         self.n_prompt_per_task = prompt.n_prompt_per_task
+        self.e_pool_size = prompt.e_pool_size
         # self.n_obj_avail = prompt.n_obj
         self.FPS = prompt.FPS
 
@@ -1170,11 +1171,11 @@ class PMOPrompt(Prompt):
             return super().validation(dataloader, model, task_in, task_metric, verbal, task_global)
         else:
             accs = []
-            candidate_concepts = [
-                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.num_concepts))
-            for concept_id in candidate_concepts:
+            prompt_concepts = [
+                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.e_pool_size))
+            for prompt_id in prompt_concepts:
                 acc = super().validation(dataloader, model, task_in, task_metric, verbal, task_global,
-                                         prompt_id=concept_id)
+                                         prompt_id=prompt_id)
                 accs.append(acc)
             return accs
 

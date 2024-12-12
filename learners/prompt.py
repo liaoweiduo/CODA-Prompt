@@ -163,6 +163,9 @@ class Prompt(NormalNN):
             self.scheduler = CosineSchedule(self.optimizer, K=schedule[-1])
         elif self.schedule_type == 'decay':
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule, gamma=0.1)
+        else:       # no change
+            self.scheduler = type('empty_scheduler', (), {})()
+            self.scheduler.step = lambda x=0: None       # empty object scheduler with empty step() func.
 
     def create_model(self):
         # create vit-baseline without prompt
