@@ -37,6 +37,7 @@ def create_args():
     parser.add_argument('--oracle_flag', default=False, action='store_true',
                         help='Upper bound for oracle: MTL for task[:i]')
     parser.add_argument('--upper_bound_flag', default=False, action='store_true', help='Upper bound')
+    parser.add_argument('--max_task', type=int, default=-1, help="number of learned task")
     parser.add_argument('--memory', type=int, default=0, help="size of memory for replay")
     parser.add_argument('--temp', type=float, default=2., dest='temp', help="temperature for distillation")
     parser.add_argument('--DW', default=False, action='store_true', help='dataset balancing')

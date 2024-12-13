@@ -250,7 +250,10 @@ class CodaPrompt(nn.Module):
         self.ortho_mu = prompt_param[2]  # 0.0
 
         # trigger fixed prompt size (FPS)
-        self.FPS = False         # set to False to use origin coda-p
+        if len(prompt_param) > 3:
+            self.FPS = True if int(prompt_param[3]) == 1 else False
+        else:
+            self.FPS = False        # set to False to use origin coda-p
 
         # e prompt init
         for e in self.e_layers:
@@ -726,7 +729,7 @@ class PmoPrompt(CodaPrompt):
         super(PmoPrompt, self).__init__(emb_d, n_tasks, prompt_param[:3], key_dim=key_dim)
 
         # trigger fixed prompt size (FPS)
-        self.FPS = False         # set to False to add prompt for each task
+        self.FPS = True         # set to False to add prompt for each task
 
         if self.FPS:
             self.n_prompt_per_task = int(self.e_pool_size)  # num of prompts
@@ -852,6 +855,9 @@ class PmoPrompt(CodaPrompt):
             e_valid = True
             B, C = x_querry.shape  # [bs, 768]
             K, A, p, s, f = self.KAPselection(l, False, train)
+            # if self.e_pool_size == 1:       # in 1p's cfst case, prompt_id is -1, and do not learn
+            #     aq_k = torch.ones((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
+            # elif prompt_id >= 0:
             if prompt_id >= 0:
                 aq_k = torch.zeros((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
                 aq_k[:, prompt_id] = 1
