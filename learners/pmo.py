@@ -184,7 +184,7 @@ class PMOPrompt(Prompt):
             target = None
             if self.concept_weight:
                 target = 'p'        # learn p and last
-            elif self.config['prompt_pre_learn_mode'] != 'none':
+            elif self.config['prompt_pre_learn_model'] != 'none':
                 target = 'ka'       # learn k and a and last
             self.init_optimizer(target=target)
 
