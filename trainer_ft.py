@@ -126,6 +126,9 @@ class Trainer:
                         'slot_lr': args.slot_lr,
                         'logit_task_mask_top_k': args.logit_task_mask_top_k,
                         'slot_schedule_type': args.slot_schedule_type,
+                        'target_concept_id': args.target_concept_id,
+                        'concept_weight': args.concept_weight if hasattr(args, 'concept_weight') else False,
+                        'prompt_pre_learn_model': args.prompt_pre_learn_model if hasattr(args, 'prompt_pre_learn_model') else 'none',
                         }
         self.learner_type, self.learner_name = args.learner_type, args.learner_name
         self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
