@@ -167,11 +167,11 @@ class PMOPrompt(Prompt):
         need_train = True
         if not self.overwrite:
             # load prompt model if specified
-            if model_save_dir is not None and self.config['prompt_pre_learn_mode'] != 'none':
+            if model_save_dir is not None and self.config['prompt_pre_learn_model'] != 'none':
                 # raise exp if no slot trained but train prompt
                 # model_save_dir will be None if do compositional few-shot testing and model is load in trainer_ft.py
                 self.load_model(model_save_dir, task_id=self.t,
-                                prompt_pre_learn_model=self.config['prompt_pre_learn_mode'])
+                                prompt_pre_learn_model=self.config['prompt_pre_learn_model'])
             try:
                 self.load_model(model_save_dir)
                 need_train = False
