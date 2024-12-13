@@ -43,26 +43,41 @@ mkdir -p $OUTDIR
 #date
 ##    --target_concept_id 0 \
 
-LOGNAME=pmo-selection-concept_w.9_.1-1p-l8
+## learn selection
+#LOGNAME=pmo-selection-concept_w.9_.1-1p-l8
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type pmo --learner_name PMOPrompt \
+#    --prompt_param 21 8 0.0 \
+#    --lr 0.001 \
+#    --prompt_pre_learn_mode pmo-concept_w.9_.1-1p-l8 \
+#    --eval_class_wise \
+#    --oracle_flag --upper_bound_flag \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
+
+## cfst
+#for mode in sys pro sub non noc
+#do
+# # do not use -d to avoid running in parallel
+#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type pmo --learner_name PMOPrompt \
+#    --prompt_param 21 8 0.0 \
+#    --log_dir ${OUTDIR}/${LOGNAME} \
+#    --lr 0.001 \
+#    --mode ${mode}
+#  date
+#done
+
+
+LOGNAME=pmo-concept_w.9_.1-1p-l8-test0
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type pmo --learner_name PMOPrompt \
     --prompt_param 21 8 0.0 \
     --lr 0.001 \
+    --concept_weight \
+    --target_concept_id 0 \
     --prompt_pre_learn_mode pmo-concept_w.9_.1-1p-l8 \
     --eval_class_wise \
     --oracle_flag --upper_bound_flag \
     --log_dir ${OUTDIR}/${LOGNAME}
 date
-
-# cfst
-for mode in sys pro sub non noc
-do
- # do not use -d to avoid running in parallel
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type pmo --learner_name PMOPrompt \
-    --prompt_param 21 8 0.0 \
-    --log_dir ${OUTDIR}/${LOGNAME} \
-    --lr 0.001 \
-    --mode ${mode}
-  date
-done
