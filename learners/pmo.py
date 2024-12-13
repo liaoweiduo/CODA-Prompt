@@ -134,7 +134,7 @@ class PMOPrompt(Prompt):
     def data_weighting(self, dataset, num_seen=None):
         # assign specific weight on cls with target concept.
         # if dataset.target_sample_info is not None:      # continual
-        if self.concept_weight and self.config['prompt_pre_learn_model'] == 'none':  # if pre learn prompt, just learn last and do not change data weighting.
+        if self.concept_weight and self.config['prompt_pre_learn_model'] == 'none':
             self.log('reweighting data according to concepts!')
             concepts = dataset.get_concepts()  # [n_cls * [list of concepts: e.g., 1, 10]]
             num_concepts = dataset.num_concepts
@@ -147,6 +147,9 @@ class PMOPrompt(Prompt):
                         self.dw_k[target_concept, cls_id] = 0.9         # 2, 0.9
                     else:
                         self.dw_k[target_concept, cls_id] = 0.1         # 1, 0.1
+        elif self.concept_weight:        # if pre learn prompt, just learn last and do not change data weighting.
+            num_concepts = dataset.num_concepts
+            self.dw_k = torch.tensor(np.ones((num_concepts, self.valid_out_dim + 1), dtype=np.float32))
         else:
             self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
 
