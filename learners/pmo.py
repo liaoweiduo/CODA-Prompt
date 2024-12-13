@@ -64,25 +64,49 @@ class PMOPrompt(Prompt):
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'pmo',prompt_param=self.prompt_param, use_vit_emb=True, use_vit_fea=False)
         return model
 
-    def load_model(self, filename, drop_last=False, freeze=False):
-        state_dict = torch.load(filename + 'class.pth')
-        # complete with/without module.
-        for key in list(state_dict.keys()):
-            if 'module' in key:
-                state_dict[key[7:]] = state_dict[key]
-            else:
-                state_dict[f'module.{key}'] = state_dict[key]
-        if drop_last:
-            del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            del state_dict['last.weight']; del state_dict['last.bias']
-            # if 'module.last.weight' in state_dict:
-            #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
-            # else:
-            #     del state_dict['last.weight']; del state_dict['last.bias']
-            # self.model.load_state_dict(state_dict, strict=False)
-        self.model.load_state_dict(state_dict, strict=False)
-        self.log(f'=> Load Done from {filename}')
-        # self.log(f'=> Load Done with params {list(state_dict.keys())}')
+    def load_model(self, filename, drop_last=False, freeze=False,
+                   prompt_pre_learn_model='none', task_id=-1):
+        if prompt_pre_learn_model != 'none':
+            filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
+                        prompt_pre_learn_model + f'/models/repeat-{self.seed+1}/task-{task_id+1}/')
+            print(f'redirect loading prompt model from {filename}.')
+            try:
+                state_dict = torch.load(filename + 'class.pth')
+            except:
+                filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
+                            prompt_pre_learn_model + f'/models/repeat-{self.seed+1}/task-1/')
+                print(f'WARNING: donot find model file, assuming a MT model, redirect loading from {filename}')
+                state_dict = torch.load(filename + 'class.pth')
+            # complete with/without module and collect prompts
+            for key in list(state_dict.keys()):
+                if 'e_p_' in key:
+                    if 'module' in key:
+                        state_dict[key[7:]] = state_dict[key]
+                    else:
+                        state_dict[f'module.{key}'] = state_dict[key]
+                else:
+                    del state_dict[f'{key}']
+            self.model.load_state_dict(state_dict, strict=False)
+            self.log(f'=> Load Done with params {list(state_dict.keys())}')
+        else:
+            state_dict = torch.load(filename + 'class.pth')
+            # complete with/without module.
+            for key in list(state_dict.keys()):
+                if 'module' in key:
+                    state_dict[key[7:]] = state_dict[key]
+                else:
+                    state_dict[f'module.{key}'] = state_dict[key]
+            if drop_last:
+                del state_dict['module.last.weight']; del state_dict['module.last.bias']
+                del state_dict['last.weight']; del state_dict['last.bias']
+                # if 'module.last.weight' in state_dict:
+                #     del state_dict['module.last.weight']; del state_dict['module.last.bias']
+                # else:
+                #     del state_dict['last.weight']; del state_dict['last.bias']
+                # self.model.load_state_dict(state_dict, strict=False)
+            self.model.load_state_dict(state_dict, strict=False)
+            self.log(f'=> Load Done from {filename}')
+            # self.log(f'=> Load Done with params {list(state_dict.keys())}')
 
         if freeze:
             self.log('=> Freeze backbone')     # on CFST
@@ -94,6 +118,12 @@ class PMOPrompt(Prompt):
         if self.config['concept_weight']:
             for k, p in self.model.prompt.named_parameters():
                 if 'e_k_' in k or 'e_a_' in k:
+                    p.requires_grad = False
+
+        # freeze prompts
+        if prompt_pre_learn_model != 'none':
+            for k, p in self.model.prompt.named_parameters():
+                if 'e_p_' in k:
                     p.requires_grad = False
 
         if self.gpu:
@@ -113,9 +143,9 @@ class PMOPrompt(Prompt):
                 # target_concept = self.target_concept_id
                 for cls_id in range(self.valid_out_dim):
                     if target_concept in concepts[cls_id]:
-                        self.dw_k[target_concept, cls_id] = 2         # 2, 0.9
+                        self.dw_k[target_concept, cls_id] = 0.9         # 2, 0.9
                     else:
-                        self.dw_k[target_concept, cls_id] = 1         # 1, 0.1
+                        self.dw_k[target_concept, cls_id] = 0.1         # 1, 0.1
         else:
             self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
 
@@ -131,10 +161,17 @@ class PMOPrompt(Prompt):
         self.train_dataset = train_dataset
         if hasattr(train_dataset, 'num_concepts'):
             self.num_concepts = train_dataset.num_concepts
+        self.t = train_dataset.t
 
         # try to load model
         need_train = True
         if not self.overwrite:
+            # load prompt model if specified
+            if model_save_dir is not None and self.config['prompt_pre_learn_mode'] != 'none':
+                # raise exp if no slot trained but train prompt
+                # model_save_dir will be None if do compositional few-shot testing and model is load in trainer_ft.py
+                self.load_model(model_save_dir, task_id=self.t,
+                                prompt_pre_learn_model=self.config['prompt_pre_learn_mode'])
             try:
                 self.load_model(model_save_dir)
                 need_train = False
@@ -146,7 +183,9 @@ class PMOPrompt(Prompt):
             self.log('Optimizer is reset!')
             target = None
             if self.concept_weight:
-                target = 'p'
+                target = 'p'        # learn p and last
+            elif self.config['prompt_pre_learn_mode'] != 'none':
+                target = 'ka'       # learn k and a and last
             self.init_optimizer(target=target)
 
         if need_train:
@@ -361,6 +400,7 @@ class PMOPrompt(Prompt):
     def update_model(self, inputs, targets):
         """normal update model"""
 
+        # separately learn prompt
         if self.concept_weight:
             total_loss = []
             candidate_concepts = [
@@ -391,6 +431,7 @@ class PMOPrompt(Prompt):
 
             total_loss = torch.stack(total_loss).mean()
 
+        # learn k and a
         else:
             # logits
             out = self.model(inputs, train=True)        # use selection

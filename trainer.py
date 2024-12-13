@@ -162,6 +162,7 @@ class Trainer:
             'slot_schedule_type': args.slot_schedule_type,
             'target_concept_id': args.target_concept_id,
             'concept_weight': args.concept_weight if hasattr(args, 'concept_weight') else False,
+            'prompt_pre_learn_model': args.prompt_pre_learn_model if hasattr(args, 'prompt_pre_learn_model') else 'none',
         }
         # # pmo settings
         # if len(args.prompt_param) > 3:
