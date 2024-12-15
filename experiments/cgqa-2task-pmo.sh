@@ -38,6 +38,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --prompt_param 21 8 0.0 \
     --lr 0.001 \
     --max_task 1 \
+    -- concept_weight \
     --target_concept_id 0 \
     --eval_class_wise \
     --log_dir ${OUTDIR}/${LOGNAME_t0}
