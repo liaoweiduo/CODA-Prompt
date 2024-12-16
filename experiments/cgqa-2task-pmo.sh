@@ -27,34 +27,34 @@ mkdir -p $OUTDIR
 #    arg 2 = prompt length
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    --oracle_flag --upper_bound_flag \
-LOGNAME_t0=pmo-concept_w.9_.1-1st-1p-task0-l8-concept0
-LOGNAME=pmo-concept_w.9_.1-1st-1p-l8-concept0
-#docker run -d --rm --runtime=nvidia --gpus device=1 \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type pmo --learner_name PMOPrompt \
-    --prompt_param 21 8 0.0 \
-    --lr 0.001 \
-    --max_task 1 \
-    --concept_weight \
-    --target_concept_id 0 \
-    --eval_class_wise \
-    --log_dir ${OUTDIR}/${LOGNAME_t0}
-date
+#LOGNAME_t0=pmo-concept_w.9_.1-1st-1p-task0-l8-concept0
+#LOGNAME=pmo-concept_w.9_.1-1st-1p-l8-concept0
+##docker run -d --rm --runtime=nvidia --gpus device=1 \
+##  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+##  -v ~/.cache:/workspace/.cache \
+##  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type pmo --learner_name PMOPrompt \
+#    --prompt_param 21 8 0.0 \
+#    --lr 0.001 \
+#    --max_task 1 \
+#    --concept_weight \
 #    --target_concept_id 0 \
-
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type pmo --learner_name PMOPrompt \
-    --prompt_param 21 8 0.0 \
-    --lr 0.001 \
-    --concept_weight \
-    --prompt_pre_learn_mode ${LOGNAME_t0} \
-    --target_concept_id 0 \
-    --eval_class_wise \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
+#    --eval_class_wise \
+#    --log_dir ${OUTDIR}/${LOGNAME_t0}
+#date
+##    --target_concept_id 0 \
+#
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type pmo --learner_name PMOPrompt \
+#    --prompt_param 21 8 0.0 \
+#    --lr 0.001 \
+#    --concept_weight \
+#    --prompt_pre_learn_mode ${LOGNAME_t0} \
+#    --target_concept_id 0 \
+#    --eval_class_wise \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
 
 ## learn selection
 #LOGNAME=pmo-selection-concept_w.9_.1-1p-l8
@@ -82,17 +82,18 @@ date
 #done
 ##    --target_concept_id 0 \
 
-
-#LOGNAME=pmo-concept_w.9_.1-1p-l8-test0
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type pmo --learner_name PMOPrompt \
-#    --prompt_param 21 8 0.0 \
-#    --lr 0.001 \
-#    --concept_weight \
-#    --target_concept_id 0 \
-#    --prompt_pre_learn_mode pmo-concept_w.9_.1-1p-l8 \
-#    --eval_class_wise \
-#    --oracle_flag --upper_bound_flag \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#date
-
+# FPS
+LOGNAME=pmo-concept_w.9_.1-FPS-1p-l8-concept0
+docker run -d --rm --runtime=nvidia --gpus device=0 \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type pmo --learner_name PMOPrompt \
+    --prompt_param 21 8 0.0 \
+    --lr 0.001 \
+    --concept_weight \
+    --target_concept_id 0 \
+    --eval_class_wise \
+    --log_dir ${OUTDIR}/${LOGNAME}
+date
