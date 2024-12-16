@@ -28,48 +28,48 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 # --oracle_flag --upper_bound_flag \
 # -d
-LOGNAME=MT-coda-l8-p21
-device=4
-docker run --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 21 8 0.0 \
-   --lr 0.001 \
-   --oracle_flag --upper_bound_flag \
-   --eval_class_wise \
-   --log_dir ${OUTDIR}/${LOGNAME}
+#LOGNAME=MT-coda-l8-p21
+#device=4
+#docker run --rm --runtime=nvidia --gpus device=${device} \
+# -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+# -v ~/.cache:/workspace/.cache \
+# --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 21 8 0.0 \
+#   --lr 0.001 \
+#   --oracle_flag --upper_bound_flag \
+#   --eval_class_wise \
+#   --log_dir ${OUTDIR}/${LOGNAME}
 
 # cfst
-for mode in sys pro sub non noc
-do
-  docker run --rm --runtime=nvidia --gpus device=${device} \
-    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-    -v ~/.cache:/workspace/.cache \
-    --shm-size 8G liaoweiduo/hide:2.0 \
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-      --learner_type prompt --learner_name CODAPrompt \
-      --prompt_param 21 8 0.0 \
-      --log_dir ${OUTDIR}/${LOGNAME} \
-      --mode ${mode}
-  date
-done
+#for mode in sys pro sub non noc
+#do
+#  docker run --rm --runtime=nvidia --gpus device=${device} \
+#    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#    -v ~/.cache:/workspace/.cache \
+#    --shm-size 8G liaoweiduo/hide:2.0 \
+#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#      --learner_type prompt --learner_name CODAPrompt \
+#      --prompt_param 21 8 0.0 \
+#      --log_dir ${OUTDIR}/${LOGNAME} \
+#      --mode ${mode}
+#  date
+#done
 
 # finish other runs
-REPEAT=3
-docker run --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 21 8 0.0 \
-   --lr 0.001 \
-   --oracle_flag --upper_bound_flag \
-   --eval_class_wise \
-   --log_dir ${OUTDIR}/${LOGNAME}
+#REPEAT=3
+#docker run --rm --runtime=nvidia --gpus device=${device} \
+# -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+# -v ~/.cache:/workspace/.cache \
+# --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 21 8 0.0 \
+#   --lr 0.001 \
+#   --oracle_flag --upper_bound_flag \
+#   --eval_class_wise \
+#   --log_dir ${OUTDIR}/${LOGNAME}
 
 
 # DualPrompt
@@ -108,13 +108,29 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 
 # vit-pretrain
 #
-#docker run -d --rm --runtime=nvidia --gpus device=0 \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name Prompt \
-#    --prompt_param 10 10 -1 \
-#    --eval_class_wise \
+device=2
+docker run --rm --runtime=nvidia --gpus device=${device} \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name Prompt \
+    --prompt_param 10 10 -1 \
+    --eval_class_wise \
+    --log_dir ${OUTDIR}/vit_pretrain
 #    --oracle_flag --upper_bound_flag \
-#    --log_dir ${OUTDIR}/MT-vit_pretrain
+
+# cfst
+for mode in sys pro sub non noc
+do
+  docker run --rm --runtime=nvidia --gpus device=${device} \
+    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+    -v ~/.cache:/workspace/.cache \
+    --shm-size 8G liaoweiduo/hide:2.0 \
+  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+      --learner_type prompt --learner_name Prompt \
+      --prompt_param 10 10 -1 \
+      --log_dir ${OUTDIR}/vit_pretrain \
+      --mode ${mode}
+  date
+done
