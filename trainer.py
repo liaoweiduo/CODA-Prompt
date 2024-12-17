@@ -196,7 +196,7 @@ class Trainer:
         else:
             return self.learner.validation(test_loader, task_metric=task)
 
-    def class_eval(self, c_index, local=False, task='acc'):
+    def class_eval(self, c_index, t_index=-1, local=False, task='acc'):
         # local not impl
         print('validation class index:', c_index)
 
@@ -205,17 +205,17 @@ class Trainer:
         test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False,
                                  num_workers=self.workers)
         if self.args.only_learn_slot:
-            # if local:
-            #     return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task,
-            #                                    slot_recon_loss=True)
-            # else:
-            return self.learner.validation(test_loader, task_metric=task,
+            if local:
+                return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task,
+                                               slot_recon_loss=True)
+            else:
+                return self.learner.validation(test_loader, task_metric=task,
                                                slot_recon_loss=True)
 
-        # if local:
-        #     return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
-        # else:
-        return self.learner.validation(test_loader, task_metric=task)
+        if local:
+            return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
+        else:
+            return self.learner.validation(test_loader, task_metric=task)
 
     def train(self, avg_metrics):
     
@@ -302,7 +302,12 @@ class Trainer:
             if self.args.eval_class_wise:
                 unique_labels = self.test_dataset.get_unique_labels()
                 for label_id, label in enumerate(unique_labels):
+                    task_id = 0
+                    for _task_id, clss in enumerate(self.tasks_logits):
+                        if label in clss:
+                            task_id = _task_id
                     acc = self.class_eval(label)
+                    local_acc = self.class_eval(label, t_index=task_id, local=True)
                     if type(acc) is list:
                         if self.args.target_concept_id >= 0:
                             prompt_list = [self.args.target_concept_id]
@@ -314,11 +319,20 @@ class Trainer:
                                 f'val_acc/prompt_{prompt_id}/class_{label}')
                             self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
                             self.learner.epoch_log['scaler']['Value'].append(acc[index_id])
+
+                            self.learner.epoch_log['scaler']['Tag'].append(
+                                f'local_val_acc/prompt_{prompt_id}/class_{label}')
+                            self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
+                            self.learner.epoch_log['scaler']['Value'].append(local_acc[index_id])
                     else:
                         # log
                         self.learner.epoch_log['scaler']['Tag'].append(f'val_acc/class_{label}')
                         self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
                         self.learner.epoch_log['scaler']['Value'].append(acc)
+
+                        self.learner.epoch_log['scaler']['Tag'].append(f'local_val_acc/class_{label}')
+                        self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
+                        self.learner.epoch_log['scaler']['Value'].append(local_acc)
 
             for j in range(i+1):
                 task_acc = self.task_eval(j)
