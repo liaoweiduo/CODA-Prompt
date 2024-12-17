@@ -454,7 +454,7 @@ class CODAPromptCond(Prompt):
                 mask_ind = mask.nonzero().view(-1)
                 input, target, concepts = input[mask_ind], target[mask_ind], concepts[mask_ind]
 
-                mask = target < task_in[-1]
+                mask = target <= task_in[-1]
                 mask_ind = mask.nonzero().view(-1)
                 input, target, concepts = input[mask_ind], target[mask_ind], concepts[mask_ind]
 
