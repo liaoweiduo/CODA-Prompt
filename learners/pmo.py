@@ -134,7 +134,7 @@ class PMOPrompt(Prompt):
     def data_weighting(self, dataset, num_seen=None):
         # assign specific weight on cls with target concept.
         # if dataset.target_sample_info is not None:      # continual
-        if self.concept_weight and self.config['prompt_pre_learn_model'] == 'none':
+        if self.concept_weight and self.config['prompt_pre_learn_model'] == 'none' and self.target_concept_id >= 0:
             self.log('reweighting data according to concepts!')
             concepts = dataset.get_concepts()  # [n_cls * [list of concepts: e.g., 1, 10]]
             num_concepts = dataset.num_concepts
@@ -144,9 +144,9 @@ class PMOPrompt(Prompt):
                 # target_concept = self.target_concept_id
                 for cls_id in range(self.valid_out_dim):
                     if target_concept in concepts[cls_id]:
-                        self.dw_k[target_concept, cls_id] = 10         # 2, 0.9, 4
+                        self.dw_k[target_concept, cls_id] = 4         # 2, 0.9, 4
                     else:
-                        self.dw_k[target_concept, cls_id] = 0.1         # 1, 0.1, 0.5
+                        self.dw_k[target_concept, cls_id] = 0.5         # 1, 0.1, 0.5
         elif self.concept_weight:        # if pre learn prompt, just learn last and do not change data weighting.
             num_concepts = dataset.num_concepts
             self.dw_k = torch.tensor(np.ones((num_concepts, self.valid_out_dim + 1), dtype=np.float32))
@@ -410,7 +410,9 @@ class PMOPrompt(Prompt):
         if self.concept_weight:
             total_loss = []
             candidate_concepts = [
-                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.num_concepts))
+                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.e_pool_size))
+            # target_concept_id == -2 use list(range(self.num_concepts))
+
             for concept_id in candidate_concepts:
                 # logits
                 out = self.model(inputs, train=True, prompt_id=concept_id)      # specify prompt to use

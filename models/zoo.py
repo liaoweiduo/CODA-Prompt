@@ -404,17 +404,19 @@ class CodaPrompt(nn.Module):
                 A = A[0:f]
                 p = p[0:f]
 
-            if self.e_pool_size == 1:
-                aq_k = torch.ones((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
-            else:
-                # b = bs, d = 768, k = 100, l=8
-                # with attention and cosine sim
-                # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
-                a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
-                # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-                n_K = nn.functional.normalize(K, dim=1)
-                q = nn.functional.normalize(a_querry, dim=2)
-                aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+            # unconditioned prompt
+            # if self.e_pool_size == 1:
+            #     aq_k = torch.ones((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
+            # else:
+
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
 
             # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
             P_ = torch.einsum('bk,kld->bld', aq_k, p)
@@ -858,18 +860,22 @@ class PmoPrompt(CodaPrompt):
             # if self.e_pool_size == 1:       # in 1p's cfst case, prompt_id is -1, and do not learn
             #     aq_k = torch.ones((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
             # elif prompt_id >= 0:
-            if prompt_id >= 0:
-                aq_k = torch.zeros((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
-                aq_k[:, prompt_id] = 1
-            else:       # select using attn
-                # b = bs, d = 768, k = 100, l=8
-                # with attention and cosine sim
-                # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
-                a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
-                # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
-                n_K = nn.functional.normalize(K, dim=1)
-                q = nn.functional.normalize(a_querry, dim=2)
-                aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
+            if prompt_id >= 0:  # select specific component
+                if self.e_pool_size > 1:    # use specific prompt, otherwise, use the only one prompt
+                    K = K[prompt_id:prompt_id+1]
+                    A = A[prompt_id:prompt_id+1]
+                    p = p[prompt_id:prompt_id+1]
+                # aq_k = torch.zeros((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
+                # aq_k[:, prompt_id] = 1
+
+            # b = bs, d = 768, k = 100, l=8
+            # with attention and cosine sim
+            # (b x 1 x d) * soft([1 x k x d]) = (b x k x d) -> attention = k x d
+            a_querry = torch.einsum('bd,kd->bkd', x_querry, A)
+            # # (b x k x d) - [1 x k x d] = (b x k) -> key = k x d
+            n_K = nn.functional.normalize(K, dim=1)
+            q = nn.functional.normalize(a_querry, dim=2)
+            aq_k = torch.einsum('bkd,kd->bk', q, n_K)  # aq_k is alpha (cosine similarity) [bs, 100]
 
             # (b x 1 x k x 1) * [1 x plen x k x d] = (b x plen x d) -> prompt = plen x k x d
             P_ = torch.einsum('bk,kld->bld', aq_k, p)

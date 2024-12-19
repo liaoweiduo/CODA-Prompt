@@ -28,19 +28,18 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 # --oracle_flag --upper_bound_flag \
 # -d
-#LOGNAME=MT-coda-l8-p21
-#device=4
-#docker run --rm --runtime=nvidia --gpus device=${device} \
-# -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-# -v ~/.cache:/workspace/.cache \
-# --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#   --learner_type prompt --learner_name CODAPrompt \
-#   --prompt_param 21 8 0.0 \
-#   --lr 0.001 \
-#   --oracle_flag --upper_bound_flag \
-#   --eval_class_wise \
-#   --log_dir ${OUTDIR}/${LOGNAME}
+LOGNAME=coda-l8-p1
+device=4
+docker run --rm --runtime=nvidia --gpus device=${device} \
+ -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+ -v ~/.cache:/workspace/.cache \
+ --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 1 8 0.0 \
+   --lr 0.001 \
+   --eval_class_wise \
+   --log_dir ${OUTDIR}/${LOGNAME}
 
 # cfst
 #for mode in sys pro sub non noc
@@ -108,17 +107,17 @@ mkdir -p $OUTDIR
 
 # vit-pretrain
 #
-device=3
-docker run --rm --runtime=nvidia --gpus device=${device} \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name Prompt \
-    --prompt_param 10 10 -1 \
-    --eval_class_wise \
-    --log_dir ${OUTDIR}/vit_pretrain
-#    --oracle_flag --upper_bound_flag \
+#device=3
+#docker run --rm --runtime=nvidia --gpus device=${device} \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name Prompt \
+#    --prompt_param 10 10 -1 \
+#    --eval_class_wise \
+#    --log_dir ${OUTDIR}/vit_pretrain
+##    --oracle_flag --upper_bound_flag \
 
 # cfst
 #for mode in sys pro sub non noc
