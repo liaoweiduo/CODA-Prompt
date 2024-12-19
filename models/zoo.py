@@ -404,6 +404,11 @@ class CodaPrompt(nn.Module):
                 A = A[0:f]
                 p = p[0:f]
 
+            if task_id is not None:   # for debug, task id not None, use the last 50 prompt
+                K = K[50:]
+                A = A[50:]
+                p = p[50:]
+
             # unconditioned prompt
             # if self.e_pool_size == 1:
             #     aq_k = torch.ones((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
