@@ -38,7 +38,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --concept_weight \
     --target_concept_id -1 \
     --eval_class_wise \
-    --log_dir ${OUTDIR}/${LOGNAME}
+    --log_dir ${OUTDIR}/${LOGNAME_t0}
 date
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type pmo --learner_name PMOPrompt \
