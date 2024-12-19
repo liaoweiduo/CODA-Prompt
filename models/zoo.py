@@ -404,7 +404,8 @@ class CodaPrompt(nn.Module):
                 A = A[0:f]
                 p = p[0:f]
 
-            if task_id is not None:   # for debug, task id not None, use the last 50 prompt
+            # for debug, task id not None, use the last 50 prompt
+            if task_id == -1:
                 K = K[50:]
                 A = A[50:]
                 p = p[50:]
