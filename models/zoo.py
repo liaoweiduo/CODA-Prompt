@@ -404,11 +404,15 @@ class CodaPrompt(nn.Module):
                 A = A[0:f]
                 p = p[0:f]
 
-            # for debug, task id not None, use the last 50 prompt
+            # for debug, task id == -1, use the last 50 prompt
             if task_id == -1:
                 K = K[50:]
                 A = A[50:]
                 p = p[50:]
+            elif task_id == -2:
+                K = K[:50]
+                A = A[:50]
+                p = p[:50]
 
             # unconditioned prompt
             # if self.e_pool_size == 1:
