@@ -44,7 +44,6 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type pmo --learner_name PMOPrompt \
     --prompt_param 1 8 0.0 \
     --lr 0.001 \
-    --max_task 1 \
     --concept_weight \
     --target_concept_id -1 \
     --prompt_pre_learn_mode ${LOGNAME_t0} \
@@ -77,7 +76,7 @@ date
 #  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type pmo --learner_name PMOPrompt \
-    --prompt_param 21 8 0.0 \
+    --prompt_param 1 8 0.0 \
     --lr 0.001 \
     --concept_weight \
     --target_concept_id ${target_concept_id} \
