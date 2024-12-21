@@ -214,17 +214,17 @@ class SLOTPrompt(Prompt):
         if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
             # if fewshot testing self.config['mode'], only learn classifier: model.last
             for k, p in self.model.named_parameters():
-                if 'last' in k:
+                if 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
         elif target == 'last':
             for k, p in self.model.named_parameters():
-                if 'last' in k:
+                if 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
         elif target == 'prompt':
             for k, p in self.model.named_parameters():
-                if 'prompt' in k:
+                if 'prompt' in k and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
         elif target == 'expert':
@@ -235,25 +235,25 @@ class SLOTPrompt(Prompt):
             #         names.append(k)
         elif target == 'slot':
             for k, p in self.model.named_parameters():
-                if 'slot_attn' in k:
+                if 'slot_attn' in k and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
         elif target == '/slot':
             for k, p in self.model.named_parameters():
-                if 'prompt' in k and 'slot_attn' not in k:
+                if 'prompt' in k and 'slot_attn' not in k and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
-                elif 'last' in k:
+                elif 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
                     # params_to_opt.append(p[self.task[t]])
                     # names.append(f'{k}[{np.min(self.task[t])}-{self.task[t]}]')
         else:
             for k, p in self.model.named_parameters():
-                if 'prompt' in k:
+                if 'prompt' in k and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
-                elif 'last' in k:
+                elif 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
 

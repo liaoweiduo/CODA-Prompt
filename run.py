@@ -55,7 +55,8 @@ def create_args():
 
     # MO Args
     parser.add_argument('--eval_class_wise', default=False, action='store_true')
-    parser.add_argument('--concept_weight', default=False, action='store_true')
+    parser.add_argument('--concept_weight', default=False, action='store_true',
+                        help='True to use concept weighting on data.')
     parser.add_argument('--target_concept_id', type=int, default=-1, help="specify specific concept to weight")
     parser.add_argument('--prompt_pre_learn_model', type=str, default='none',
                         help="The model name to the pre-learned slot attn model.")

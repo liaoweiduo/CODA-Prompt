@@ -87,41 +87,41 @@ class Prompt(NormalNN):
         if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
             # if fewshot testing self.config['mode'], only learn classifier: model.last
             for k, p in self.model.named_parameters():
-                if 'last' in k:
+                if 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
         elif target == 'last':
             for k, p in self.model.named_parameters():
-                if 'last' in k:
+                if 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
         elif target == 'prompt':
             for k, p in self.model.named_parameters():
-                if 'prompt' in k:
+                if 'prompt' in k and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
         elif target == 'p':
             for k, p in self.model.named_parameters():
-                if 'e_p_' in k:
+                if 'e_p_' in k and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
-                elif 'last' in k:
+                elif 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
         elif target == 'ka':
             for k, p in self.model.named_parameters():
-                if 'e_k_' in k or 'e_a_' in k:
+                if ('e_k_' in k or 'e_a_' in k) and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
-                elif 'last' in k:
+                elif 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
         else:
             for k, p in self.model.named_parameters():
-                if 'prompt' in k:
+                if 'prompt' in k and p.requires_grad:
                     params_to_opt_p.append(p)
                     names_p.append(k)
-                elif 'last' in k:
+                elif 'last' in k and p.requires_grad:
                     params_to_opt_l.append(p)
                     names_l.append(k)
 

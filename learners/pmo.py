@@ -79,7 +79,7 @@ class PMOPrompt(Prompt):
                 state_dict = torch.load(filename + 'class.pth')
             # complete with/without module and collect prompts
             for key in list(state_dict.keys()):
-                if 'e_p_' in key:
+                if 'prompt' in key:       # prompt; e_p_
                     if 'module' in key:
                         state_dict[key[7:]] = state_dict[key]
                     else:
@@ -115,16 +115,16 @@ class PMOPrompt(Prompt):
                     p.requires_grad = False
 
         # freeze selection when concept_weight = True
-        if self.config['concept_weight']:
-            for k, p in self.model.prompt.named_parameters():
-                if 'e_k_' in k or 'e_a_' in k:
-                    p.requires_grad = False
+        # if self.config['concept_weight']:
+        #     for k, p in self.model.prompt.named_parameters():
+        #         if 'e_k_' in k or 'e_a_' in k:
+        #             p.requires_grad = False
 
         # freeze prompts
         if prompt_pre_learn_model != 'none':
             for k, p in self.model.prompt.named_parameters():
-                if 'e_p_' in k:
-                    p.requires_grad = False
+                # if 'e_p_' in k:
+                p.requires_grad = False
 
         if self.gpu:
             self.model = self.model.cuda()
@@ -134,12 +134,12 @@ class PMOPrompt(Prompt):
     def data_weighting(self, dataset, num_seen=None):
         # assign specific weight on cls with target concept.
         # if dataset.target_sample_info is not None:      # continual
-        if self.concept_weight and self.config['prompt_pre_learn_model'] == 'none' and self.target_concept_id >= 0:
+        if self.concept_weight and self.config['prompt_pre_learn_model'] == 'none':
             self.log('reweighting data according to concepts!')
             concepts = dataset.get_concepts()  # [n_cls * [list of concepts: e.g., 1, 10]]
             num_concepts = dataset.num_concepts
-            self.dw_k = torch.tensor(np.ones((num_concepts, self.valid_out_dim + 1), dtype=np.float32))
-
+            self.dw_k = torch.tensor(np.ones((num_concepts + 1, self.valid_out_dim + 1), dtype=np.float32))
+            # num_concepts + 1 to make target_concept = -1 to use equal weighting
             for target_concept in range(num_concepts):
                 # target_concept = self.target_concept_id
                 for cls_id in range(self.valid_out_dim):
@@ -187,11 +187,11 @@ class PMOPrompt(Prompt):
             self.log('Optimizer is reset!')
             target = None
             if self.concept_weight and self.config['prompt_pre_learn_model'] == 'none':
-                target = 'p'        # learn p and last
+                target = None        # None means all: learn p k a and last
             elif self.concept_weight:
                 target = 'last'     # load pre learned prompt and only train last.
-            elif self.config['prompt_pre_learn_model'] != 'none':
-                target = 'ka'       # learn k and a and last
+            # elif self.config['prompt_pre_learn_model'] != 'none':
+            #     target = 'ka'       # learn k and a and last
             self.init_optimizer(target=target)
 
         if need_train:
@@ -409,13 +409,15 @@ class PMOPrompt(Prompt):
         # separately learn prompt
         if self.concept_weight:
             total_loss = []
-            candidate_concepts = [
-                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.e_pool_size))
+            # candidate_concepts = [
+            #     self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.e_pool_size))
+            candidate_concepts = [self.target_concept_id]
             # target_concept_id == -2 use list(range(self.num_concepts))
 
             for concept_id in candidate_concepts:
                 # logits
-                out = self.model(inputs, train=True, prompt_id=concept_id)      # specify prompt to use
+                out = self.model(inputs, train=True, prompt_id=concept_id)
+                # specify prompt to use or -1 to use all prompts
                 # out -> [bs, 100]
                 if len(out) == 2:
                     logits, prompt_loss = out
@@ -439,7 +441,6 @@ class PMOPrompt(Prompt):
 
             total_loss = torch.stack(total_loss).mean()
 
-        # learn k and a
         else:
             # logits
             out = self.model(inputs, train=True)        # use selection
@@ -1220,8 +1221,9 @@ class PMOPrompt(Prompt):
             return super().validation(dataloader, model, task_in, task_metric, verbal, task_global)
         else:
             accs = []
-            prompt_concepts = [
-                self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.e_pool_size))
+            # prompt_concepts = [
+            #     self.target_concept_id] if self.target_concept_id >= 0 else list(range(self.e_pool_size))
+            prompt_concepts = [self.target_concept_id]
             for prompt_id in prompt_concepts:
                 acc = super().validation(dataloader, model, task_in, task_metric, verbal, task_global,
                                          prompt_id=prompt_id)
