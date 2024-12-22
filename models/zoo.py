@@ -756,7 +756,7 @@ class PmoPrompt(CodaPrompt):
 
         # self.updated_weights = None     # temp for inner update
 
-        self.n_prompt_per_concept = 10
+        self.n_prompt_per_concept = 1       # 10
 
     # def gram_schmidt(self, vv):  # disable gram schmidt to use uniform init
     #
