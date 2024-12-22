@@ -28,8 +28,8 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 #    --oracle_flag --upper_bound_flag \
 
-LOGNAME_t0=pmo-concept_w1-1st_p10-coda-l8-task0
-LOGNAME=pmo-concept_w1-1st_p10-coda-l8
+LOGNAME_t0=pmo-concept_w1-1st_p10-coda-l8-adam-task0
+LOGNAME=pmo-concept_w1-1st_p10-coda-l8-adam
 # use target_concept_id = -1 to disable reweighting data
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type pmo --learner_name PMOPrompt \
@@ -54,8 +54,8 @@ date
 
 for target_concept_id in {0..20}
 do
-LOGNAME_t0=pmo-concept_w4_.5-1st_p10-coda-l8-concept${target_concept_id}-task0
-LOGNAME=pmo-concept_w4_.5-1st_p10-coda-l8-concept${target_concept_id}
+LOGNAME_t0=pmo-concept_w4_.5-1st_p10-coda-l8-adam-concept${target_concept_id}-task0
+LOGNAME=pmo-concept_w4_.5-1st_p10-coda-l8-adam-concept${target_concept_id}
 #docker run -d --rm --runtime=nvidia --gpus device=1 \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
