@@ -65,6 +65,8 @@ class Prompt(NormalNN):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
 
+            total_loss = total_loss + self.config['concept_similar_reg_coeff'] * concept_similar_reg
+
         # step
         self.optimizer.zero_grad()
         total_loss.backward()

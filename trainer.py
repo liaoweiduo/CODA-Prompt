@@ -163,6 +163,7 @@ class Trainer:
             'target_concept_id': args.target_concept_id if hasattr(args, 'target_concept_id') else -1,
             'concept_weight': args.concept_weight if hasattr(args, 'concept_weight') else False,
             'prompt_pre_learn_model': args.prompt_pre_learn_model if hasattr(args, 'prompt_pre_learn_model') else 'none',
+            'concept_similar_reg_coeff': args.concept_similar_reg_coeff,
         }
         # # pmo settings
         # if len(args.prompt_param) > 3:

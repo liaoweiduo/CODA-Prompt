@@ -1105,6 +1105,16 @@ class SLOTPrompt(Prompt):
                 # if self.debug_mode:
                 #     print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
 
+            # cheating reg on logits
+            concept_similar_reg = torch.zeros(1).mean().to(loss.device)
+            if self.concept_weight:
+                concept_similar_reg = self.concept_similar_reg(None, logits, targets)
+                self.epoch_log['scaler']['Tag'].append('loss/concept_similar_reg')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
+
+            loss = loss + self.config['concept_similar_reg_coeff'] * concept_similar_reg
+
             loss.backward()
 
             # step
@@ -1117,6 +1127,7 @@ class SLOTPrompt(Prompt):
                      # 'prompt_ortho_loss': prompt_ortho_loss.detach(),
                      'selection_ortho_loss': selection_ortho_loss.detach(),
                      'prompt_concept_alignment_loss': prompt_concept_alignment_loss.detach(),
+                     'concept_similar_reg': torch.round(concept_similar_reg.detach()*100).item() / 100,
                      })
 
     def cross_attn(self, slots):
