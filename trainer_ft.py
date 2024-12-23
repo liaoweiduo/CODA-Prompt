@@ -97,6 +97,7 @@ class Trainer:
         # Prepare the self.learner (model)
         self.learner_config = {'num_classes': num_classes,
                         'lr': args.lr,
+                        'lr_decreace_ratio': args.lr_decreace_ratio if hasattr(args, 'lr_decreace_ratio') else 1.0,  # no use
                         'debug_mode': args.debug_mode == 1,
                         'momentum': args.momentum,
                         'weight_decay': args.weight_decay,

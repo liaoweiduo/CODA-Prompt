@@ -190,6 +190,8 @@ class SLOTPrompt(Prompt):
             else:
                 lr = self.config['lr'][t]
 
+        lr_decreace_ratio = self.config['lr_decreace_ratio']
+
         if schedule is None:
             schedule = self.schedule
         if t >= len(schedule):
@@ -263,7 +265,7 @@ class SLOTPrompt(Prompt):
         print(f'{names_p}')
         print(f'{names_l}')
 
-        lrs = [lr, lr]
+        lrs = [lr_decreace_ratio * lr, lr]
         params = [params_to_opt_p, params_to_opt_l]
         print(f'lrs: {lrs}')
 

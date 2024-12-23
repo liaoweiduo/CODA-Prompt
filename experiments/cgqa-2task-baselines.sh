@@ -30,26 +30,38 @@ mkdir -p $OUTDIR
 # --oracle_flag --upper_bound_flag \
 # -d
 
-devices=(2); i=-1
-for concept_similar_reg_coeff in 0
+for lr_decreace_ratio in 0.5 0.7 0.9
 do
-((i++))
-device=${devices[${i}]}
-#concept_similar_reg_coeff=0.1
-LOGNAME=coda-l8-p100-csrc${concept_similar_reg_coeff}
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
+LOGNAME=coda-l8-p100-lrd${lr_decreace_ratio}
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
    --prompt_param 100 8 0.0 0 \
    --lr 0.001 \
-   --concept_weight \
-   --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+   --lr_decreace_ratio ${lr_decreace_ratio} \
    --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
 done
+
+#devices=(2); i=-1
+#for concept_similar_reg_coeff in 0
+#do
+#((i++))
+#device=${devices[${i}]}
+##concept_similar_reg_coeff=0.1
+#LOGNAME=coda-l8-p100-csrc${concept_similar_reg_coeff}
+#docker run -d --rm --runtime=nvidia --gpus device=${device} \
+# -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+# -v ~/.cache:/workspace/.cache \
+# --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 100 8 0.0 0 \
+#   --lr 0.001 \
+#   --concept_weight \
+#   --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+#   --eval_class_wise \
+#   --log_dir ${OUTDIR}/${LOGNAME}
+#done
 
 ## cfst
 #for mode in sys pro sub non noc

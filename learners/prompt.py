@@ -85,6 +85,9 @@ class Prompt(NormalNN):
             lr = self.config['lr']
         else:
             lr = self.config['lr'][0]
+
+        lr_decreace_ratio = self.config['lr_decreace_ratio']
+
         # parse optimizer args
         # Multi-GPU
         if len(self.config['gpuid']) > 1:
@@ -143,7 +146,7 @@ class Prompt(NormalNN):
         print(f'{names_p}')
         print(f'{names_l}')
 
-        lrs = [lr, lr]
+        lrs = [lr_decreace_ratio * lr, lr]
         params = [params_to_opt_p, params_to_opt_l]
         print(f'lrs: {lrs}')
 
