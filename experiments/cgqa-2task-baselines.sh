@@ -30,8 +30,8 @@ mkdir -p $OUTDIR
 # --oracle_flag --upper_bound_flag \
 # -d
 
-devices=(0 1 2 3); i=-1
-for concept_similar_reg_coeff in 0.01 0.1 0.5 1
+devices=(2); i=-1
+for concept_similar_reg_coeff in 0
 do
 ((i++))
 device=${devices[${i}]}
