@@ -261,7 +261,7 @@ class NormalNN(nn.Module):
 
         # collect concepts
         # self.label_concepts: [100, 2]
-        concepts_batch = self.label_concepts[targets]   # [bs, 2]
+        concepts_batch = self.label_concepts[targets.cpu().numpy()]   # [bs, 2]
         concepts = np.unique(concepts_batch.flatten())
 
         # for each concept
