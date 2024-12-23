@@ -33,6 +33,7 @@ class NormalNN(nn.Module):
         self.tasks = learner_config['tasks']
         self.top_k = learner_config['top_k']
         self.seed = learner_config['seed']
+        self.concept_weight = self.config['concept_weight']  # True to use concept
         self.target_concept_id = learner_config.get('target_concept_id')    # can be None for CFST
 
         # cls statistics
@@ -177,6 +178,7 @@ class NormalNN(nn.Module):
                 for param_group in self.optimizer.param_groups:
                     self.log('LR:', param_group['lr'])
                 batch_timer.tic()
+                loss_dict = {}
                 for i, sample in enumerate(train_loader):
 
                     concepts = None
@@ -197,7 +199,7 @@ class NormalNN(nn.Module):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output= self.update_model(x, y)
+                    loss, output, loss_dict = self.update_model(x, y)
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())  
@@ -214,8 +216,10 @@ class NormalNN(nn.Module):
                 self.log(
                     ' * Loss {loss.avg:.3f} | '
                     'Train Acc {acc.avg:.3f} | '
+                    '{loss_dict} | '
                     'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
+                        loss=losses, acc=acc, time=batch_time, i=len(train_loader),
+                        loss_dict=loss_dict))
 
                 # reset
                 losses = AverageMeter()
@@ -248,6 +252,34 @@ class NormalNN(nn.Module):
         loss_supervised = (self.criterion_fn(logits, targets.long()) * data_weights).mean()
         return loss_supervised 
 
+    def concept_similar_reg(self, features, logits, targets):
+        """Cheating on concept-aware to decrease distance between two imgs that share the same concept"""
+        # features: [bs 768]; logits with full range: [bs, 100]; targets: [bs]
+
+        # preprocess logits
+        logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
+
+        # collect concepts
+        # self.label_concepts: [100, 2]
+        concepts_batch = self.label_concepts[targets]   # [bs, 2]
+        concepts = np.unique(concepts_batch.flatten())
+
+        # for each concept
+        losses = []
+        dist = nn.PairwiseDistance(p=2)     # l2-distance
+        for concept in concepts:
+            involved_img_inds = [idx for idx, img_concepts in enumerate(concepts_batch) if concept in img_concepts]
+            if len(involved_img_inds) > 1:
+                involved_logits = logits[involved_img_inds]    # [n_img, 10]
+
+                # distance
+                # [n_img, n_img] -> []
+                loss = dist(involved_logits.unsqueeze(0), involved_logits.unsqueeze(1)).mean()
+                losses.append(loss)
+        losses = torch.stack(losses).mean()
+
+        return losses
+
     def update_model(self, inputs, targets, target_scores = None, dw_force = None, kd_index = None):
         
         dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
@@ -257,7 +289,7 @@ class NormalNN(nn.Module):
         self.optimizer.zero_grad()
         total_loss.backward()
         self.optimizer.step()
-        return total_loss.detach(), logits
+        return total_loss.detach(), logits, {}
 
     def validation(self, dataloader, model=None, task_in = None, task_metric='acc',  verbal = True, task_global=False,
                    **kwargs):
@@ -349,7 +381,10 @@ class NormalNN(nn.Module):
 
     # data weighting
     def data_weighting(self, dataset, num_seen=None):
-        
+        if self.concept_weight:
+            self.label_concepts = np.array(dataset.get_concepts())  # [n_cls * [list of concepts: e.g., 1, 10]]
+            self.num_concepts = dataset.num_concepts
+
         self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
         # if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
         if dataset.target_sample_info is not None and self.config['mode'] == 'continual':

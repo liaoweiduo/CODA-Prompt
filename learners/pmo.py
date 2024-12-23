@@ -210,6 +210,7 @@ class PMOPrompt(Prompt):
                 for param_group in self.optimizer.param_groups:
                     self.log('LR:', param_group['lr'])
                 batch_timer.tic()
+                loss_dict = {}
                 for i, sample in enumerate(train_loader):
                     self.batch_idx = i
 
@@ -234,7 +235,7 @@ class PMOPrompt(Prompt):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # model update
-                    loss, output = self.update_model(x, y)      # , task
+                    loss, output, loss_dict = self.update_model(x, y)      # , task
 
                     # measure elapsed time
                     batch_time.update(batch_timer.toc())
@@ -257,8 +258,10 @@ class PMOPrompt(Prompt):
                 self.log(
                     ' * Loss {loss.avg:.3f} | '
                     'Train Acc {acc.avg:.3f} | '
+                    '{loss_dict} | '
                     'Time {time.avg:.3f}*{i}'.format(
-                        loss=losses, acc=acc, time=batch_time, i=len(train_loader)))
+                        loss=losses, acc=acc, time=batch_time, i=len(train_loader),
+                        loss_dict=loss_dict))
 
                 # reset
                 losses = AverageMeter()

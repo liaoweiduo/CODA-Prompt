@@ -47,7 +47,7 @@ class CFSTDataset(data.Dataset):
         if len(self.benchmark.label_info) == 4 and return_concepts:
             if 'concept_set' in self.benchmark.label_info[3].keys():
                 self.num_concepts = len(self.benchmark.label_info[3]['concept_set'])
-                print(f'num_concepts: {self.num_concepts}.')
+                # print(f'CFSTDataset: num_concepts: {self.num_concepts}.')
                 self.map_int_label_to_concept = self.benchmark.label_info[3]['map_int_label_to_concept']
                 if 'train_list' in self.benchmark.label_info[3].keys():      # continual
                     if self.train:

@@ -29,46 +29,55 @@ mkdir -p $OUTDIR
 #    arg 4 = 1 FPS
 # --oracle_flag --upper_bound_flag \
 # -d
-LOGNAME=coda-l8-p8
-device=0
-docker run --rm --runtime=nvidia --gpus device=${device} \
+
+devices=(0 1 2 3); i=-1
+for concept_similar_reg_coeff in 0.01 0.1 0.5 1
+do
+((i++))
+device=${devices[${i}]}
+#concept_similar_reg_coeff=0.1
+LOGNAME=coda-l8-p100-csrc${concept_similar_reg_coeff}
+docker run -d --rm --runtime=nvidia --gpus device=${device} \
  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
  -v ~/.cache:/workspace/.cache \
  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 8 8 0.0 0 \
+   --prompt_param 100 8 0.0 0 \
    --lr 0.001 \
+   --concept_weight \
+   --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
    --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
-
-# cfst
-for mode in sys pro sub non noc
-do
-  docker run --rm --runtime=nvidia --gpus device=${device} \
-    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-    -v ~/.cache:/workspace/.cache \
-    --shm-size 8G liaoweiduo/hide:2.0 \
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-      --learner_type prompt --learner_name CODAPrompt \
-      --prompt_param 8 8 0.0 0 \
-      --log_dir ${OUTDIR}/${LOGNAME} \
-      --mode ${mode}
-  date
 done
 
-# finish other runs
-REPEAT=3
-docker run --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 8 8 0.0 0 \
-   --lr 0.001 \
-   --eval_class_wise \
-   --log_dir ${OUTDIR}/${LOGNAME}
+## cfst
+#for mode in sys pro sub non noc
+#do
+#  docker run --rm --runtime=nvidia --gpus device=${device} \
+#    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#    -v ~/.cache:/workspace/.cache \
+#    --shm-size 8G liaoweiduo/hide:2.0 \
+#  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#      --learner_type prompt --learner_name CODAPrompt \
+#      --prompt_param 8 8 0.0 0 \
+#      --log_dir ${OUTDIR}/${LOGNAME} \
+#      --mode ${mode}
+#  date
+#done
+
+## finish other runs
+#REPEAT=3
+#docker run --rm --runtime=nvidia --gpus device=${device} \
+# -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+# -v ~/.cache:/workspace/.cache \
+# --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 8 8 0.0 0 \
+#   --lr 0.001 \
+#   --eval_class_wise \
+#   --log_dir ${OUTDIR}/${LOGNAME}
 
 
 # DualPrompt

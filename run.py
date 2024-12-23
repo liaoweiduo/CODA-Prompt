@@ -43,6 +43,8 @@ def create_args():
     parser.add_argument('--DW', default=False, action='store_true', help='dataset balancing')
     parser.add_argument('--prompt_param', nargs="+", type=float, default=[1, 1, 1],
                          help="e prompt pool size, e prompt length, g prompt length")
+    parser.add_argument('--concept_similar_reg_coeff', type=float, default=1.,
+                        help="coeff for concept similar reg.")
 
     # Slot Args
     parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots')

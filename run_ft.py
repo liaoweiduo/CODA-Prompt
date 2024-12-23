@@ -52,6 +52,8 @@ def create_args():
     parser.add_argument('--slot_schedule_type', type=str, default='cosine')
 
     # MO Args
+    parser.add_argument('--concept_weight', default=False, action='store_true',
+                        help='True to use concept weighting on data.')
     parser.add_argument('--target_concept_id', type=int, default=-1, help="specify specific concept to weight")
 
     # CFST Args

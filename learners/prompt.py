@@ -57,12 +57,22 @@ class Prompt(NormalNN):
         # ce loss
         total_loss = total_loss + prompt_loss
 
+        # cheating reg on logits
+        concept_similar_reg = torch.zeros(1).mean().to(total_loss.device)
+        if self.concept_weight:
+            concept_similar_reg = self.concept_similar_reg(None, logits, targets)
+            self.epoch_log['scaler']['Tag'].append('loss/concept_similar_reg')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
+
         # step
         self.optimizer.zero_grad()
         total_loss.backward()
         self.optimizer.step()
 
-        return total_loss.detach(), logits
+        return (total_loss.detach(), logits,
+                {'concept_similar_reg': torch.round(concept_similar_reg.detach()*100).item() / 100,
+                 })
 
     # sets model optimizers
     def init_optimizer(self, target=None, schedule=None):
