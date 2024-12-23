@@ -38,7 +38,6 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --prompt_param 100 8 0.0 0 \
    --lr 0.001 \
    --lr_decreace_ratio ${lr_decreace_ratio} \
-   --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
 done
 
