@@ -550,6 +550,7 @@ class SLOTPrompt(Prompt):
                             'So Loss {selection_ortho_loss.avg:.3f} | '
                             'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
                             'Train Acc {acc.avg:.3f} | '
+                            'csr {concept_similar_reg} | '
                             'Time {time:.3f}s ({i} batches)'.format(
                                 loss=losses,
                                 onehot_loss=onehot_losses,   # s2p_loss=s2p_losses,
@@ -558,7 +559,9 @@ class SLOTPrompt(Prompt):
                                 # prompt_ortho_loss=prompt_ortho_losses,
                                 selection_ortho_loss=selection_ortho_losses,
                                 prompt_concept_alignment_loss=prompt_concept_alignment_losses,
-                                time=batch_time.avg*len(train_loader), i=len(train_loader)))
+                                time=batch_time.avg*len(train_loader), i=len(train_loader),
+                                concept_similar_reg=loss_dict.get('concept_similar_reg'),
+                            ))
                         # 'S2P Loss {s2p_loss.avg:.3f} | '
                         #     'MK Loss {mk_loss.avg:.3f} | '
 
