@@ -387,7 +387,7 @@ class NormalNN(nn.Module):
 
         self.dw_k = torch.tensor(np.ones(self.valid_out_dim + 1, dtype=np.float32))
         # if hasattr(dataset, 'return_concepts') and dataset.return_concepts:
-        if dataset.target_sample_info is not None and self.config['mode'] == 'continual':
+        if hasattr(dataset, 'target_sample_info') and dataset.target_sample_info is not None and self.config['mode'] == 'continual':
             concepts = dataset.get_concepts()   # [n_cls * [list of concepts: e.g., 1, 10]]
             target_concept = self.target_concept_id 
             for cls_id in range(self.valid_out_dim): 
