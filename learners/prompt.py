@@ -72,9 +72,11 @@ class Prompt(NormalNN):
         total_loss.backward()
         self.optimizer.step()
 
-        return (total_loss.detach(), logits,
-                {'concept_similar_reg': torch.round(concept_similar_reg.detach()*100).item() / 100,
-                 })
+        loss_dict = {}
+        if self.concept_weight:
+            loss_dict['concept_similar_reg'] = torch.round(concept_similar_reg.detach()*100).item() / 100
+
+        return (total_loss.detach(), logits, loss_dict)
 
     # sets model optimizers
     def init_optimizer(self, target=None, schedule=None):
