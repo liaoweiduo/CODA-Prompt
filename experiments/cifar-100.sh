@@ -31,21 +31,21 @@ mkdir -p $OUTDIR
 #    --debug_mode 1 \
 #for coeff in 0.001 0.003 0.005 0.007 0.009
 #do
-LOGNAME=slot-k10-nt5-temp1-recon-slr1e-4
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
-    --slot_lr 1e-4 \
-    --only_learn_slot \
-    --log_dir ${OUTDIR}/${LOGNAME}
-date
-LOGNAME=slot-prompt-k10-nt5-temp1-lr1e-4
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
-    --slot_pre_learn_model slot-k10-nt5-temp1-recon-slr1e-4 \
-    --log_dir ${OUTDIR}/${LOGNAME}
-#done
+#LOGNAME=slot-k10-nt5-temp1-recon-slr1e-4
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type slotmo --learner_name SLOTPrompt \
+#    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
+#    --slot_lr 1e-4 \
+#    --only_learn_slot \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#date
+#LOGNAME=slot-prompt-k10-nt5-temp1-lr1e-4
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type slotmo --learner_name SLOTPrompt \
+#    --prompt_param 30 40 10 5 1.0 1.0 0.0 0.0 0.1 1.2 \
+#    --slot_pre_learn_model slot-k10-nt5-temp1-recon-slr1e-4 \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+##done
 
 ## CODA-P
 ##
@@ -53,11 +53,16 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 ##    arg 1 = prompt component pool size
 ##    arg 2 = prompt length
 ##    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name CODAPrompt \
-#    --prompt_param 100 8 0.0 \
-#    --log_dir ${OUTDIR}/coda-p
-#
+
+for lr_decreace_ratio in 0.5 0.7 0.9
+do
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name CODAPrompt \
+    --prompt_param 100 8 0.0 \
+    --lr_decreace_ratio ${lr_decreace_ratio} \
+    --log_dir ${OUTDIR}/coda-p-lrd${lr_decreace_ratio}
+done
+
 ## DualPrompt
 ##
 ## prompt parameter args:
