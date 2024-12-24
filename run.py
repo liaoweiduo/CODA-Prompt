@@ -56,6 +56,7 @@ def create_args():
                         help="The model name to warm-start from the 2nd task.")
     parser.add_argument('--slot_lr', type=float, default=0.0003, help="slot lr")
     parser.add_argument('--slot_schedule_type', type=str, default='cosine')
+    parser.add_argument('--logit_task_mask_top_k', type=int, default=10, help="no use")
 
     # MO Args
     parser.add_argument('--eval_class_wise', default=False, action='store_true')
