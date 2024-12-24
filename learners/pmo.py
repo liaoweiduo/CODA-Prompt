@@ -476,7 +476,7 @@ class PMOPrompt(Prompt):
         total_loss.backward()
         self.optimizer.step()
 
-        return total_loss.detach(), logits
+        return total_loss.detach(), logits, {}
 
     def update_model_with_hv(self, inputs, targets, pre_learn=False):
         """Difference:
