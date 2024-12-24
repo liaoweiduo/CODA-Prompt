@@ -54,7 +54,7 @@ mkdir -p $OUTDIR
 ##    arg 2 = prompt length
 ##    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 
-for lr_decreace_ratio in 0.5 0.7 0.9
+for lr_decreace_ratio in 0.5 0.7 1.0
 do
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPrompt \
