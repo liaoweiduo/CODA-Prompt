@@ -37,12 +37,23 @@ docker run -d --rm --runtime=nvidia --gpus device=0 \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 1 \
+   --prompt_param 100 8 0.1 1 \
    --lr 0.001 \
    --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
 #   --concept_weight \
 #   --concept_similar_reg_coeff 0.01 \
+LOGNAME=coda-l8-p100-lr1e-4
+docker run -d --rm --runtime=nvidia --gpus device=4 \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 8 0.1 0 \
+   --lr 0.0001 \
+   --eval_class_wise \
+   --log_dir ${OUTDIR}/${LOGNAME}
 
 ## cfst
 #for mode in sys pro sub non noc
