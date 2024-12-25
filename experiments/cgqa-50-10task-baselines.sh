@@ -39,8 +39,8 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --learner_type prompt --learner_name CODAPrompt \
    --prompt_param 100 8 0.1 1 \
    --lr 0.001 \
-   --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
+#   --eval_class_wise \
 #   --concept_weight \
 #   --concept_similar_reg_coeff 0.01 \
 LOGNAME=coda-l8-p100-lr1e-4
@@ -52,7 +52,6 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --learner_type prompt --learner_name CODAPrompt \
    --prompt_param 100 8 0.1 0 \
    --lr 0.0001 \
-   --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
 
 ## cfst
