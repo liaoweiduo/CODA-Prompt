@@ -267,15 +267,15 @@ class Slot2Prompt(nn.Module):
             prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
             weights = F.sigmoid(slot_map(slots))        # -> [bs, k, 1]
             weighted_slots = torch.sum(weights * slots, dim=1)     # -> [bs, h]
-            prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
-            # [bs, e, l, d]
+            prompts = prompt_map(weighted_slots).reshape(bs, 1, len(self.e_layers), self.e_p_length, self.emb_d)
+            # [bs, 1, e, l, d]
         elif self.selector_mode == 'mlp':       # use dense
             slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
             prompt_map = s2p.prompt_map[-1]      # [self.key_d -> len(self.e_layers) * self.e_p_length * self.emb_d]
             weighted_slots = slot_map(slots)
             weighted_slots = torch.mean(weighted_slots, dim=1)   # mean over K
-            prompts = prompt_map(weighted_slots).reshape(bs, len(self.e_layers), self.e_p_length, self.emb_d)
-            # [bs, e, l, d]
+            prompts = prompt_map(weighted_slots).reshape(bs, 1, len(self.e_layers), self.e_p_length, self.emb_d)
+            # [bs, 1, e, l, d]
         else:
             slots = self.slot_ln(slots)  # apply layernorm to alleviate shifting in slots
             avg_slots = slots.mean(dim=1)       # [b, n10]
