@@ -123,7 +123,8 @@ class SlotPrompt(nn.Module):
                 _recon_loss = 0
             _prompts, _selection, _w = self.s2p(_slots, train=train, phase=prompt_phase)
             prompts.append(_prompts)
-            selection.append(_selection)
+            if _selection is not None:
+                selection.append(_selection)
             slots.append(_slots)
             attn.append(_attn)
             recon_loss.append(_recon_loss)          # list [1\T]
@@ -131,7 +132,8 @@ class SlotPrompt(nn.Module):
                 ws.append(_w)                       # [bs, k20]
 
         prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, k20, e12, p8, d768]
-        selections = torch.stack(selection, dim=1)  # [bs, 1\T, k20, e12, pp30] each slot:k select from prompt pool:pp
+        if len(selection) > 0:
+            selections = torch.stack(selection, dim=1)  # [bs, 1\T, k20, e12, pp30] each slot:k select from prompt pool:pp
         slots = torch.stack(slots, dim=1)           # [bs, 1\T, k20, d64]
         attn = torch.stack(attn, dim=1)             # [bs, 1\T, n196, k20] (softmax-ed over k20)
         if len(ws) > 0:
