@@ -248,6 +248,7 @@ class CodaPrompt(nn.Module):
 
         # strenth of ortho penalty
         self.ortho_mu = prompt_param[2]  # 0.0
+        self.beta_version = True    # not use gram_schmidt, directly offline init ortho and use ortho penalty
 
         # trigger fixed prompt size (FPS)
         if len(prompt_param) > 3 and int(prompt_param[3]) == 1:
@@ -265,20 +266,28 @@ class CodaPrompt(nn.Module):
             # in the original paper, we used ortho init at the start - this modification is more 
             # fair in the spirit of continual learning and has little affect on performance
             e_l = self.e_p_length
-            p = tensor_prompt(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
-            k = tensor_prompt(self.e_pool_size, self.key_d)  # [100, 768]
-            a = tensor_prompt(self.e_pool_size, self.key_d)
-            p = self.gram_schmidt(p)
-            k = self.gram_schmidt(k)
-            a = self.gram_schmidt(a)
-            setattr(self, f'e_p_{e}', p)
-            setattr(self, f'e_k_{e}', k)
-            setattr(self, f'e_a_{e}', a)
+            if self.beta_version:
+                p = tensor_prompt(self.e_pool_size, e_l, emb_d, ortho=True)  # [100, 8, 768]
+                k = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)  # [100, 768]
+                a = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)
+                setattr(self, f'e_p_{e}', p)
+                setattr(self, f'e_k_{e}', k)
+                setattr(self, f'e_a_{e}', a)
+            else:
+                p = tensor_prompt(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
+                k = tensor_prompt(self.e_pool_size, self.key_d)  # [100, 768]
+                a = tensor_prompt(self.e_pool_size, self.key_d)
+                p = self.gram_schmidt(p)
+                k = self.gram_schmidt(k)
+                a = self.gram_schmidt(a)
+                setattr(self, f'e_p_{e}', p)
+                setattr(self, f'e_k_{e}', k)
+                setattr(self, f'e_a_{e}', a)
 
     def process_task_count(self):
         self.task_count += 1
 
-        if not self.FPS:
+        if not self.FPS and not self.beta_version:
             # in the spirit of continual learning, we will reinit the new components
             # for the new task with Gram Schmidt
             #
@@ -457,7 +466,7 @@ class CodaPrompt(nn.Module):
 
 
 def ortho_penalty(t):
-    return ((t @ t.T - torch.eye(t.shape[0]).cuda()) ** 2).mean()
+    return ((t @ t.T - torch.eye(t.shape[0]).cuda()) ** 2).mean() * 1e-6
 
 
 class CodaPromptCond(CodaPrompt):
