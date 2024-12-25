@@ -60,7 +60,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 100 8 0.0 \
     --lr_decreace_ratio ${lr_decreace_ratio} \
-    --log_dir ${OUTDIR}/coda-p-lrd${lr_decreace_ratio}
+    --log_dir ${OUTDIR}/coda-p-e10-lrd${lr_decreace_ratio}
 done
 
 ## DualPrompt
