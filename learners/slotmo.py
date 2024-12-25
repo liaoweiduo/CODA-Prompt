@@ -1118,7 +1118,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
 
-            loss = loss + self.config['concept_similar_reg_coeff'] * concept_similar_reg
+                loss = loss + self.config['concept_similar_reg_coeff'] * concept_similar_reg
 
             loss.backward()
 

@@ -165,11 +165,23 @@ class Slot2Prompt(nn.Module):
         self.FPS = FPS          # or can be True all the time?
         self.select_slot_temp = temp
         self.select_prompt_temp = 1.0
-        self.cond_mode = mode
-        # -1 -> slot-avg;
-        # >0 -> learn to select slot to avg: 1: sigmoid(); 2: cosine
+        if mode in [-1, 1, 2]:
+            self.cond_mode = mode
+            # -1 -> slot-avg;
+            # 1 or 2 -> learn to select slot to avg: 1: sigmoid(); 2: cosine
 
-        self.selector_mode = 'attn'     # [gate, mlp, attn]
+            self.selector_mode = 'attn'     # [gate, mlp, attn]
+        elif mode == 3:
+            self.cond_mode = None
+            self.selector_mode = 'mlp'     # [gate, mlp, attn]
+            self.FPS = True
+        else:
+            self.cond_mode = None
+            self.selector_mode = 'gate'     # [gate, mlp, attn]
+            self.FPS = True
+
+        print(f'Initial s2p in mode {self.selector_mode}.')
+
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
             self.slot_map = nn.ModuleList([
                 # nn.Sequential(nn.Linear(key_dim, key_dim), nn.ReLU(inplace=True), nn.Linear(key_dim, key_dim)),

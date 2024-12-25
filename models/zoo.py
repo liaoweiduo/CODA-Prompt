@@ -60,7 +60,7 @@ class SlotPrompt(nn.Module):
 
         # output setting
         self.s2p_temp = float(prompt_param[5])     # temperature to control how sharp are slot attns
-        self.s2p_mode = int(prompt_param[6])     # -1 -> slot-avg; 1 -> learn to select slot to avg
+        self.s2p_mode = int(prompt_param[6])        # some options
         self.s2p = Slot2Prompt(emb_d, self.n_tasks, self.e_pool_size, self.e_p_length, self.e_layers,
                                FPS=self.FPS, temp=self.s2p_temp, key_dim=key_dim, mode=self.s2p_mode)
 
