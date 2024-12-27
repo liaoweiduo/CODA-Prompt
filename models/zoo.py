@@ -29,9 +29,6 @@ class SlotPrompt(nn.Module):
         # prompt mapping init
         # self.prompt_map_init(self.task_count)
 
-        # trigger fixed prompt size (FPS)
-        self.FPS = False         # if True, continually learning s2p
-
         # slot basic param
         # self.e_pool_size = int(prompt_param[0])  # 100 no use for slots
         # self.register_buffer('pool', torch.zeros(self.e_pool_size, key_dim).float())
@@ -61,6 +58,18 @@ class SlotPrompt(nn.Module):
         # output setting
         self.s2p_temp = float(prompt_param[5])     # temperature to control how sharp are slot attns
         self.s2p_mode = int(prompt_param[6])        # some options
+
+        # trigger fixed prompt size (FPS)
+        if self.s2p_mode in [-1, 1, 2]:     # attn s2p
+            self.FPS = False
+        elif self.s2p_mode in [-10, 10, 20]:        # attn with FPS
+            self.s2p_mode = int(self.s2p_mode // 10)    # to -1, 1, 2
+            self.FPS = True
+        elif self.s2p_mode == 3:        # 'mlp' s2p
+            self.FPS = True
+        else:       # 'gate' s2p
+            self.FPS = True
+
         self.s2p = Slot2Prompt(emb_d, self.n_tasks, self.e_pool_size, self.e_p_length, self.e_layers,
                                FPS=self.FPS, temp=self.s2p_temp, key_dim=key_dim, mode=self.s2p_mode)
 

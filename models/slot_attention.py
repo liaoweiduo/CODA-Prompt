@@ -180,7 +180,7 @@ class Slot2Prompt(nn.Module):
             self.selector_mode = 'gate'     # [gate, mlp, attn]
             self.FPS = True
 
-        print(f'Initial s2p in mode {self.selector_mode}.')
+        print(f'Initial s2p in mode {self.selector_mode}, FPS {self.FPS}.')
 
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
             self.slot_map = nn.ModuleList([
