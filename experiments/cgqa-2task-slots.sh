@@ -94,28 +94,28 @@ mkdir -p $OUTDIR
 ##    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
 
 # concept similar reg
-#devices=(3 4 5); i=-1
-#for concept_similar_reg_coeff in 0.005 0.007 0.02
-#do
-#((i++))
-#device=${devices[${i}]}
-#temp=1
-#lr=1e-3
-#LOGNAME=4-cheat-slot_prompt-sMT-p100-l8-k10-nt5-sig${temp}_FPS-pllr${lr}-csrc${concept_similar_reg_coeff}
-##  -d
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type slotmo --learner_name SLOTPrompt \
-#    --prompt_param 100 8 10 5 1.0 ${temp} 1 0.0 0.0 80 0.0 0.0 0.0 0.0 \
-#    --concept_weight \
-#    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
-#    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
-#    --lr ${lr} ${lr} \
-#    --log_dir ${OUTDIR}/${LOGNAME}
-#done
+devices=(3 4 5); i=-1
+for concept_similar_reg_coeff in 0.005 0.007 0.02
+do
+((i++))
+device=${devices[${i}]}
+temp=1
+lr=1e-3
+LOGNAME=4-cheat-slot_prompt-sMT-p100-l8-k10-nt5-sig${temp}_FPS-pllr${lr}-csrc${concept_similar_reg_coeff}
+#  -d
+docker run -d --rm --runtime=nvidia --gpus device=${device} \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 10 5 1.0 ${temp} 1 0.0 0.0 80 0.0 0.0 0.0 0.0 \
+    --concept_weight \
+    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+    --lr ${lr} ${lr} \
+    --log_dir ${OUTDIR}/${LOGNAME}
+done
 
 ## cfst
 #for mode in sys pro sub non noc
@@ -148,24 +148,24 @@ mkdir -p $OUTDIR
 #    --lr ${lr} ${lr} \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 
-# set encoder
-devices=(0 1); i=-1
-for weight_coeff in 0.01
-do
-((i++))
-lr=1e-4
-device=${devices[${i}]}
-LOGNAME=5-slot_prompt-sMT-p100-l8-k10-nt5-s2p_mlp_FPS-pllr${lr}-wc${weight_coeff}
-#  -d
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 8 10 5 1.0 1.0 3 ${weight_coeff} 0.0 80 0.0 0.0 0.0 0.0 \
-    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
-    --lr ${lr} ${lr} \
-    --eval_class_wise \
-    --log_dir ${OUTDIR}/${LOGNAME}
-done
+## set encoder
+#devices=(0 1); i=-1
+#for weight_coeff in 0.01
+#do
+#((i++))
+#lr=1e-4
+#device=${devices[${i}]}
+#LOGNAME=5-slot_prompt-sMT-p100-l8-k10-nt5-s2p_mlp_FPS-pllr${lr}-wc${weight_coeff}
+##  -d
+##docker run -d --rm --runtime=nvidia --gpus device=${device} \
+##  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+##  -v ~/.cache:/workspace/.cache \
+##  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type slotmo --learner_name SLOTPrompt \
+#    --prompt_param 100 8 10 5 1.0 1.0 3 ${weight_coeff} 0.0 80 0.0 0.0 0.0 0.0 \
+#    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+#    --lr ${lr} ${lr} \
+#    --eval_class_wise \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#done

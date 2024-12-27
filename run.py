@@ -47,6 +47,8 @@ def create_args():
                          help="e prompt pool size, e prompt length, g prompt length")
     parser.add_argument('--concept_similar_reg_coeff', type=float, default=1.,
                         help="coeff for concept similar reg.")
+    parser.add_argument('--concept_similar_reg_coeff_sensitivity', type=float, default=1.,
+                        help="sensitivity for reg on n_cls.")
 
     # Slot Args
     parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots')

@@ -313,6 +313,8 @@ class SLOTPrompt(Prompt):
 
         self.train_dataset = train_dataset
         self.t = train_dataset.t
+        self.n_cls = len(self.tasks[self.t])     # tasks: [[0,1,...,49], [50,...,59], ...]
+        print(f'num of classes: {self.n_cls}.')
         # self.aux.update_source(train_dataset)       # aux samples from the current task
 
         # try to load model
@@ -1118,7 +1120,16 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
 
-                loss = loss + self.config['concept_similar_reg_coeff'] * concept_similar_reg
+                # cal current_coeff
+                coeff = self.config['concept_similar_reg_coeff']
+                sen = self.config['concept_similar_reg_coeff_sensitivity']
+                last_coeff = ((10 / self.n_cls) ** sen) * coeff
+                current_coeff = last_coeff * self.epoch / self.epochs
+                self.epoch_log['scaler']['Tag'].append(f'coeff/concept_similar_reg/t{self.t}')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(current_coeff)
+
+                loss = loss + current_coeff * concept_similar_reg
 
             loss.backward()
 
