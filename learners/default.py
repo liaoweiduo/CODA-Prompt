@@ -149,6 +149,11 @@ class NormalNN(nn.Module):
 
     def learn_batch(self, train_loader, train_dataset, model_save_dir, val_loader=None):
         self.init_train_log()
+
+        self.train_dataset = train_dataset
+        self.t = train_dataset.t
+        self.n_cls = len(self.tasks[self.t])     # tasks: [[0,1,...,49], [50,...,59], ...]
+        print(f'num of classes: {self.n_cls}.')
         
         # try to load model
         need_train = True
@@ -171,6 +176,7 @@ class NormalNN(nn.Module):
             acc = AverageMeter()
             batch_time = AverageMeter()
             batch_timer = Timer()
+            self.epochs = self.config['schedule'][-1]
             for epoch in range(self.config['schedule'][-1]):
                 self.epoch=epoch
 

@@ -65,7 +65,16 @@ class Prompt(NormalNN):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
 
-            total_loss = total_loss + self.config['concept_similar_reg_coeff'] * concept_similar_reg
+            # cal current_coeff
+            coeff = self.config['concept_similar_reg_coeff']
+            sen = self.config['concept_similar_reg_coeff_sensitivity']
+            last_coeff = ((10 / self.n_cls) ** sen) * coeff
+            current_coeff = last_coeff * self.epoch / self.epochs
+            self.epoch_log['scaler']['Tag'].append(f'coeff/concept_similar_reg/t{self.t}')
+            self.epoch_log['scaler']['Idx'].append(self.epoch)
+            self.epoch_log['scaler']['Value'].append(current_coeff)
+
+            total_loss = total_loss + current_coeff * concept_similar_reg
 
         # step
         self.optimizer.zero_grad()
