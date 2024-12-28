@@ -97,7 +97,7 @@ mkdir -p $OUTDIR
 devices=(0 1 2 3 4 5); i=-1
 for concept_similar_reg_coeff in 0.05 0.1 0.15 0.2 0.25 0.3; do
 for lr in 1e-4; do
-for lr_decreace_ratio in 0.5; do
+for lr_decreace_ratio in 1.0; do
 ((i++))
 device=${devices[${i}]}
 temp=1

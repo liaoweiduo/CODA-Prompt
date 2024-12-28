@@ -61,7 +61,7 @@ class Prompt(NormalNN):
         concept_similar_reg = torch.zeros(1).mean().to(total_loss.device)
         if self.concept_weight:
             concept_similar_reg = self.concept_similar_reg(None, logits, targets)
-            self.epoch_log['scaler']['Tag'].append('loss/concept_similar_reg')
+            self.epoch_log['scaler']['Tag'].append(f'loss/concept_similar_reg/t{self.t}')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
 
@@ -69,7 +69,7 @@ class Prompt(NormalNN):
             coeff = self.config['concept_similar_reg_coeff']
             sen = self.config['concept_similar_reg_coeff_sensitivity']
             last_coeff = ((10 / self.n_cls) ** sen) * coeff
-            current_coeff = last_coeff * self.epoch / self.epochs
+            current_coeff = last_coeff * (self.epoch+1) / self.epochs
             self.epoch_log['scaler']['Tag'].append(f'coeff/concept_similar_reg/t{self.t}')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(current_coeff)
