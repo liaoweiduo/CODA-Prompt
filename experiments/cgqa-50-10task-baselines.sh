@@ -32,12 +32,13 @@ mkdir -p $OUTDIR
 
 # concept similar reg + FPS + lr decay
 devices=(0 1 2 3 4 5); i=-1
-for concept_similar_reg_coeff in 0.05 0.1 0.15 0.2 0.25 0.3; do
+for concept_similar_reg_coeff in 0; do
 for lr in 1e-4; do
-for lr_decreace_ratio in 1.0; do
+for lr_decreace_ratio in 0.1 0.3 0.4 0.6 0.7 0.9; do
 ((i++))
 device=${devices[${i}]}
-LOGNAME=coda-l8-p100-FPS-dcsrc${concept_similar_reg_coeff}_1-lrd${lr}_${lr_decreace_ratio}
+concept_similar_reg_coeff_sensitivity=0
+LOGNAME=coda-l8-p100-FPS-dcsrc${concept_similar_reg_coeff}_${concept_similar_reg_coeff_sensitivity}-lrd${lr}_${lr_decreace_ratio}
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
@@ -49,6 +50,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --lr_decreace_ratio ${lr_decreace_ratio} \
    --concept_weight \
    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+   --concept_similar_reg_coeff_sensitivity ${concept_similar_reg_coeff_sensitivity} \
    --eval_class_wise \
    --log_dir ${OUTDIR}/${LOGNAME}
 done
