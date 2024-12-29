@@ -30,32 +30,32 @@ mkdir -p $OUTDIR
 # --oracle_flag --upper_bound_flag \
 # -d
 
-# concept similar reg + FPS + lr decay
-devices=(0 1 2 3 4 5); i=-1
-for concept_similar_reg_coeff in 0; do
-for lr in 1e-4; do
-for lr_decreace_ratio in 0.1 0.3 0.4 0.6 0.7 0.9; do
-((i++))
-device=${devices[${i}]}
-concept_similar_reg_coeff_sensitivity=0
-LOGNAME=coda-l8-p100-FPS-dcsrc${concept_similar_reg_coeff}_${concept_similar_reg_coeff_sensitivity}-lrd${lr}_${lr_decreace_ratio}
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 1 \
-   --lr ${lr} \
-   --lr_decreace_ratio ${lr_decreace_ratio} \
-   --concept_weight \
-   --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
-   --concept_similar_reg_coeff_sensitivity ${concept_similar_reg_coeff_sensitivity} \
-   --eval_class_wise \
-   --log_dir ${OUTDIR}/${LOGNAME}
-done
-done
-done
+## concept similar reg + FPS + lr decay
+#devices=(0 1 2 3 4 5); i=-1
+#for concept_similar_reg_coeff in 0; do
+#for lr in 1e-4; do
+#for lr_decreace_ratio in 0.1 0.3 0.4 0.6 0.7 0.9; do
+#((i++))
+#device=${devices[${i}]}
+#concept_similar_reg_coeff_sensitivity=0
+#LOGNAME=coda-l8-p100-FPS-dcsrc${concept_similar_reg_coeff}_${concept_similar_reg_coeff_sensitivity}-lrd${lr}_${lr_decreace_ratio}
+#docker run -d --rm --runtime=nvidia --gpus device=${device} \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 100 8 0.0 1 \
+#   --lr ${lr} \
+#   --lr_decreace_ratio ${lr_decreace_ratio} \
+#   --concept_weight \
+#   --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+#   --concept_similar_reg_coeff_sensitivity ${concept_similar_reg_coeff_sensitivity} \
+#   --eval_class_wise \
+#   --log_dir ${OUTDIR}/${LOGNAME}
+#done
+#done
+#done
 
 ## FPS with lr decrease ratio
 #lr=0.001
@@ -79,25 +79,25 @@ done
 ##   --eval_class_wise \
 ##   --concept_weight \
 ##   --concept_similar_reg_coeff 0.01 \
-#
-#lr=0.0001
-#devices=(2 3); i=-1
-#for lr_decreace_ratio in 0.5 1.0
-#do
-#((i++))
-#device=${devices[${i}]}
-#LOGNAME=coda-l8-p100-FPS-lr${lr}_lrd${lr_decreace_ratio}
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#   --learner_type prompt --learner_name CODAPrompt \
-#   --prompt_param 100 8 0.0 1 \
-#   --lr ${lr} \
-#   --lr_decreace_ratio ${lr_decreace_ratio} \
-#   --log_dir ${OUTDIR}/${LOGNAME}
-#done
+
+# larger prompt size
+lr=1e-3
+LOGNAME=coda-l8-p100-lpl-lr${lr}
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 8 0.0 0 \
+   --lr ${lr} \
+   --larger_prompt_lr \
+   --log_dir ${OUTDIR}/${LOGNAME}
+
+lr=1e-4
+LOGNAME=coda-l8-p100-FPS-lr${lr}
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 8 0.0 1 \
+   --lr ${lr} \
+   --larger_prompt_lr \
+   --log_dir ${OUTDIR}/${LOGNAME}
 
 ## cfst
 #for mode in sys pro sub non noc

@@ -128,6 +128,7 @@ class Trainer:
 
         # Prepare the self.learner (model)
         self.learner_config = {
+            'args': args,
             'dataset': args.dataset,
             'num_classes': num_classes,
             'lr': args.lr,
