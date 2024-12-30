@@ -69,7 +69,10 @@ class Prompt(NormalNN):
             coeff = self.config['concept_similar_reg_coeff']
             sen = self.config['concept_similar_reg_coeff_sensitivity']
             last_coeff = ((10 / self.n_cls) ** sen) * coeff
-            current_coeff = last_coeff * (self.epoch+1) / self.epochs
+            if self.config['args'].dynamic_concept_similar_reg_coeff:
+                current_coeff = last_coeff * (self.epoch+1) / self.epochs
+            else:
+                current_coeff = last_coeff
             self.epoch_log['scaler']['Tag'].append(f'coeff/concept_similar_reg/t{self.t}')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(current_coeff)
