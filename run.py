@@ -45,12 +45,6 @@ def create_args():
     parser.add_argument('--DW', default=False, action='store_true', help='dataset balancing')
     parser.add_argument('--prompt_param', nargs="+", type=float, default=[1, 1, 1],
                          help="e prompt pool size, e prompt length, g prompt length")
-    parser.add_argument('--concept_similar_reg_coeff', type=float, default=1.,
-                        help="coeff for concept similar reg.")
-    parser.add_argument('--concept_similar_reg_coeff_sensitivity', type=float, default=1.,
-                        help="sensitivity for reg on n_cls.")
-    parser.add_argument('--dynamic_concept_similar_reg_coeff', default=False, action='store_true',
-                        help='coeff from 0 for the first epoch.')
     parser.add_argument('--larger_prompt_lr', action='store_true',
                         help='if using larger prompt lr, prompt lr = 10 * head lr')
 
@@ -71,6 +65,18 @@ def create_args():
     parser.add_argument('--target_concept_id', type=int, default=-1, help="specify specific concept to weight")
     parser.add_argument('--prompt_pre_learn_model', type=str, default='none',
                         help="The model name to the pre-learned slot attn model.")
+    parser.add_argument('--concept_similar_reg_coeff', type=float, default=0,
+                        help="coeff for concept similar reg.")
+    parser.add_argument('--concept_similar_reg_coeff_sensitivity', type=float, default=1.,
+                        help="sensitivity for reg on n_cls.")
+    parser.add_argument('--dynamic_concept_similar_reg_coeff', default=False, action='store_true',
+                        help='coeff from 0 for the first epoch.')
+    parser.add_argument('--use_slot_logit_similar_reg', action='store_true')
+    parser.add_argument('--slot_logit_similar_reg_coeff', type=float, default=0,
+                        help="coeff for concept similar reg.")
+    parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=1.,
+                        help="sensitivity for reg on n_cls.")
+    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='l2')
 
     # CFST Args
     parser.add_argument('--mode', type=str, default='continual',

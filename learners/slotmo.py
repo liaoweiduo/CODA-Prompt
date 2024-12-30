@@ -559,6 +559,7 @@ class SLOTPrompt(Prompt):
                             'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
                             'Train Acc {acc.avg:.3f} | '
                             'csr {concept_similar_reg} | '
+                            'slsr {slot_logit_similar_reg} | '
                             'Time {time:.3f}s ({i} batches)'.format(
                                 loss=losses,
                                 onehot_loss=onehot_losses,   # s2p_loss=s2p_losses,
@@ -569,6 +570,7 @@ class SLOTPrompt(Prompt):
                                 prompt_concept_alignment_loss=prompt_concept_alignment_losses,
                                 time=batch_time.avg*len(train_loader), i=len(train_loader),
                                 concept_similar_reg=loss_dict.get('concept_similar_reg'),
+                                slot_logit_similar_reg=loss_dict.get('slot_logit_similar_reg'),
                             ))
                         # 'S2P Loss {s2p_loss.avg:.3f} | '
                         #     'MK Loss {mk_loss.avg:.3f} | '
@@ -994,11 +996,11 @@ class SLOTPrompt(Prompt):
                     s2p_loss = torch.mean(s2p_loss)
                 elif self.t > 0 and reg_mode == 'response':
                     bs, t, k, d = slots.shape
-                    slots = slots.reshape(bs, t * k, d)
+                    _slots = slots.reshape(bs, t * k, d)
                     if len(self.cls_stats) > 0:
                         # align slots with proto and sim over n_cls
                         n_old_cls = len(self.cls_stats)
-                        proto = torch.zeros(n_old_cls, *slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
+                        proto = torch.zeros(n_old_cls, *_slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
                         for label in self.cls_stats.keys():
                             proto[label] = self.cls_stats[label].detach().clone()
                         proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
@@ -1135,6 +1137,23 @@ class SLOTPrompt(Prompt):
 
                 loss = loss + current_coeff * concept_similar_reg
 
+            slot_logit_similar_reg = torch.zeros(1).mean().to(loss.device)
+            if self.config['args'].slot_logit_similar_reg_coeff > 0:
+                # cal current_coeff
+                coeff = self.config['args'].slot_logit_similar_reg_coeff
+                sen = self.config['args'].slot_logit_similar_reg_coeff_sensitivity
+                current_coeff = ((10 / self.n_cls) ** sen) * coeff
+                self.epoch_log['scaler']['Tag'].append(f'coeff/slot_logit_similar_reg_coeff/t{self.t}')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(current_coeff)
+
+                slot_logit_similar_reg = self._slot_logit_similar_reg(slots, ws, logits)
+                self.epoch_log['scaler']['Tag'].append('loss/slot_logit_similar_reg')
+                self.epoch_log['scaler']['Idx'].append(self.epoch)
+                self.epoch_log['scaler']['Value'].append(slot_logit_similar_reg.item())
+
+                loss = loss + current_coeff * slot_logit_similar_reg
+
             loss.backward()
 
             # step
@@ -1148,7 +1167,30 @@ class SLOTPrompt(Prompt):
                      'selection_ortho_loss': selection_ortho_loss.detach(),
                      'prompt_concept_alignment_loss': prompt_concept_alignment_loss.detach(),
                      'concept_similar_reg': torch.round(concept_similar_reg.detach()*100).item() / 100,
+                     'slot_logit_similar_reg': torch.round(slot_logit_similar_reg.detach()*100).item() / 100,
                      })
+
+    def _slot_logit_similar_reg(self, slots, weights, logits):
+        """contrastive on weighted slots and logits
+        """
+        bs, t, k, d = slots.shape
+        batched_slots = slots.reshape(bs, t * k, d)
+        bs, t, k = weights.shape
+        batched_weights = weights.reshape(bs, t * k)
+
+        weighted_slot = torch.einsum('bkd,bk->bd', batched_slots, batched_weights)
+
+        if self.config['args'].slot_logit_similar_reg_mode == 'l2':
+            cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+            slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0))  # [bs, bs]  each slot
+            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0))
+            loss = F.mse_loss(slot_sim, logit_sim)
+        else:
+            slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) / 0.8
+            logit_sim = torch.matmul(logits, logits.t()) / 0.8
+            loss = cross_entropy_with_soft_labels(slot_sim, logit_sim)
+
+        return loss
 
     def cross_attn(self, slots):
         # cross-attn and sum for all bs*k slots
@@ -2262,6 +2304,26 @@ def hungarian_algorithm(cost_matrix: Tensor):
     )
     device = cost_matrix.device
     return smallest_cost_matrix.to(device), indices.to(device)
+
+
+def cross_entropy_with_soft_labels(logits, soft_targets):
+    """
+    Calculate the cross-entropy loss for soft labels.
+
+    Args:
+        logits: Raw, unnormalized scores output from the model (shape: [batch_size, num_classes]).
+        soft_targets: Probability distributions over classes (soft labels) (shape: [batch_size, num_classes]).
+
+    Returns:
+        The mean cross-entropy loss with soft labels.
+    """
+    # Apply log softmax to logits to get the log probabilities
+    log_probs = F.log_softmax(logits, dim=-1)
+
+    # Calculate the KL divergence loss
+    loss = F.kl_div(log_probs, soft_targets, reduction='batchmean')
+
+    return loss
 
 
 if __name__ == '__main__':
