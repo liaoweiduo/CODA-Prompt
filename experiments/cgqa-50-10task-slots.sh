@@ -96,7 +96,7 @@ mkdir -p $OUTDIR
 # slot_logit_similar reg + larger prompt lr
 devices=(0 1 2 3); i=-1
 for slot_logit_similar_reg_coeff in 0.0 0.005 0.01 0.1; do
-for lr in 1e-3; do
+for lr in 0.03; do
 ((i++))
 device=${devices[${i}]}
 temp=1
