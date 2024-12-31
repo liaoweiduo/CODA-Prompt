@@ -1138,7 +1138,7 @@ class SLOTPrompt(Prompt):
                 loss = loss + current_coeff * concept_similar_reg
 
             slot_logit_similar_reg = torch.zeros(1).mean().to(loss.device)
-            if self.config['args'].slot_logit_similar_reg_coeff > 0:
+            if self.config['args'].use_slot_logit_similar_reg:
                 # cal current_coeff
                 coeff = self.config['args'].slot_logit_similar_reg_coeff
                 sen = self.config['args'].slot_logit_similar_reg_coeff_sensitivity
@@ -1179,6 +1179,9 @@ class SLOTPrompt(Prompt):
         batched_weights = weights.reshape(bs, t * k)
 
         weighted_slot = torch.einsum('bkd,bk->bd', batched_slots, batched_weights)
+
+        # preprocess logits
+        logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
 
         if self.config['args'].slot_logit_similar_reg_mode == 'l2':
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
