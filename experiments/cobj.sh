@@ -38,14 +38,14 @@ temp=${temps[${temp_run_id}]}
 intra_cons_coeff=${intra_cons_coeffs[${intra_cons_coeff_run_id}]}
 slot_vsI_coeff=${slot_vsI_coeffs[${slot_vsI_coeff_run_id}]}
 device=${devices[${i}]}
-LOGNAME=0-slot_attn-pos-k10-nt5-recon_noLN-intra${intra_cons_coeff}-crosssim${temp}-slot_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
+LOGNAME=0-slot_attn-pos-k5-nt5-recon_noLN-intra${intra_cons_coeff}-crosssim${temp}-slot_vsI${slot_vsI_coeff}-slot_lr${slot_lr}
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 30 8 10 5 1.0 1.0 1 0.0 0.0 ${temp} ${intra_cons_coeff} ${slot_vsI_coeff} 0.0 0.0 \
+    --prompt_param 30 8 5 5 1.0 1.0 1 0.0 0.0 ${temp} ${intra_cons_coeff} ${slot_vsI_coeff} 0.0 0.0 \
     --batch_size 256 \
     --slot_lr ${slot_lr} \
     --only_learn_slot \
