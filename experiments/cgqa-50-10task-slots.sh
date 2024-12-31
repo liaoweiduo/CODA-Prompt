@@ -94,8 +94,8 @@ mkdir -p $OUTDIR
 ##    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
 
 # slot_logit_similar reg + larger prompt lr
-devices=(0 1 2 3); i=-1
-for slot_logit_similar_reg_coeff in 0.0 0.005 0.01 0.1; do
+devices=(4 5); i=-1
+for slot_logit_similar_reg_coeff in 0.5 1; do
 for lr in 0.03; do
 ((i++))
 device=${devices[${i}]}
