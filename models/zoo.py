@@ -117,7 +117,7 @@ class SlotPrompt(nn.Module):
 
         # forward to obtain prompts:
         prompts, selections, slots, attn, recon_loss = [], [], [], [], []
-        ws = []
+        ws, w_slots = [], []
         if all:
             T = range(len(self.slot_attn))
         else:
@@ -130,7 +130,7 @@ class SlotPrompt(nn.Module):
                 with torch.no_grad():       # this phase does not learn slot attn
                     _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp, n_iter=n_iter)
                 _recon_loss = 0
-            _prompts, _selection, _w = self.s2p(_slots, train=train, phase=prompt_phase)
+            _prompts, _selection, _w, _w_slots = self.s2p(_slots, train=train, phase=prompt_phase)
             prompts.append(_prompts)
             if _selection is not None:
                 selections.append(_selection)
@@ -139,6 +139,8 @@ class SlotPrompt(nn.Module):
             recon_loss.append(_recon_loss)          # list [1\T]
             if _w is not None:
                 ws.append(_w)                       # [bs, k20]
+            if _w_slots is not None:
+                w_slots.append(_w_slots)            # [bs, h128]
 
         prompts = torch.stack(prompts, dim=1)       # [bs, 1\T, k20, e12, p8, d768]
         if len(selections) > 0:
@@ -147,8 +149,10 @@ class SlotPrompt(nn.Module):
         attn = torch.stack(attn, dim=1)             # [bs, 1\T, n196, k20] (softmax-ed over k20)
         if len(ws) > 0:
             ws = torch.stack(ws, dim=1)             # [bs, 1\T, k20]
+        if len(w_slots) > 0:
+            w_slots = torch.stack(w_slots, dim=1)   # [bs, 1\T, h128]
 
-        return prompts, selections, ws, slots, attn, recon_loss
+        return prompts, selections, ws, w_slots, slots, attn, recon_loss
 
     @torch.no_grad()
     def maintain_pool(self, slots, check_init=False):

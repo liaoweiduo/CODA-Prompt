@@ -77,6 +77,8 @@ def create_args():
     parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=1.,
                         help="sensitivity for reg on n_cls.")
     parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='l2')
+    parser.add_argument('--use_feature_statistics', action='store_true')
+    parser.add_argument('--use_slot_statistics', action='store_true')
 
     # CFST Args
     parser.add_argument('--mode', type=str, default='continual',

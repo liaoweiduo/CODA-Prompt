@@ -345,8 +345,12 @@ class SLOTPrompt(Prompt):
                     model = self.model.module
                 except:
                     model = self.model
-                self.log(f'record s2p weights')
-                self.s2p_copy = copy.deepcopy(model.prompt.s2p)
+
+                if self.weight_coeff > 0.0:
+                    self.log(f'record s2p weights')
+                    self.s2p_copy = copy.deepcopy(model.prompt.s2p)
+                else:
+                    self.s2p_copy = None
 
             if self.config['only_learn_slot'] or self.config['slot_pre_learn_model'] == 'none':
                 # for CFST, slot_pre_learn_model is not none, so will not be going to fine-tune slots
@@ -597,10 +601,16 @@ class SLOTPrompt(Prompt):
                             '''nvidia-smi'''
                             os.system('nvidia-smi')
 
-        # if self.config['mode'] == 'continual':
-        #     self.log(f'Phase III: update correlation for labels')
-        #     self.collect_statistics(train_loader, train_dataset)
-        #     self.collect_slot_pool(train_loader, train_dataset)
+        if self.config['args'].use_feature_statistics:
+            self.log(f'Phase III: update feature statistics for labels')
+            self.collect_statistics(train_loader, train_dataset)
+        if self.config['args'].use_slot_statistics:
+            self.log(f'Phase III: update slot statistics for labels')
+            self.collect_slot_statistics(train_loader, train_dataset, save=True)
+            # self.collect_slot_statistics_all(train_loader, train_dataset)
+            # self.collect_slot_pool(train_loader, train_dataset)
+
+            # cal val
 
         self.model.eval()
 
@@ -617,6 +627,50 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
+    def forward(self, inputs, targets, train=False, learn_slots=False, prompt_phase=1):
+        res = dict()
+        try:
+            model = self.model.module
+        except:
+            model = self.model
+
+        q = model.obtain_q(inputs, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
+        prompts, selections, slot_weights, w_slots, slots, attn, recon_loss = q
+        # bs, t, k, e, p, d = prompts.shape    # [bs, t1, k1, e5, p8, d768]
+        # bs, t, k, e, pp = selections.shape   # [bs, t1, k1, e5, pp100?]
+        # bs, t, k = slot_weights.shape    # [bs, t1, k10]
+        # bs, t, h = w_slots.shape    # [bs, t1, h128]    mapped slots @ weights
+        # bs, t, k, h = slots.shape  # [bs, t1, k10, h128]
+        res['prompts'] = prompts
+        res['selections'] = selections
+        res['slot_weights'] = slot_weights
+        res['w_slots'] = w_slots
+        res['slots'] = slots
+        res['attn'] = attn
+        res['recon_loss'] = recon_loss
+
+        # slot-wise prompt
+        bs, t, k, e, p, d = prompts.shape
+        batched_prompts = prompts.reshape(bs, t * k, e, p, d)
+        assert t == 1  # if not 1, should permutate t with e then reshape to t*k
+
+        sum_prompts = torch.sum(batched_prompts, dim=1)  # [bs, e, p, d]
+
+        # loss = torch.zeros(1).mean().to(prompts.device)
+        # pen: penultimate features; train: same forward as batch training.
+        out, features = self.model(
+            inputs, q=sum_prompts,
+            pen=True, train=train,
+            # register_blk=hard_l,
+            debug_mode=self.debug_mode)
+        # features: [bs, 768]
+        # out is logits: [bs, 100]
+
+        res['logits'] = out
+        res['features'] = features
+
+        return res
+
     def update_model(self, inputs, targets, match_pool=False, learn_slots=False, prompt_phase=1,
                      p=30, tau=3):
         self.optimizer.zero_grad()
@@ -626,8 +680,19 @@ class SLOTPrompt(Prompt):
             model = self.model
         FPS = self.FPS
 
-        q = model.obtain_q(inputs, learn_slots=learn_slots, train=True, prompt_phase=prompt_phase)
-        prompts, selections, ws, slots, attn, recon_loss = q
+        res = self.forward(inputs, targets, train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
+        prompts = res['prompts']
+        selections = res['selections']
+        slot_weights = res['slot_weights']
+        slots = res['slots']
+        attn = res['attn']
+        recon_loss = res['recon_loss']
+        out = res['logits']
+        features = res['features']
+
+        # q = model.obtain_q(inputs, learn_slots=learn_slots, train=True, prompt_phase=prompt_phase)
+        # prompts, selections, ws, slots, attn, recon_loss = q
+        bs, t, k, e, p, d = prompts.shape
         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
 
         # # mk
@@ -761,22 +826,22 @@ class SLOTPrompt(Prompt):
             if self.debug_mode:
                 print('samples:', inputs.shape, 'prompts:', prompts.shape)
 
-            # slot-wise prompt
-            bs, t, k, e, p, d = prompts.shape
-            prompts = prompts.reshape(bs, t*k, e, p, d)  # [bs,t*k, e, p, d]
-            assert t == 1       # if not 1, should permutate t with e then reshape to t*k
-
-            sum_prompts = torch.sum(prompts, dim=1)     # [bs, e, p, d]
-
-            # loss = torch.zeros(1).mean().to(prompts.device)
-            # pen: penultimate features; train: same forward as batch training.
-            out, features = self.model(
-                inputs, q=sum_prompts,
-                pen=True, train=True,
-                # register_blk=hard_l,
-                debug_mode=self.debug_mode)
-            # features: [bs, 768]
-            # out is logits: [bs, 100]
+            # # slot-wise prompt
+            # bs, t, k, e, p, d = prompts.shape
+            # prompts = prompts.reshape(bs, t*k, e, p, d)  # [bs,t*k, e, p, d]
+            # assert t == 1       # if not 1, should permutate t with e then reshape to t*k
+            #
+            # sum_prompts = torch.sum(prompts, dim=1)     # [bs, e, p, d]
+            #
+            # # loss = torch.zeros(1).mean().to(prompts.device)
+            # # pen: penultimate features; train: same forward as batch training.
+            # out, features = self.model(
+            #     inputs, q=sum_prompts,
+            #     pen=True, train=True,
+            #     # register_blk=hard_l,
+            #     debug_mode=self.debug_mode)
+            # # features: [bs, 768]
+            # # out is logits: [bs, 100]
 
             out = out[:, :self.valid_out_dim]       # [bs, 30]
             bs, n_cls = out.shape
@@ -1147,7 +1212,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(current_coeff)
 
-                slot_logit_similar_reg = self._slot_logit_similar_reg(slots, ws, logits)
+                slot_logit_similar_reg = self._slot_logit_similar_reg(slots, slot_weights, logits)
                 self.epoch_log['scaler']['Tag'].append('loss/slot_logit_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_logit_similar_reg.item())
@@ -1241,7 +1306,7 @@ class SLOTPrompt(Prompt):
         #     prompts = model.obtain_q(inputs, all=False)      # [bs, 1, k20, e12, p8, d768]
         #     # all=False: only use new slots
         q = model.obtain_q(inputs, learn_slots=learn_slots)      # [bs, 1, k20, e12, p8, d768]
-        prompts, selection, ws, slots, attn, recon_loss = q
+        prompts, selection, ws, w_slots, slots, attn, recon_loss = q
 
         if learn_slots:
             # only update slot attn
@@ -1514,7 +1579,7 @@ class SLOTPrompt(Prompt):
                 except:
                     model = self.model
                 q = model.obtain_q(samples)        # [bs, t, k20, e12, p8, d768]
-                prompts, selection, ws, slots, attn, recon_loss = q
+                prompts, selection, ws, w_slots, slots, attn, recon_loss = q
                 bs, t, k, e, p, d = prompts.shape
                 prompts = prompts.reshape(bs, t*k, e, p, d)
 
@@ -1712,10 +1777,20 @@ class SLOTPrompt(Prompt):
                     #                        concepts=concepts if self.use_concept_labels_as_aqk else None
                     #                        )[:, :self.valid_out_dim]
 
-                    q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
-                    prompts, selection, ws, slots, attn, recon_loss = q
-                    bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
-                    assert t == 1
+                    res = self.forward(input, target)
+                    prompts = res['prompts']
+                    selections = res['selections']
+                    slot_weights = res['slot_weights']
+                    slots = res['slots']
+                    attn = res['attn']
+                    recon_loss = res['recon_loss']
+                    out = res['logits']
+                    features = res['features']
+
+                    # q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                    # prompts, selection, ws, w_slots, slots, attn, recon_loss = q
+                    # bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+                    # assert t == 1
 
                     # # slot_attn_class_key
                     # K = model.prompt.slot_attn_class_key  # [c100, h128]
@@ -1794,24 +1869,38 @@ class SLOTPrompt(Prompt):
                     # selection metric
                     # selections: [bs, 1, k10, e12, pp30]
 
-                    # forward all prompts
-                    bs, t, k, e, p, d = prompts.shape
-                    prompts = prompts.reshape(bs, t*k, e, p, d)
-                    prompts = torch.sum(prompts, dim=1, keepdim=True)     # sum over k [bs, 1, e, p, d]
-                    _, features, out = self.obtain_mo_matrix(
-                        None, prompts=prompts,
-                        train=False,
-                        samples=input,
-                        labels=target,
-                        group_by_labels=False,
-                        return_features=True,
-                    )
+                    # # forward all prompts
+                    # bs, t, k, e, p, d = prompts.shape
+                    # prompts = prompts.reshape(bs, t*k, e, p, d)
+                    # prompts = torch.sum(prompts, dim=1, keepdim=True)     # sum over k [bs, 1, e, p, d]
+                    # _, features, out = self.obtain_mo_matrix(
+                    #     None, prompts=prompts,
+                    #     train=False,
+                    #     samples=input,
+                    #     labels=target,
+                    #     group_by_labels=False,
+                    #     return_features=True,
+                    # )
+                    # if len(self.cls_stats) == 0:
+                    #     out = out[:, :, :self.valid_out_dim]
+                    #     # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
+                    #
+                    #     if self.debug_mode and i == 0:
+                    #         print(f'out: {out[0, 0]}')
+                    #         print(f'valid_out_dim: {self.valid_out_dim}')
+                    #
+                    #     output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
+                    # else:
+                    #     features = features.reshape(bs, -1)     # [bs, 1, 768] -> [bs, 768]
+                    #     features = nn.functional.normalize(features, dim=1)
+                    #     output = torch.einsum('bd,cd->bc', features, cls_stats)
+
                     if len(self.cls_stats) == 0:
-                        out = out[:, :, :self.valid_out_dim]
+                        out = out[:, :self.valid_out_dim]
                         # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
                         if self.debug_mode and i == 0:
-                            print(f'out: {out[0, 0]}')
+                            print(f'out: {out[0]}')
                             print(f'valid_out_dim: {self.valid_out_dim}')
 
                         output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
@@ -1852,13 +1941,24 @@ class SLOTPrompt(Prompt):
                     #         f'task:{(task.min(), task.max())}')
 
                     if len(target) > 1:
-                        q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
-                        prompts, selection, ws, slots, attn, recon_loss = q
-                        # bs, t, k, e, p, d = prompts.shape
-                        # prompts = prompts.reshape(bs, t * k, e, p, d)
-                        # # slots = model_single.prompt.match_pool(slots)
-                        bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
-                        assert t == 1
+                        res = self.forward(input, target)
+                        prompts = res['prompts']
+                        selections = res['selections']
+                        slot_weights = res['slot_weights']
+                        slots = res['slots']
+                        attn = res['attn']
+                        recon_loss = res['recon_loss']
+                        out = res['logits']
+                        features = res['features']
+                        bs, t, k, h = slots.shape  # [bs, t1, k10, h128]
+
+                        # q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
+                        # prompts, selection, ws, w_slots, slots, attn, recon_loss = q
+                        # # bs, t, k, e, p, d = prompts.shape
+                        # # prompts = prompts.reshape(bs, t * k, e, p, d)
+                        # # # slots = model_single.prompt.match_pool(slots)
+                        # bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+                        # assert t == 1
 
                         # # slot_attn_class_key
                         # K = model.prompt.slot_attn_class_key  # [c100, h128]
@@ -1899,25 +1999,38 @@ class SLOTPrompt(Prompt):
                             recon_losses.update(recon_loss.item(), bs)
                             continue
 
-                        # forward all prompts
-                        bs, t, k, e, p, d = prompts.shape
+                        # # forward all prompts
+                        # bs, t, k, e, p, d = prompts.shape
+                        #
+                        # # if i == 0:
+                        # #     print('DEBUG: '
+                        # #           f'prompts: {prompts.shape}')
+                        #
+                        # prompts = prompts.reshape(bs, t * k, e, p, d)
+                        # prompts = torch.sum(prompts, dim=1, keepdim=True)     # sum over k [bs, 1, e, p, d]
+                        # _, features, out = self.obtain_mo_matrix(
+                        #     None, prompts=prompts,
+                        #     train=False,
+                        #     samples=input,
+                        #     labels=target,
+                        #     group_by_labels=False,
+                        #     return_features=True,
+                        # )
+                        # if len(self.cls_stats) == 0:
+                        #     out = out[:, :, :self.valid_out_dim]
+                        #     # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
+                        #
+                        #     output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
+                        # else:
+                        #     features = features.reshape(bs, -1)  # [bs, 1, 768] -> [bs, 768]
+                        #     features = nn.functional.normalize(features, dim=1)
+                        #     output = torch.einsum('bd,cd->bc', features, cls_stats)
+                        #
+                        #     # if not task_global:
+                        #     #     output = output[:, task_in]
 
-                        # if i == 0:
-                        #     print('DEBUG: '
-                        #           f'prompts: {prompts.shape}')
-
-                        prompts = prompts.reshape(bs, t * k, e, p, d)
-                        prompts = torch.sum(prompts, dim=1, keepdim=True)     # sum over k [bs, 1, e, p, d]
-                        _, features, out = self.obtain_mo_matrix(
-                            None, prompts=prompts,
-                            train=False,
-                            samples=input,
-                            labels=target,
-                            group_by_labels=False,
-                            return_features=True,
-                        )
                         if len(self.cls_stats) == 0:
-                            out = out[:, :, :self.valid_out_dim]
+                            out = out[:, :self.valid_out_dim]
                             # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
                             output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
@@ -1999,7 +2112,7 @@ class SLOTPrompt(Prompt):
 
                 # get slots
                 q = model.obtain_q(x, learn_slots=False)
-                _, _, _, slots, _, _ = q  # [bs, 1, k5, d128]
+                _, _, _, slots, _, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
                 slots_collection.append(slots)
@@ -2021,13 +2134,14 @@ class SLOTPrompt(Prompt):
             pickle.dump(slot_centers, f)
         print('=> Save Done')
 
-    def collect_statistics(self, train_loader, train_dataset, model=None):
+    def collect_statistics(self, train_loader, train_dataset, model=None, refresh=False):
         if model is None:
             model = self.model
 
         # refresh cls_stats for different tasks
-        self.cls_stats = {}
-        self.cls_stats_n = {}
+        if refresh:
+            self.cls_stats = {}
+            self.cls_stats_n = {}
 
         batch_timer = Timer()
         batch_timer.tic()
@@ -2053,7 +2167,7 @@ class SLOTPrompt(Prompt):
             with torch.no_grad():
                 # get slots
                 q = model.obtain_q(x, learn_slots=False)
-                prompts, _, _, _, _, _ = q  # [bs, 1, k5, d128]
+                prompts, _, _, _, _, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, e, p, d = prompts.shape
                 prompts = prompts.reshape(bs, t*k, e, p, d)
 
@@ -2090,7 +2204,126 @@ class SLOTPrompt(Prompt):
         self.log(' * Collect statistics: Total time {time:.2f}'
                  .format(time=batch_timer.toc()))
 
-    def collect_slot_statistics(self, train_loader, train_dataset, model=None, save=False):
+    def collect_slot_statistics(self, train_loader, train_dataset, model=None, save=False, refresh=False):
+        """
+        Collect slot statistics for each label. weighted sum slot [n_cls, h128]
+        Using slot_weights [bs, k10]
+        """
+        t = train_dataset.t
+        if model is None:
+            model = self.model
+
+        try:
+            prompt = model.module.prompt
+        except:
+            prompt = model.prompt
+
+        # refresh cls_stats for different tasks
+        if refresh:
+            self.cls_stats = {}
+            self.cls_stats_n = {}
+
+        # This function doesn't distinguish tasks.
+        batch_timer = Timer()
+        batch_timer.tic()
+
+        buffer = dict()
+        orig_mode = model.training
+        model.eval()
+        batch_timer.tic()
+        for i, sample in enumerate(train_loader):
+            concepts = None
+            if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
+                x, y, concepts, task = sample
+            else:
+                x, y, task = sample
+
+            # send data to gpu
+            if self.gpu:
+                x = x.cuda()
+                y = y.cuda()
+                # if concepts is not None:
+                #     concepts = concepts.cuda()      # [bs, 224, 224]
+                # task = task.cuda()
+
+            with torch.no_grad():
+                # get slots
+                res = self.forward(x, y)
+                prompts = res['prompts']
+                selections = res['selections']
+                slot_weights = res['slot_weights']
+                w_slots = res['w_slots']
+                slots = res['slots']
+                attn = res['attn']
+                recon_loss = res['recon_loss']
+                out = res['logits']
+                features = res['features']
+
+                # q = model.obtain_q(x, learn_slots=False)
+                # _, _, _, slots, _, _, _ = q  # [bs, 1, k10, d128]
+                # bs, t, k, d = slots.shape
+                # slots = slots.reshape(bs, t * k, d)  # [bs, k10, d128]
+                # bs, t, k = slot_weights.shape
+                # slot_weights = slot_weights.reshape(bs, t*k)
+                bs, t, d = w_slots.shape
+                w_slots = w_slots.reshape(bs, t*d)
+                assert t == 1
+
+                # label-wise collecting prototypes
+                labels = torch.unique(y)
+                for label in labels:
+                    label = label.item()
+
+                    # collect slots with this label
+                    labeled_slots = w_slots[y == label]  # [n_img, d128]
+                    n_img = labeled_slots.size(0)
+                    avg_slots = torch.mean(labeled_slots, dim=0)
+
+                    if label in self.cls_stats.keys():
+                        prev_slots = self.cls_stats[label]
+                        prev_n_img = self.cls_stats_n[label]
+                        avg_slots = (prev_slots * prev_n_img + avg_slots * n_img) / (prev_n_img + n_img)
+                        n_img = prev_n_img + n_img
+
+                    self.cls_stats[label] = avg_slots
+                    self.cls_stats_n[label] = n_img
+
+                # using buffer to collect a set of samples for mean and variances
+                # labels = torch.unique(y)
+                # for label in labels:
+                #     label = label.item()
+                #
+                #     # only collect once
+                #     if label in self.cls_stats.keys():
+                #         continue
+                #
+                #     # collect slots with this label
+                #     labeled_slots = w_slots[y == label]  # [n_img, d128]
+                #     if label in buffer.keys():
+                #         labeled_slots = torch.cat([labeled_slots, buffer[label]])
+                #         del(buffer[label])
+                #
+                #     # not enough put into buffer
+                #     if len(labeled_slots) < 50:      # 50
+                #         buffer[label] = labeled_slots
+                #         continue
+                #
+                #     self.cls_stats[label] = torch.mean(labeled_slots, dim=0)  # [d]
+
+        model.train(orig_mode)
+
+        self.log(' * Collect statistics: Total time {time:.2f}'
+                 .format(time=batch_timer.toc()))
+
+        if save:
+            # save statistics
+            stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_stats.pkl')
+            print('=> Saving statistics to:', stats_path)
+            with open(stats_path, 'wb') as f:
+                pickle.dump(self.cls_stats, f)
+            print('=> Save Done')
+
+    def collect_slot_statistics_all(self, train_loader, train_dataset, model=None, save=False):
         t = train_dataset.t
         if model is None:
             model = self.model
@@ -2126,7 +2359,7 @@ class SLOTPrompt(Prompt):
             with torch.no_grad():
                 # get slots
                 q = model.obtain_q(x, learn_slots=False)
-                _, _, _, slots, _, _ = q  # [bs, 1, k5, d128]
+                _, _, _, slots, _, _, _ = q  # [bs, 1, k5, d128]
                 bs, t, k, d = slots.shape
                 slots = slots.reshape(bs, t * k, d)  # [bs, k5, d128]
 

@@ -261,6 +261,7 @@ class Slot2Prompt(nn.Module):
             s2p = self
 
         w = None
+        w_slots = None
         selections = None
         if self.selector_mode == 'gate':
             slot_map = s2p.slot_map[-1]          # [self.key_d -> self.key_d] or -> 1
@@ -286,7 +287,6 @@ class Slot2Prompt(nn.Module):
             # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
             # slots = slots.reshape(bs, n, h)
 
-            w_slots = None
             if self.cond_mode > 0:
                 # learn to weights slots as inputs to select prompt
                 slot_selection_w = self.slot_selection_w  # [128, 128] or [self.n_tasks, 128, 128]
@@ -429,7 +429,7 @@ class Slot2Prompt(nn.Module):
         # prompts = torch.einsum('bkh,hepd->bkepd', slots, prompt_map)
 
         # w: [bs, n10]
-        return prompts, selections, w
+        return prompts, selections, w, w_slots
 
     # code for this function is modified from:
     # https://github.com/legendongary/pytorch-gram-schmidt/blob/master/gram_schmidt.py
