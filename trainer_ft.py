@@ -227,7 +227,7 @@ class Trainer:
                     avg_train_time = self.learner.learn_batch(train_loader, self.train_dataset, None, None)
             else:
                 # collect class statistics as average of features.
-                self.learner.collect_statistics(train_loader, self.train_dataset)
+                self.learner.collect_statistics(train_loader, self.train_dataset, refresh=True)
                 avg_train_time = 0
 
             # # save model

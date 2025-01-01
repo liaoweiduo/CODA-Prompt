@@ -200,8 +200,19 @@ class Trainer:
         else:
             return self.learner.validation(test_loader, task_metric=task)
 
-    def class_eval(self, c_index, t_index=-1, local=False, task='acc'):
-        # local not impl
+    def slot_NN_eval(self, c_index, t_index=-1, local=False, task='acc'):
+        print('validation of slot NN class index:', c_index)
+
+        # eval
+        test_dataset = self.test_dataset.get_single_class_dataset(c_index)
+        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False,
+                                 num_workers=self.workers)
+        if local:
+            return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
+        else:
+            return self.learner.validation(test_loader, task_metric=task)
+
+    def class_eval(self, c_index, t_index=-1, local=False, task='acc', use_slot_statistics=False):
         print('validation class index:', c_index)
 
         # eval
@@ -217,9 +228,11 @@ class Trainer:
                                                slot_recon_loss=True)
 
         if local:
-            return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
+            return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task,
+                                           use_slot_statistics=use_slot_statistics)
         else:
-            return self.learner.validation(test_loader, task_metric=task)
+            return self.learner.validation(test_loader, task_metric=task,
+                                           use_slot_statistics=use_slot_statistics)
 
     def train(self, avg_metrics):
     
@@ -337,6 +350,21 @@ class Trainer:
                         self.learner.epoch_log['scaler']['Tag'].append(f'local_val_acc/class_{label}')
                         self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
                         self.learner.epoch_log['scaler']['Value'].append(local_acc)
+
+                    if self.args.use_slot_statistics:
+                        # check NN acc for slot statistics
+                        acc = self.class_eval(label, use_slot_statistics=True)
+                        local_acc = self.class_eval(label, t_index=task_id, local=True, use_slot_statistics=True)
+
+                        # log
+                        self.learner.epoch_log['scaler']['Tag'].append(f'val_slot_NN_acc/class_{label}')
+                        self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
+                        self.learner.epoch_log['scaler']['Value'].append(acc)
+
+                        self.learner.epoch_log['scaler']['Tag'].append(f'local_val_slot_NN_acc/class_{label}')
+                        self.learner.epoch_log['scaler']['Idx'].append(i)       # task id
+                        self.learner.epoch_log['scaler']['Value'].append(local_acc)
+
 
             for j in range(i+1):
                 task_acc = self.task_eval(j)

@@ -96,12 +96,13 @@ mkdir -p $OUTDIR
 # collect class statistics
 lr=1e-3
 temp=1
-LOGNAME=8-slot_prompt-sMT-lpl-lr${lr}-p100-l8-k10-nt5-sig${temp}_FPS
+device=0
+LOGNAME=6-slot_prompt-sMT-lpl-csrc0.0_s1-lr1e-3-p100-l8-k10-nt5-sig1_FPS
 #  -d
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
+docker run -d --rm --runtime=nvidia --gpus device=${device} \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 10 5 1.0 ${temp} 1 0.0 0.0 80 0.0 0.0 0.0 0.0 \

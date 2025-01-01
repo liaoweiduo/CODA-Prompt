@@ -610,8 +610,6 @@ class SLOTPrompt(Prompt):
             # self.collect_slot_statistics_all(train_loader, train_dataset)
             # self.collect_slot_pool(train_loader, train_dataset)
 
-            # cal val
-
         self.model.eval()
 
         self.last_valid_out_dim = self.valid_out_dim
@@ -1711,7 +1709,7 @@ class SLOTPrompt(Prompt):
         return concept_labels
 
     def validation(self, dataloader, model=None, task_in=None, task_metric='acc', verbal=True, task_global=False,
-                   during_train=False, slot_recon_loss=False):
+                   during_train=False, slot_recon_loss=False, use_slot_statistics=False):
         """during_train=True -> local val acc (mask on current logits) no use"""
         # return 0
         # pass task to forward if task-awareness
@@ -1737,6 +1735,9 @@ class SLOTPrompt(Prompt):
 
         orig_mode = model.training
         model.eval()
+
+        if use_slot_statistics:         # but shape: [n_cls, 128]
+            assert len(self.cls_stats) != 0
 
         if len(self.cls_stats) != 0:
             cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
@@ -1905,9 +1906,16 @@ class SLOTPrompt(Prompt):
 
                         output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
                     else:
-                        features = features.reshape(bs, -1)     # [bs, 1, 768] -> [bs, 768]
-                        features = nn.functional.normalize(features, dim=1)
-                        output = torch.einsum('bd,cd->bc', features, cls_stats)
+                        # use slot to cal cos sim
+                        if use_slot_statistics:
+                            w_slots = res['w_slots']  # [bs, t, 128]
+                            w_slots = w_slots.reshape(bs, -1)
+                            w_slots = nn.functional.normalize(w_slots, dim=1)
+                            output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
+                        else:
+                            features = features.reshape(bs, -1)     # [bs, 1, 768] -> [bs, 768]
+                            features = nn.functional.normalize(features, dim=1)
+                            output = torch.einsum('bd,cd->bc', features, cls_stats)
 
                     # if logit_task_mask_top_k > 0:
                     #     # apply logit_task_mask_top_k on output
@@ -2035,9 +2043,18 @@ class SLOTPrompt(Prompt):
 
                             output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
                         else:
-                            features = features.reshape(bs, -1)  # [bs, 1, 768] -> [bs, 768]
-                            features = nn.functional.normalize(features, dim=1)
-                            output = torch.einsum('bd,cd->bc', features, cls_stats)
+                            # use slot to cal cos sim
+                            if use_slot_statistics:
+                                w_slots = res['w_slots']  # [bs, t, 128]
+                                w_slots = w_slots.reshape(bs, -1)
+                                w_slots = nn.functional.normalize(w_slots, dim=1)
+                                output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
+                                output = output[:, :self.valid_out_dim]
+                            else:
+                                features = features.reshape(bs, -1)  # [bs, 1, 768] -> [bs, 768]
+                                features = nn.functional.normalize(features, dim=1)
+                                output = torch.einsum('bd,cd->bc', features, cls_stats)
+                                output = output[:, :self.valid_out_dim]
 
                             # if not task_global:
                             #     output = output[:, task_in]

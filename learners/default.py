@@ -91,13 +91,14 @@ class NormalNN(nn.Module):
     #           MODEL TRAINING               #
     ##########################################
 
-    def collect_statistics(self, train_loader, train_dataset, model=None):
+    def collect_statistics(self, train_loader, train_dataset, model=None, refresh=False):
         if model is None:
             model = self.model
 
         # refresh cls_stats for different tasks
-        self.cls_stats = {}
-        self.cls_stats_n = {}
+        if refresh:
+            self.cls_stats = {}
+            self.cls_stats_n = {}
 
         batch_timer = Timer()
         batch_timer.tic()
