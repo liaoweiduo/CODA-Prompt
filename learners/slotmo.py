@@ -625,7 +625,7 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def forward(self, inputs, targets, train=False, learn_slots=False, prompt_phase=1):
+    def forward(self, inputs, targets, train=False, learn_slots=True, prompt_phase=1):
         res = dict()
         try:
             model = self.model.module
@@ -1831,9 +1831,9 @@ class SLOTPrompt(Prompt):
                     #     res.append(correct_k * 100.0 / bs)
                     # mk_task_acc.update(res, bs)
 
-                    recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
-
                     if slot_recon_loss:
+                        recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
+
                         # # collect slot mean
                         # slot_mean = torch.mean(torch.abs(slots).reshape(bs, -1), dim=1)        # [bs]
                         # recon_loss = torch.mean(slot_mean)      # record slot mean
@@ -2001,9 +2001,9 @@ class SLOTPrompt(Prompt):
                         #     res.append(correct_k * 100.0 / bs)
                         # mk_task_acc.update(res, bs)
 
-                        recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
 
                         if slot_recon_loss:
+                            recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
                             recon_losses.update(recon_loss.item(), bs)
                             continue
 
