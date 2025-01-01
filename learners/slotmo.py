@@ -1790,7 +1790,7 @@ class SLOTPrompt(Prompt):
 
                     # q = model_single.obtain_q(input)  # [bs, t, k20, e12, p8, d768]
                     # prompts, selection, ws, w_slots, slots, attn, recon_loss = q
-                    # bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+                    bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                     # assert t == 1
 
                     # # slot_attn_class_key
