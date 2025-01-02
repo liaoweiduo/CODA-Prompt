@@ -376,11 +376,13 @@ class Trainer:
 
             '''save epoch log'''
             if hasattr(self.learner, 'epoch_log'):
-                #  and not os.path.exists(temp_dir + f'log_seed{self.seed}_t{i}' + '.pkl')
                 self.learner.train_log_to_df()
                 epoch_log = self.learner.epoch_log
 
                 debugger.save_log(epoch_log, temp_dir + f'log_seed{self.seed}_t{i}' + '.pkl')
+
+                if not os.path.exists(temp_dir + f'train_log_seed{self.seed}_t{i}' + '.pkl'):
+                    debugger.save_log(epoch_log, temp_dir + f'train_log_seed{self.seed}_t{i}' + '.pkl')
 
                 # pop_labels = [
                 #     f"p{idx}" if idx < self.learner_config['n_obj'] else f"m{idx - self.learner_config['n_obj']}"
