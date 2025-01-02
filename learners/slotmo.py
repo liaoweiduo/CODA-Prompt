@@ -1065,7 +1065,7 @@ class SLOTPrompt(Prompt):
                         n_old_cls = len(self.cls_stats)
                         proto = torch.zeros(n_old_cls, *_slots.shape[-2:]).to(slots.device)  # [n_cls, k5, d128]
                         for label in self.cls_stats.keys():
-                            proto[label] = self.cls_stats[label].detach().clone()
+                            proto[label] = self.cls_stats[label]['slots'].detach().clone()
                         proto_ = proto.unsqueeze(0)  # [1, n_cls, k5, d128]
                         proto_ = proto_.unsqueeze(2)  # [1, n_cls, 1, k5, d128]
                         slots_ = slots.unsqueeze(1)  # [bs, 1, k5, d128]
@@ -1740,15 +1740,23 @@ class SLOTPrompt(Prompt):
         if use_slot_statistics:         # but shape: [n_cls, 128]
             assert len(self.cls_stats) != 0
             mode = 'slot'
-        elif self.config['args'].use_feature_statistics:
-            mode = 'feature'
+            if len(self.cls_stats) != 0:
+                cls_stats = torch.stack([self.cls_stats[label]['slots'] for label in range(len(self.cls_stats))])
+                # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                cls_stats = nn.functional.normalize(cls_stats, dim=1)
+            else:
+                cls_stats = None
 
-        if len(self.cls_stats) != 0:
-            cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
-            # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
-            cls_stats = nn.functional.normalize(cls_stats, dim=1)
-        else:
-            cls_stats = None
+        elif self.config['args'].use_feature_statistics:
+            assert len(self.cls_stats) != 0
+            mode = 'feature'
+            if len(self.cls_stats) != 0:
+                cls_stats = torch.stack([self.cls_stats[label]['features'] for label in range(len(self.cls_stats))])
+                # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+                cls_stats = nn.functional.normalize(cls_stats, dim=1)
+            else:
+                cls_stats = None
+
         # # load statistics for evaluating
         # self.load_statistics()
 
@@ -1902,8 +1910,13 @@ class SLOTPrompt(Prompt):
 
                     # use slot to cal cos sim
                     if mode == 'slot':
-                        w_slots = res['w_slots']  # [bs, t, 128]
-                        w_slots = w_slots.reshape(bs, -1)
+                        # w_slots = res['w_slots']  # [bs, t, 128]
+                        # w_slots = w_slots.reshape(bs, -1)
+                        bs, t, k, d = slots.shape
+                        slots = slots.reshape(bs, t * k, d)  # [bs, k10, d128]
+                        bs, t, k = slot_weights.shape
+                        slot_weights = slot_weights.reshape(bs, t*k)
+                        w_slots = torch.einsum('bkd,bk->bd', slots, slot_weights)
                         w_slots = nn.functional.normalize(w_slots, dim=1)
                         output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
                     elif mode == 'feature':
@@ -2041,8 +2054,13 @@ class SLOTPrompt(Prompt):
 
                         # use slot to cal cos sim
                         if mode == 'slot':
-                            w_slots = res['w_slots']  # [bs, t, 128]
-                            w_slots = w_slots.reshape(bs, -1)
+                            # w_slots = res['w_slots']  # [bs, t, 128]
+                            # w_slots = w_slots.reshape(bs, -1)
+                            bs, t, k, d = slots.shape
+                            slots = slots.reshape(bs, t * k, d)  # [bs, k10, d128]
+                            bs, t, k = slot_weights.shape
+                            slot_weights = slot_weights.reshape(bs, t*k)
+                            w_slots = torch.einsum('bkd,bk->bd', slots, slot_weights)
                             w_slots = nn.functional.normalize(w_slots, dim=1)
                             output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
                             output = output[:, :self.valid_out_dim]
@@ -2311,12 +2329,12 @@ class SLOTPrompt(Prompt):
                     avg_slots = torch.mean(labeled_slots, dim=0)
 
                     if label in self.cls_stats.keys():
-                        prev_slots = self.cls_stats[label]
+                        prev_slots = self.cls_stats[label]['slots']
                         prev_n_img = self.cls_stats_n[label]
                         avg_slots = (prev_slots * prev_n_img + avg_slots * n_img) / (prev_n_img + n_img)
                         n_img = prev_n_img + n_img
 
-                    self.cls_stats[label] = avg_slots
+                    self.cls_stats[label]['slots'] = avg_slots
                     self.cls_stats_n[label] = n_img
 
                 # using buffer to collect a set of samples for mean and variances
