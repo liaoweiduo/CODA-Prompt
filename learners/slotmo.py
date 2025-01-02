@@ -1736,8 +1736,12 @@ class SLOTPrompt(Prompt):
         orig_mode = model.training
         model.eval()
 
+        mode = 'head'
         if use_slot_statistics:         # but shape: [n_cls, 128]
             assert len(self.cls_stats) != 0
+            mode = 'slot'
+        elif self.config['args'].use_feature_statistics:
+            mode = 'feature'
 
         if len(self.cls_stats) != 0:
             cls_stats = torch.stack([self.cls_stats[label] for label in range(len(self.cls_stats))])
@@ -1896,7 +1900,17 @@ class SLOTPrompt(Prompt):
                     #     features = nn.functional.normalize(features, dim=1)
                     #     output = torch.einsum('bd,cd->bc', features, cls_stats)
 
-                    if len(self.cls_stats) == 0:
+                    # use slot to cal cos sim
+                    if mode == 'slot':
+                        w_slots = res['w_slots']  # [bs, t, 128]
+                        w_slots = w_slots.reshape(bs, -1)
+                        w_slots = nn.functional.normalize(w_slots, dim=1)
+                        output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
+                    elif mode == 'feature':
+                        features = features.reshape(bs, -1)     # [bs, 1, 768] -> [bs, 768]
+                        features = nn.functional.normalize(features, dim=1)
+                        output = torch.einsum('bd,cd->bc', features, cls_stats)
+                    else:
                         out = out[:, :self.valid_out_dim]
                         # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
@@ -1905,17 +1919,6 @@ class SLOTPrompt(Prompt):
                             print(f'valid_out_dim: {self.valid_out_dim}')
 
                         output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
-                    else:
-                        # use slot to cal cos sim
-                        if use_slot_statistics:
-                            w_slots = res['w_slots']  # [bs, t, 128]
-                            w_slots = w_slots.reshape(bs, -1)
-                            w_slots = nn.functional.normalize(w_slots, dim=1)
-                            output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
-                        else:
-                            features = features.reshape(bs, -1)     # [bs, 1, 768] -> [bs, 768]
-                            features = nn.functional.normalize(features, dim=1)
-                            output = torch.einsum('bd,cd->bc', features, cls_stats)
 
                     # if logit_task_mask_top_k > 0:
                     #     # apply logit_task_mask_top_k on output
@@ -2037,24 +2040,23 @@ class SLOTPrompt(Prompt):
                         #     # if not task_global:
                         #     #     output = output[:, task_in]
 
-                        if len(self.cls_stats) == 0:
+                        # use slot to cal cos sim
+                        if mode == 'slot':
+                            w_slots = res['w_slots']  # [bs, t, 128]
+                            w_slots = w_slots.reshape(bs, -1)
+                            w_slots = nn.functional.normalize(w_slots, dim=1)
+                            output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
+                            output = output[:, :self.valid_out_dim]
+                        elif mode == 'feature':
+                            features = features.reshape(bs, -1)  # [bs, 1, 768] -> [bs, 768]
+                            features = nn.functional.normalize(features, dim=1)
+                            output = torch.einsum('bd,cd->bc', features, cls_stats)
+                            output = output[:, :self.valid_out_dim]
+                        else:
                             out = out[:, :self.valid_out_dim]
                             # out: [bs, t*20, self.valid_out_dim] if during_train: [-inf,..., value] else: [value,..., value]
 
                             output = out.reshape(bs, -1)  # [bs, 1, n_cls] -> [bs, n_cls]
-                        else:
-                            # use slot to cal cos sim
-                            if use_slot_statistics:
-                                w_slots = res['w_slots']  # [bs, t, 128]
-                                w_slots = w_slots.reshape(bs, -1)
-                                w_slots = nn.functional.normalize(w_slots, dim=1)
-                                output = torch.einsum('bd,cd->bc', w_slots, cls_stats)
-                                output = output[:, :self.valid_out_dim]
-                            else:
-                                features = features.reshape(bs, -1)  # [bs, 1, 768] -> [bs, 768]
-                                features = nn.functional.normalize(features, dim=1)
-                                output = torch.einsum('bd,cd->bc', features, cls_stats)
-                                output = output[:, :self.valid_out_dim]
 
                             # if not task_global:
                             #     output = output[:, task_in]
@@ -2091,9 +2093,10 @@ class SLOTPrompt(Prompt):
             # return recon_losses.avg
         else:
             if verbal:
-                self.log(' * Val Acc {acc.avg:.3f}, '
+                self.log(' * {mode}: Val Acc {acc.avg:.3f}, '
                          'Total time {time:.2f}'
-                         .format(acc=acc,
+                         .format(mode=mode,
+                                 acc=acc,
                                  # mk_acc=mk_acc, mk_task_acc=mk_task_acc,
                                  time=batch_timer.toc(),    # collect_top_k=collect_top_k
                                  ))
@@ -2227,6 +2230,9 @@ class SLOTPrompt(Prompt):
         Using slot_weights [bs, k10]
         """
         t = train_dataset.t
+
+        self.load_statistics(t=t, name='slot_stats')
+
         if model is None:
             model = self.model
 
@@ -2334,7 +2340,7 @@ class SLOTPrompt(Prompt):
 
         if save:
             # save statistics
-            stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_stats.pkl')
+            stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_stats_{t}.pkl')
             print('=> Saving statistics to:', stats_path)
             with open(stats_path, 'wb') as f:
                 pickle.dump(self.cls_stats, f)
@@ -2429,11 +2435,13 @@ class SLOTPrompt(Prompt):
                 pickle.dump(self.cls_stats, f)
             print('=> Save Done')
 
-    def load_statistics(self, t=0):
-        stats_path = os.path.join(self.config['log_dir'], 'temp', f'cls_stats_{t}.pkl')
-        print('=> Load statistics from:', stats_path)
-        with open(stats_path, 'rb') as f:
-            self.cls_stats = pickle.load(f)
+    def load_statistics(self, t=0, name='cls_stats'):
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'{name}_{t}.pkl')
+
+        if os.path.exists(stats_path):
+            print('=> Load statistics from:', stats_path)
+            with open(stats_path, 'rb') as f:
+                self.cls_stats = pickle.load(f)
 
     def predict_mo(self, mo_features):
         """predict based on cls_stats"""

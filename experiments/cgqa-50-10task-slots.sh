@@ -184,6 +184,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 #    --log_dir ${OUTDIR}/${LOGNAME} \
 #    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
 #    --lr 0.001 \
+#    --use_feature_statistics \
 #    --mode ${mode}
 #  date
 #done
