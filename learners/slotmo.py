@@ -2450,7 +2450,7 @@ class SLOTPrompt(Prompt):
             return True
         else:
             print('=> Statistics not find.')
-            return True
+            return False
 
     def predict_mo(self, mo_features):
         """predict based on cls_stats"""
