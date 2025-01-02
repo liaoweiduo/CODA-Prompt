@@ -2004,7 +2004,6 @@ class SLOTPrompt(Prompt):
                         #     res.append(correct_k * 100.0 / bs)
                         # mk_task_acc.update(res, bs)
 
-
                         if slot_recon_loss:
                             recon_loss = torch.mean(torch.stack(recon_loss))  # list [1\T]
                             recon_losses.update(recon_loss.item(), bs)
@@ -2234,8 +2233,9 @@ class SLOTPrompt(Prompt):
         Using slot_weights [bs, k10]
         """
         task_id = train_dataset.t
+        seed = self.config['seed']
 
-        if self.load_statistics(t=task_id, name='slot_stats'):
+        if self.load_statistics(t=task_id, seed=seed, name='slot_stats'):
             return
 
         if model is None:
@@ -2345,7 +2345,7 @@ class SLOTPrompt(Prompt):
 
         if save:
             # save statistics
-            stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_stats_t{task_id}.pkl')
+            stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_stats_seed{seed}_t{task_id}.pkl')
             print('=> Saving statistics to:', stats_path)
             with open(stats_path, 'wb') as f:
                 pickle.dump(self.cls_stats, f)
@@ -2440,8 +2440,8 @@ class SLOTPrompt(Prompt):
                 pickle.dump(self.cls_stats, f)
             print('=> Save Done')
 
-    def load_statistics(self, t=0, name='cls_stats'):
-        stats_path = os.path.join(self.config['log_dir'], 'temp', f'{name}_t{t}.pkl')
+    def load_statistics(self, t=0, seed=0, name='cls_stats'):
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'{name}_seed{seed}_t{t}.pkl')
 
         if os.path.exists(stats_path):
             print('=> Load statistics from:', stats_path)

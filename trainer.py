@@ -200,18 +200,6 @@ class Trainer:
         else:
             return self.learner.validation(test_loader, task_metric=task)
 
-    def slot_NN_eval(self, c_index, t_index=-1, local=False, task='acc'):
-        print('validation of slot NN class index:', c_index)
-
-        # eval
-        test_dataset = self.test_dataset.get_single_class_dataset(c_index)
-        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False,
-                                 num_workers=self.workers)
-        if local:
-            return self.learner.validation(test_loader, task_in=self.tasks_logits[t_index], task_metric=task)
-        else:
-            return self.learner.validation(test_loader, task_metric=task)
-
     def class_eval(self, c_index, t_index=-1, local=False, task='acc', use_slot_statistics=False):
         print('validation class index:', c_index)
 
@@ -387,7 +375,8 @@ class Trainer:
             if avg_train_time is not None: avg_metrics['time']['global'][i] = avg_train_time
 
             '''save epoch log'''
-            if hasattr(self.learner, 'epoch_log') and not os.path.exists(temp_dir + f'log_seed{self.seed}_t{i}' + '.pkl'):
+            if hasattr(self.learner, 'epoch_log'):
+                #  and not os.path.exists(temp_dir + f'log_seed{self.seed}_t{i}' + '.pkl')
                 self.learner.train_log_to_df()
                 epoch_log = self.learner.epoch_log
 
