@@ -605,7 +605,7 @@ class SLOTPrompt(Prompt):
             self.log(f'Phase III: update feature statistics for labels')
             self.collect_statistics(train_loader, train_dataset)
         if self.config['args'].use_slot_statistics:
-            self.log(f'Phase III: update slot statistics for labels')
+            self.log(f'Phase III: update slot statistics for labels in task{self.t}')
             self.collect_slot_statistics(train_loader, train_dataset, save=True)
             # self.collect_slot_statistics_all(train_loader, train_dataset)
             # self.collect_slot_pool(train_loader, train_dataset)
@@ -2093,12 +2093,16 @@ class SLOTPrompt(Prompt):
             # return recon_losses.avg
         else:
             if verbal:
+                local=''
+                if task_in is not None:
+                    local=' local'
                 self.log(' * {mode}: Val Acc {acc.avg:.3f}, '
-                         'Total time {time:.2f}'
+                         'Total time {time:.2f}{local}'
                          .format(mode=mode,
                                  acc=acc,
                                  # mk_acc=mk_acc, mk_task_acc=mk_task_acc,
                                  time=batch_timer.toc(),    # collect_top_k=collect_top_k
+                                 local=local,
                                  ))
                 # 'MK Acc {mk_acc.avg:.3f}, '
                 # 'MK Top{collect_top_k} Task Acc {mk_task_acc.avg}'
@@ -2229,9 +2233,10 @@ class SLOTPrompt(Prompt):
         Collect slot statistics for each label. weighted sum slot [n_cls, h128]
         Using slot_weights [bs, k10]
         """
-        t = train_dataset.t
+        task_id = train_dataset.t
 
-        self.load_statistics(t=t, name='slot_stats')
+        if self.load_statistics(t=task_id, name='slot_stats'):
+            return
 
         if model is None:
             model = self.model
@@ -2335,12 +2340,12 @@ class SLOTPrompt(Prompt):
 
         model.train(orig_mode)
 
-        self.log(' * Collect statistics: Total time {time:.2f}'
-                 .format(time=batch_timer.toc()))
+        self.log(' * Collect statistics: Len {len}, Total time {time:.2f}'
+                 .format(len=len(self.cls_stats), time=batch_timer.toc()))
 
         if save:
             # save statistics
-            stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_stats_{t}.pkl')
+            stats_path = os.path.join(self.config['log_dir'], 'temp', f'slot_stats_t{task_id}.pkl')
             print('=> Saving statistics to:', stats_path)
             with open(stats_path, 'wb') as f:
                 pickle.dump(self.cls_stats, f)
@@ -2436,12 +2441,16 @@ class SLOTPrompt(Prompt):
             print('=> Save Done')
 
     def load_statistics(self, t=0, name='cls_stats'):
-        stats_path = os.path.join(self.config['log_dir'], 'temp', f'{name}_{t}.pkl')
+        stats_path = os.path.join(self.config['log_dir'], 'temp', f'{name}_t{t}.pkl')
 
         if os.path.exists(stats_path):
             print('=> Load statistics from:', stats_path)
             with open(stats_path, 'rb') as f:
                 self.cls_stats = pickle.load(f)
+            return True
+        else:
+            print('=> Statistics not find.')
+            return True
 
     def predict_mo(self, mo_features):
         """predict based on cls_stats"""
