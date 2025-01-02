@@ -2333,6 +2333,8 @@ class SLOTPrompt(Prompt):
                         prev_n_img = self.cls_stats_n[label]
                         avg_slots = (prev_slots * prev_n_img + avg_slots * n_img) / (prev_n_img + n_img)
                         n_img = prev_n_img + n_img
+                    else:
+                        self.cls_stats[label] = {}
 
                     self.cls_stats[label]['slots'] = avg_slots
                     self.cls_stats_n[label] = n_img
