@@ -2289,12 +2289,15 @@ class SLOTPrompt(Prompt):
 
                 # q = model.obtain_q(x, learn_slots=False)
                 # _, _, _, slots, _, _, _ = q  # [bs, 1, k10, d128]
-                # bs, t, k, d = slots.shape
-                # slots = slots.reshape(bs, t * k, d)  # [bs, k10, d128]
-                # bs, t, k = slot_weights.shape
-                # slot_weights = slot_weights.reshape(bs, t*k)
-                bs, t, d = w_slots.shape
-                w_slots = w_slots.reshape(bs, t*d)
+                bs, t, k, d = slots.shape
+                slots = slots.reshape(bs, t * k, d)  # [bs, k10, d128]
+                bs, t, k = slot_weights.shape
+                slot_weights = slot_weights.reshape(bs, t*k)
+
+                w_slots = torch.einsum('bkd,bk->bd', slots, slot_weights)
+
+                # bs, t, d = w_slots.shape
+                # w_slots = w_slots.reshape(bs, t*d)
                 assert t == 1
 
                 # label-wise collecting prototypes
