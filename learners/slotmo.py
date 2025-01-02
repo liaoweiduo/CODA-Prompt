@@ -625,12 +625,14 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def forward(self, inputs, targets, train=False, learn_slots=True, prompt_phase=1):
+    def forward(self, inputs, targets, train=False, learn_slots=True, prompt_phase=1, model=None):
         res = dict()
-        try:
-            model = self.model.module
-        except:
+        if model is None:
             model = self.model
+        try:
+            model = model.module
+        except:
+            model = model
 
         q = model.obtain_q(inputs, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
         prompts, selections, slot_weights, w_slots, slots, attn, recon_loss = q
@@ -2206,20 +2208,31 @@ class SLOTPrompt(Prompt):
                 # task = task.cuda()
 
             with torch.no_grad():
-                # get slots
-                q = model.obtain_q(x, learn_slots=False)
-                prompts, _, _, _, _, _, _ = q  # [bs, 1, k5, d128]
-                bs, t, k, e, p, d = prompts.shape
-                prompts = prompts.reshape(bs, t*k, e, p, d)
 
-                sum_prompts = torch.sum(prompts, dim=1)  # [bs, e, p, d]
+                res = self.forward(x, y, model=model)
+                prompts = res['prompts']
+                selections = res['selections']
+                slot_weights = res['slot_weights']
+                slots = res['slots']
+                attn = res['attn']
+                recon_loss = res['recon_loss']
+                out = res['logits']
+                features = res['features']
 
-                # pen: penultimate features; train: same forward as batch training.
-                _, features = model(
-                    x, q=sum_prompts,
-                    forward_last=False,
-                    pen=True, train=False)
-                # features: [bs, 768]
+                # # get slots
+                # q = model.obtain_q(x, learn_slots=False)
+                # prompts, _, _, _, _, _, _ = q  # [bs, 1, k5, d128]
+                # bs, t, k, e, p, d = prompts.shape
+                # prompts = prompts.reshape(bs, t*k, e, p, d)
+                #
+                # sum_prompts = torch.sum(prompts, dim=1)  # [bs, e, p, d]
+                #
+                # # pen: penultimate features; train: same forward as batch training.
+                # _, features = model(
+                #     x, q=sum_prompts,
+                #     forward_last=False,
+                #     pen=True, train=False)
+                # # features: [bs, 768]
 
                 # label-wise collecting prototypes
                 labels = torch.unique(y)
@@ -2231,13 +2244,15 @@ class SLOTPrompt(Prompt):
                     n_img = labeled_features.size(0)
                     avg_features = torch.mean(labeled_features, dim=0)
 
-                    if label in self.cls_stats.keys():
-                        prev_features = self.cls_stats[label]
+                    if label in self.cls_stats.keys() and 'features' in self.cls_stats[label].keys():
+                        prev_features = self.cls_stats[label]['features']
                         prev_n_img = self.cls_stats_n[label]
                         avg_features = (prev_features * prev_n_img + avg_features * n_img) / (prev_n_img + n_img)
                         n_img = prev_n_img + n_img
+                    elif label not in self.cls_stats.keys():
+                        self.cls_stats[label] = {}
 
-                    self.cls_stats[label] = avg_features
+                    self.cls_stats[label]['features'] = avg_features
                     self.cls_stats_n[label] = n_img
 
         model.train(orig_mode)
@@ -2328,12 +2343,12 @@ class SLOTPrompt(Prompt):
                     n_img = labeled_slots.size(0)
                     avg_slots = torch.mean(labeled_slots, dim=0)
 
-                    if label in self.cls_stats.keys():
+                    if label in self.cls_stats.keys() and 'slots' in self.cls_stats[label].keys():
                         prev_slots = self.cls_stats[label]['slots']
                         prev_n_img = self.cls_stats_n[label]
                         avg_slots = (prev_slots * prev_n_img + avg_slots * n_img) / (prev_n_img + n_img)
                         n_img = prev_n_img + n_img
-                    else:
+                    elif label not in self.cls_stats.keys():
                         self.cls_stats[label] = {}
 
                     self.cls_stats[label]['slots'] = avg_slots
