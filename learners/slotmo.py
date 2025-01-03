@@ -53,7 +53,9 @@ class SLOTPrompt(Prompt):
         #     train=False, validation=True, download_flag=False, seed=self.config['seed'])
         # aux_dataset.load_dataset(9, train=False)   # consider all samples: 100 classes with 5000 samples.
         # self.aux = Auxiliary(aux_dataset)
-        # self.aux = Auxiliary()
+
+        if self.config['args'].use_old_samples_for_reg:
+            self.aux = Auxiliary(self.config['args'], None, self.tasks)
 
         config = self.config['prompt_param'][1]
         while len(config) < 15:
@@ -319,7 +321,8 @@ class SLOTPrompt(Prompt):
         self.t = train_dataset.t
         self.n_cls = len(self.tasks[self.t])     # tasks: [[0,1,...,49], [50,...,59], ...]
         print(f'num of classes: {self.n_cls}.')
-        # self.aux.update_source(train_dataset)       # aux samples from the current task
+        if self.config['args'].use_old_samples_for_reg:
+            self.aux.update_source(train_dataset, self.t)       # aux samples from the current task
 
         # try to load model
         need_train = True
@@ -1183,16 +1186,35 @@ class SLOTPrompt(Prompt):
                 # if self.debug_mode:
                 #     print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
 
+            ext_logits, ext_targets = [], []
+            ext_slots, ext_slot_weights = [], []
             if self.config['args'].use_old_samples_for_reg:
                 # append some old samples
-                dataset = self.train_dataset
-                current_task_id = self.t
-                # extend logits and targets
+                old_inputs, old_targets = self.aux.sampling()
+
+                res = self.forward(old_inputs, old_targets,
+                                   train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
+                old_slots = res['slots']
+                old_slot_weights = res['slot_weights']
+                old_logits = res['logits']
+                ext_logits.append(old_logits)
+                ext_targets.append(old_targets)
+                ext_slots.append(old_slots)
+                ext_slot_weights.append(old_slot_weights)
+
+            ext_logits.append(logits)
+            ext_targets.append(targets)
+            ext_slots.append(slots)
+            ext_slot_weights.append(slot_weights)
+            ext_logits = torch.cat(ext_logits, dim=0)
+            ext_targets = torch.cat(ext_targets, dim=0)
+            ext_slots = torch.cat(ext_slots, dim=0)
+            ext_slot_weights = torch.cat(ext_slot_weights, dim=0)
 
             # cheating reg on logits
             concept_similar_reg = torch.zeros(1).mean().to(loss.device)
             if self.concept_weight:
-                concept_similar_reg = self._concept_similar_reg(None, logits, targets)
+                concept_similar_reg = self._concept_similar_reg(None, ext_logits, ext_targets)
                 self.epoch_log['scaler']['Tag'].append('loss/concept_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
@@ -1221,7 +1243,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(current_coeff)
 
-                slot_logit_similar_reg = self._slot_logit_similar_reg(slots, slot_weights, logits)
+                slot_logit_similar_reg = self._slot_logit_similar_reg(ext_slots, ext_slot_weights, ext_logits)
                 self.epoch_log['scaler']['Tag'].append('loss/slot_logit_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_logit_similar_reg.item())
@@ -1257,17 +1279,23 @@ class SLOTPrompt(Prompt):
         # preprocess logits
         logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
 
-        if self.config['args'].slot_logit_similar_reg_mode == 'l2':
+        if 'cos' in self.config['args'].slot_logit_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0))  # [bs, bs]  each slot
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0))
-            loss = F.mse_loss(logit_sim, slot_sim)
         else:
             slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) / 0.8
-            softmaxed_slot_sim = F.softmax(slot_sim, dim=-1)
             logit_sim = torch.matmul(logits, logits.t()) / 0.8
-            # softmaxed_logit_sim = F.softmax(logit_sim, dim=-1)
-            loss = cross_entropy_with_soft_labels(logit_sim, softmaxed_slot_sim)
+
+        if 'l2' in self.config['args'].slot_logit_similar_reg_mode:
+            loss = F.mse_loss(logit_sim, slot_sim)
+        elif 'l1' in self.config['args'].slot_logit_similar_reg_mode:
+            loss = F.l1_loss(logit_sim, slot_sim)
+        # elif 'ce' in self.config['args'].slot_logit_similar_reg_mode:
+        #     distances = F.l1_loss(logit_sim, slot_sim, reduction='none')    # [bs, bs]
+        #     F.cross_entropy(distances, torch.range(0, distances.shape[0] - 1).long().to(distances.device))
+        else:
+            loss = cross_entropy_with_soft_labels(logit_sim, F.softmax(slot_sim, dim=-1))
 
         return loss
 
@@ -1749,29 +1777,22 @@ class SLOTPrompt(Prompt):
         orig_mode = model.training
         model.eval()
 
+        # # load statistics for evaluating
+        # self.load_statistics()
+
         mode = 'head'
         if use_slot_statistics:         # but shape: [n_cls, 128]
             assert len(self.cls_stats) != 0
             mode = 'slot'
-            if len(self.cls_stats) != 0:
-                cls_stats = torch.stack([self.cls_stats[label]['slots'] for label in range(len(self.cls_stats))])
-                # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
-                cls_stats = nn.functional.normalize(cls_stats, dim=1)
-            else:
-                cls_stats = None
+            cls_stats = torch.stack([self.cls_stats[label]['slots'] for label in range(len(self.cls_stats))])
+            # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+            cls_stats = nn.functional.normalize(cls_stats, dim=1)
 
-        elif self.config['args'].use_feature_statistics:
-            assert len(self.cls_stats) != 0
+        elif self.config['args'].use_feature_statistics and len(self.cls_stats) != 0:
             mode = 'feature'
-            if len(self.cls_stats) != 0:
-                cls_stats = torch.stack([self.cls_stats[label]['features'] for label in range(len(self.cls_stats))])
-                # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
-                cls_stats = nn.functional.normalize(cls_stats, dim=1)
-            else:
-                cls_stats = None
-
-        # # load statistics for evaluating
-        # self.load_statistics()
+            cls_stats = torch.stack([self.cls_stats[label]['features'] for label in range(len(self.cls_stats))])
+            # [n_cls, 768]    # will raise exception if label is not from 0->n_cls-1
+            cls_stats = nn.functional.normalize(cls_stats, dim=1)
 
         label_task_map = np.zeros(self.config['num_classes'])
         for task_id, task in enumerate(self.tasks):
@@ -2534,14 +2555,52 @@ class Auxiliary:
     Provide auxiliary samples for supporting evaluating prompts
 
     """
-    def __init__(self, source=None):
+    def __init__(self, args, source=None, tasks=None, t=0):
         """source can be a val_dataset"""
+        self.args = args
         self.source = source
+        self.t = t
+        self.tasks = tasks
+        self.single_class_datasets = {}
+        self.single_class_dataset_dataloaders = {}
+        self.single_class_dataset_dataloaders_yield = {}
+        self.bs = 2
 
-    def update_source(self, source):
+    def update_source(self, source, t):
         self.source = source
+        self.t = t
+        tasks = self.tasks
+        for old_task_id in range(t):
+            for class_id in tasks[old_task_id]:
+                self.single_class_datasets[class_id] = dataset.get_single_class_dataset(class_id)
+                self.single_class_dataset_dataloaders[class_id] = torch.utils.data.DataLoader(
+                    self.single_class_datasets[class_id], batch_size=self.bs,
+                    shuffle=True, drop_last=False, num_workers=self.args.workers)
+                self.single_class_dataset_dataloaders_yield[class_id] = iter(
+                    self.single_class_dataset_dataloaders[class_id])
 
-    def sampling(self, num_samples=100, sort=True):
+    def sampling(self):
+        inputs = []
+        targets = []
+        for old_task_id in range(self.t):
+            for class_id in self.tasks[old_task_id]:
+                sample = next(self.single_class_dataset_dataloaders_yield[class_id])
+
+                if len(sample) == 3:
+                    x, y, task = sample
+                else:
+                    x, y, c, task = sample
+                # send data to gpu
+                x = x.cuda()
+                y = y.cuda()
+                c = c.cuda()
+
+                inputs.append(x)
+                targets.append(y)
+
+        return torch.cat(inputs, dim=0), torch.cat(targets, dim=0)
+
+    def sampling_old(self, num_samples=100, sort=True):
         """
         :param num_samples:
         :param sort: return sorted samples according to targets. Inactivated if no target provided.

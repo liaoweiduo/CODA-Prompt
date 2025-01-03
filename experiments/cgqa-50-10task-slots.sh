@@ -116,13 +116,14 @@ mkdir -p $OUTDIR
 
 # slot_logit_similar reg + larger prompt lr
 devices=(0 1 2 3); i=-1
-for slot_logit_similar_reg_coeff in 0.0 0.01 0.1 1; do
+for slot_logit_similar_reg_coeff in 0.0 0.001 0.01 0.1; do
 for lr in 1e-3; do
 ((i++))
 device=${devices[${i}]}
 temp=1
 slot_logit_similar_reg_coeff_sensitivity=0
-LOGNAME=7-slot_prompt-sMT-lpl-slsrc${slot_logit_similar_reg_coeff}_dot_s${slot_logit_similar_reg_coeff_sensitivity}-lr${lr}-p100-l8-k10-nt5-sig${temp}_FPS
+slot_logit_similar_reg_mode=cos+ce
+LOGNAME=7-slot_prompt-sMT-lpl-old_${slot_logit_similar_reg_mode}_slsrc${slot_logit_similar_reg_coeff}_s${slot_logit_similar_reg_coeff_sensitivity}-lr${lr}-p100-l8-k10-nt5-sig${temp}_FPS
 #  -d
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
@@ -135,14 +136,14 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --lr ${lr} ${lr} \
     --larger_prompt_lr \
     --use_slot_logit_similar_reg \
+    --use_old_samples_for_reg \
     --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
     --slot_logit_similar_reg_coeff_sensitivity ${slot_logit_similar_reg_coeff_sensitivity} \
-    --slot_logit_similar_reg_mode dot \
+    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
     --eval_class_wise \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
-#    --use_old_samples_for_reg \
 
 ## concept similar reg + larger prompt lr
 #devices=(0 1 2 3 4 5); i=-1

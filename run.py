@@ -77,7 +77,7 @@ def create_args():
                         help="coeff for concept similar reg.")
     parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=0.,
                         help="sensitivity for reg on n_cls.")
-    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='l2')
+    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='cos+l2')
     parser.add_argument('--use_feature_statistics', action='store_true')
     parser.add_argument('--use_slot_statistics', action='store_true')
 
