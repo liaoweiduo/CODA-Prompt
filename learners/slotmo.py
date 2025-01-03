@@ -1183,10 +1183,16 @@ class SLOTPrompt(Prompt):
                 # if self.debug_mode:
                 #     print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
 
+            if self.config['args'].use_old_samples_for_reg:
+                # append some old samples
+                dataset = self.train_dataset
+                current_task_id = self.t
+                # extend logits and targets
+
             # cheating reg on logits
             concept_similar_reg = torch.zeros(1).mean().to(loss.device)
             if self.concept_weight:
-                concept_similar_reg = self.concept_similar_reg(None, logits, targets)
+                concept_similar_reg = self._concept_similar_reg(None, logits, targets)
                 self.epoch_log['scaler']['Tag'].append('loss/concept_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
@@ -1195,7 +1201,10 @@ class SLOTPrompt(Prompt):
                 coeff = self.config['concept_similar_reg_coeff']
                 sen = self.config['concept_similar_reg_coeff_sensitivity']
                 last_coeff = ((10 / self.n_cls) ** sen) * coeff
-                current_coeff = last_coeff * (self.epoch+1) / self.epochs
+                if self.config['args'].dynamic_concept_similar_reg_coeff:
+                    current_coeff = last_coeff * (self.epoch+1) / self.epochs
+                else:
+                    current_coeff = last_coeff
                 self.epoch_log['scaler']['Tag'].append(f'coeff/concept_similar_reg/t{self.t}')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(current_coeff)
@@ -1243,7 +1252,7 @@ class SLOTPrompt(Prompt):
         bs, t, k = weights.shape
         batched_weights = weights.reshape(bs, t * k)
 
-        weighted_slot = torch.einsum('bkd,bk->bd', batched_slots, batched_weights)
+        weighted_slot = torch.einsum('bkd,bk->bd', batched_slots, batched_weights).detach()
 
         # preprocess logits
         logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
@@ -1252,11 +1261,13 @@ class SLOTPrompt(Prompt):
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0))  # [bs, bs]  each slot
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0))
-            loss = F.mse_loss(slot_sim, logit_sim)
+            loss = F.mse_loss(logit_sim, slot_sim)
         else:
             slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) / 0.8
+            softmaxed_slot_sim = F.softmax(slot_sim, dim=-1)
             logit_sim = torch.matmul(logits, logits.t()) / 0.8
-            loss = cross_entropy_with_soft_labels(slot_sim, logit_sim)
+            # softmaxed_logit_sim = F.softmax(logit_sim, dim=-1)
+            loss = cross_entropy_with_soft_labels(logit_sim, softmaxed_slot_sim)
 
         return loss
 

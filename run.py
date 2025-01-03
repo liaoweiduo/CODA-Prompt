@@ -71,10 +71,11 @@ def create_args():
                         help="sensitivity for reg on n_cls.")
     parser.add_argument('--dynamic_concept_similar_reg_coeff', default=False, action='store_true',
                         help='coeff from 0 for the first epoch.')
+    parser.add_argument('--use_old_samples_for_reg', action='store_true')
     parser.add_argument('--use_slot_logit_similar_reg', action='store_true')
-    parser.add_argument('--slot_logit_similar_reg_coeff', type=float, default=0,
+    parser.add_argument('--slot_logit_similar_reg_coeff', type=float, default=0.,
                         help="coeff for concept similar reg.")
-    parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=1.,
+    parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=0.,
                         help="sensitivity for reg on n_cls.")
     parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='l2')
     parser.add_argument('--use_feature_statistics', action='store_true')

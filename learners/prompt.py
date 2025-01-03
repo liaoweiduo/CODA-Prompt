@@ -60,7 +60,7 @@ class Prompt(NormalNN):
         # cheating reg on logits
         concept_similar_reg = torch.zeros(1).mean().to(total_loss.device)
         if self.concept_weight:
-            concept_similar_reg = self.concept_similar_reg(None, logits, targets)
+            concept_similar_reg = self._concept_similar_reg(None, logits, targets)
             self.epoch_log['scaler']['Tag'].append(f'loss/concept_similar_reg/t{self.t}')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())

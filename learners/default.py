@@ -259,7 +259,7 @@ class NormalNN(nn.Module):
         loss_supervised = (self.criterion_fn(logits, targets.long()) * data_weights).mean()
         return loss_supervised 
 
-    def concept_similar_reg(self, features, logits, targets):
+    def _concept_similar_reg(self, features, logits, targets):
         """Cheating on concept-aware to decrease distance between two imgs that share the same concept"""
         # features: [bs 768]; logits with full range: [bs, 100]; targets: [bs]
 
