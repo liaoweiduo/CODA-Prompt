@@ -1188,7 +1188,7 @@ class SLOTPrompt(Prompt):
 
             ext_logits, ext_targets = [], []
             ext_slots, ext_slot_weights = [], []
-            if self.config['args'].use_old_samples_for_reg:
+            if self.config['args'].use_old_samples_for_reg and self.t > 0:
                 # append some old samples
                 old_inputs, old_targets = self.aux.sampling()
 
@@ -2598,7 +2598,11 @@ class Auxiliary:
                 inputs.append(x)
                 targets.append(y)
 
-        return torch.cat(inputs, dim=0), torch.cat(targets, dim=0)
+        if len(inputs) > 0:
+            inputs = torch.cat(inputs, dim=0)
+            targets = torch.cat(targets, dim=0)
+
+        return inputs, targets
 
     def sampling_old(self, num_samples=100, sort=True):
         """
