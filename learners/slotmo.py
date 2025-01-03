@@ -1281,8 +1281,9 @@ class SLOTPrompt(Prompt):
 
         if 'cos' in self.config['args'].slot_logit_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0))  # [bs, bs]  each slot
-            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0))
+            temp = 10
+            slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * temp  # [bs, bs]  each slot
+            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * temp
         else:
             slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) / 0.8
             logit_sim = torch.matmul(logits, logits.t()) / 0.8
