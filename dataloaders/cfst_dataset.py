@@ -253,8 +253,9 @@ class CFSTDataset(data.Dataset):
 
     def process_concepts(self, concepts, num_prompts):
         # e.g, from [0, 1, 2] -> [num_prompts]  multi-hot float
+        # concepts: [bs, 2] ->one_hot [bs, 2, num_prompts]
         concept_labels = F.one_hot(concepts, num_prompts)   # [n_c, num_prompts]
-        concept_labels = torch.sum(concept_labels, dim=0).float()   # [num_prompts]
+        concept_labels = torch.sum(concept_labels, dim=-2).float()   # [num_prompts]
 
         return concept_labels
 

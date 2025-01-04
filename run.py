@@ -69,6 +69,7 @@ def create_args():
                         help="coeff for concept similar reg.")
     parser.add_argument('--concept_similar_reg_coeff_sensitivity', type=float, default=1.,
                         help="sensitivity for reg on n_cls.")
+    parser.add_argument('--concept_similar_reg_mode', type=str, default='cos+l2')
     parser.add_argument('--dynamic_concept_similar_reg_coeff', default=False, action='store_true',
                         help='coeff from 0 for the first epoch.')
     parser.add_argument('--use_old_samples_for_reg', action='store_true')

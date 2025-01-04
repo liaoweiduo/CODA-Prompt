@@ -322,7 +322,9 @@ class SLOTPrompt(Prompt):
         self.n_cls = len(self.tasks[self.t])     # tasks: [[0,1,...,49], [50,...,59], ...]
         print(f'num of classes: {self.n_cls}.')
         if self.config['args'].use_old_samples_for_reg:
-            self.aux.update_source(copy.deepcopy(train_dataset).load_dataset(self.t, train=False), self.t)       # aux samples from the current task
+            dataset_with_old = copy.deepcopy(train_dataset)
+            dataset_with_old.load_dataset(self.t, train=False)
+            self.aux.update_source(dataset_with_old, self.t)       # aux samples from the current task
 
         # try to load model
         need_train = True
@@ -1276,23 +1278,31 @@ class SLOTPrompt(Prompt):
         # collect concepts
         # self.label_concepts: [100, 2]
         concepts_batch = self.label_concepts[targets.cpu().numpy()]   # [bs, 2]
-        concepts = np.unique(concepts_batch.flatten())
+        num_concepts = self.num_concepts
+        concepts = self.train_dataset.process_concepts(
+            torch.from_numpy(concepts_batch).long(), num_concepts).to(logits.device)
+        # [bs, n_concepts]
 
-        # for each concept
-        losses = []
-        dist = nn.PairwiseDistance(p=2)     # l2-distance
-        for concept in concepts:
-            involved_img_inds = [idx for idx, img_concepts in enumerate(concepts_batch) if concept in img_concepts]
-            if len(involved_img_inds) > 1:
-                involved_logits = logits[involved_img_inds]    # [n_img, 10]
+        if 'cos' in self.config['args'].concept_similar_reg_mode:
+            cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+            temp = 10
+            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * temp
+        else:
+            concept_sim = torch.matmul(concepts, concepts.t()) / 0.8
+            logit_sim = torch.matmul(logits, logits.t()) / 0.8
 
-                # distance
-                # [n_img, n_img] -> []
-                loss = dist(involved_logits.unsqueeze(0), involved_logits.unsqueeze(1)).mean()
-                losses.append(loss)
-        losses = torch.stack(losses).mean()
+        if 'l2' in self.config['args'].concept_similar_reg_mode:
+            loss = F.mse_loss(logit_sim, concept_sim)
+        elif 'l1' in self.config['args'].concept_similar_reg_mode:
+            loss = F.l1_loss(logit_sim, concept_sim)
+        # elif 'ce' in self.config['args'].slot_logit_similar_reg_mode:
+        #     distances = F.l1_loss(logit_sim, slot_sim, reduction='none')    # [bs, bs]
+        #     F.cross_entropy(distances, torch.range(0, distances.shape[0] - 1).long().to(distances.device))
+        else:
+            loss = cross_entropy_with_soft_labels(logit_sim, F.softmax(concept_sim, dim=-1))
 
-        return losses
+        return loss
 
     def _slot_logit_similar_reg(self, slots, weights, logits):
         """contrastive on weighted slots and logits
