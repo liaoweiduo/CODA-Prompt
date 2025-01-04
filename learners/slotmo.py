@@ -2606,14 +2606,14 @@ class Auxiliary:
         self.single_class_datasets = {}
         self.single_class_dataset_dataloaders = {}
         self.single_class_dataset_dataloaders_yield = {}
-        self.bs = args.batch_size
+        self.bs = args.batch_size // 2
 
     def update_source(self, source, t):
         self.dataset = source
         self.t = t
         tasks = self.tasks
         self.dataset_loader = torch.utils.data.DataLoader(
-            self.dataset.old_datset, batch_size=self.bs,
+            self.dataset.old_dataset, batch_size=self.bs,
             shuffle=True, drop_last=False, num_workers=self.args.workers
         )
         self.dataset_loader_yield = iter(self.dataset_loader)
