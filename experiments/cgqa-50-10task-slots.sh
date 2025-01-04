@@ -142,26 +142,6 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
     --eval_class_wise \
     --log_dir ${OUTDIR}/${LOGNAME}
-
-LOGNAME=7-slot_prompt-sMT-lpl-${slot_logit_similar_reg_mode}_slsrc${slot_logit_similar_reg_coeff}_s${slot_logit_similar_reg_coeff_sensitivity}-lr${lr}-p100-l8-k10-nt5-sig${temp}_FPS
-((i++))
-device=${devices[${i}]}
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 8 10 5 1.0 ${temp} 1 0.0 0.0 80 0.0 0.0 0.0 0.0 \
-    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
-    --lr ${lr} ${lr} \
-    --larger_prompt_lr \
-    --use_slot_logit_similar_reg \
-    --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
-    --slot_logit_similar_reg_coeff_sensitivity ${slot_logit_similar_reg_coeff_sensitivity} \
-    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
-    --eval_class_wise \
-    --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
 

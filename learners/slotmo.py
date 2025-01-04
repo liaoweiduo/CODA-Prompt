@@ -2573,7 +2573,7 @@ class Auxiliary:
         tasks = self.tasks
         for old_task_id in range(t):
             for class_id in tasks[old_task_id]:
-                self.single_class_datasets[class_id] = dataset.get_single_class_dataset(class_id)
+                self.single_class_datasets[class_id] = self.source.get_single_class_dataset(class_id)
                 self.single_class_dataset_dataloaders[class_id] = torch.utils.data.DataLoader(
                     self.single_class_datasets[class_id], batch_size=self.bs,
                     shuffle=True, drop_last=False, num_workers=self.args.workers)
