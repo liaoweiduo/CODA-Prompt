@@ -2612,11 +2612,12 @@ class Auxiliary:
         self.dataset = source
         self.t = t
         tasks = self.tasks
-        self.dataset_loader = torch.utils.data.DataLoader(
-            self.dataset.old_dataset, batch_size=self.bs,
-            shuffle=True, drop_last=False, num_workers=self.args.workers
-        )
-        self.dataset_loader_yield = iter(self.dataset_loader)
+        if self.dataset.old_dataset is not None:
+            self.dataset_loader = torch.utils.data.DataLoader(
+                self.dataset.old_dataset, batch_size=self.bs,
+                shuffle=True, drop_last=False, num_workers=self.args.workers
+            )
+            self.dataset_loader_yield = iter(self.dataset_loader)
 
         for old_task_id in range(t):
             for class_id in tasks[old_task_id]:
