@@ -504,7 +504,7 @@ class SLOTPrompt(Prompt):
                     for epoch in range(epochs):       # self.config['schedule'][-1]
                         self.epoch = epoch
 
-                        if self.config['args'].use_old_samples_for_reg:
+                        if self.config['args'].use_old_samples_for_reg and self.t > 0:
                             self.aux.update_dataloader()       # update dataloader yield
 
                         if epoch > 0: self.scheduler.step()
@@ -2630,10 +2630,11 @@ class Auxiliary:
                     self.single_class_dataset_dataloaders[class_id])
 
     def update_dataloader(self):
-        if self.t > 0:
+        if self.dataset_loader_yield is not None:
             self.dataset_loader_yield = iter(self.dataset_loader)
-            for old_task_id in range(self.t):
-                for class_id in self.tasks[old_task_id]:
+        for old_task_id in range(self.t):
+            for class_id in self.tasks[old_task_id]:
+                if self.single_class_dataset_dataloaders_yield[class_id] is not None:
                     self.single_class_dataset_dataloaders_yield[class_id] = iter(
                         self.single_class_dataset_dataloaders[class_id])
 
