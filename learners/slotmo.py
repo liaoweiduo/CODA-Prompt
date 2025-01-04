@@ -2603,7 +2603,7 @@ class Auxiliary:
         self.single_class_datasets = {}
         self.single_class_dataset_dataloaders = {}
         self.single_class_dataset_dataloaders_yield = {}
-        self.bs = 2
+        self.bs = 1
 
     def update_source(self, source, t):
         self.source = source
