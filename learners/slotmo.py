@@ -2630,11 +2630,12 @@ class Auxiliary:
                     self.single_class_dataset_dataloaders[class_id])
 
     def update_dataloader(self):
-        self.dataset_loader_yield = iter(self.dataset_loader)
-        for old_task_id in range(self.t):
-            for class_id in self.tasks[old_task_id]:
-                self.single_class_dataset_dataloaders_yield[class_id] = iter(
-                    self.single_class_dataset_dataloaders[class_id])
+        if self.t > 0:
+            self.dataset_loader_yield = iter(self.dataset_loader)
+            for old_task_id in range(self.t):
+                for class_id in self.tasks[old_task_id]:
+                    self.single_class_dataset_dataloaders_yield[class_id] = iter(
+                        self.single_class_dataset_dataloaders[class_id])
 
     def sampling(self, split_sampling=False):
         inputs = []
