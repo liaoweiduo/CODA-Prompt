@@ -322,7 +322,7 @@ class SLOTPrompt(Prompt):
         self.n_cls = len(self.tasks[self.t])     # tasks: [[0,1,...,49], [50,...,59], ...]
         print(f'num of classes: {self.n_cls}.')
         if self.config['args'].use_old_samples_for_reg:
-            self.aux.update_source(train_dataset, self.t)       # aux samples from the current task
+            self.aux.update_source(copy.deepcopy(train_dataset).load_dataset(self.t, train=False), self.t)       # aux samples from the current task
 
         # try to load model
         need_train = True
@@ -1265,6 +1265,34 @@ class SLOTPrompt(Prompt):
                      'concept_similar_reg': torch.round(concept_similar_reg.detach()*100).item() / 100,
                      'slot_logit_similar_reg': torch.round(slot_logit_similar_reg.detach()*100).item() / 100,
                      })
+
+    def _concept_similar_reg(self, features, logits, targets):
+        """Cheating on concept-aware to decrease distance between two imgs that share the same concept"""
+        # features: [bs 768]; logits with full range: [bs, 100]; targets: [bs]
+
+        # preprocess logits
+        logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
+
+        # collect concepts
+        # self.label_concepts: [100, 2]
+        concepts_batch = self.label_concepts[targets.cpu().numpy()]   # [bs, 2]
+        concepts = np.unique(concepts_batch.flatten())
+
+        # for each concept
+        losses = []
+        dist = nn.PairwiseDistance(p=2)     # l2-distance
+        for concept in concepts:
+            involved_img_inds = [idx for idx, img_concepts in enumerate(concepts_batch) if concept in img_concepts]
+            if len(involved_img_inds) > 1:
+                involved_logits = logits[involved_img_inds]    # [n_img, 10]
+
+                # distance
+                # [n_img, n_img] -> []
+                loss = dist(involved_logits.unsqueeze(0), involved_logits.unsqueeze(1)).mean()
+                losses.append(loss)
+        losses = torch.stack(losses).mean()
+
+        return losses
 
     def _slot_logit_similar_reg(self, slots, weights, logits):
         """contrastive on weighted slots and logits
