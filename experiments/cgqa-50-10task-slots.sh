@@ -140,10 +140,10 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
     --slot_logit_similar_reg_coeff_sensitivity ${slot_logit_similar_reg_coeff_sensitivity} \
     --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
-    --eval_class_wise \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
+#    --eval_class_wise \
 
 ## concept similar reg + larger prompt lr
 #devices=(0 1 2 3 4 5); i=-1

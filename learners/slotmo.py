@@ -1198,7 +1198,7 @@ class SLOTPrompt(Prompt):
                                    train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
                 old_slots = res['slots']
                 old_slot_weights = res['slot_weights']
-                old_logits = res['logits']
+                old_logits = res['logits'][:,:self.valid_out_dim]
                 ext_logits.append(old_logits)
                 ext_targets.append(old_targets)
                 ext_slots.append(old_slots)
