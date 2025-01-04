@@ -64,6 +64,7 @@ class CFSTDataset(data.Dataset):
 
         # define task
         self.dataset = None
+        self.old_dataset = None
         self.t = 0     # task id
 
     def debug_mode(self):
@@ -123,14 +124,25 @@ class CFSTDataset(data.Dataset):
                 self.dataset = torch.utils.data.ConcatDataset(
                     [self.target_datasets[ti] for ti in load_task_range])
                 self.dataset.targets = np.concatenate([self.target_datasets[ti].targets for ti in load_task_range])
+
+            # old datasets
+            if t > 0:
+                f = self.first_split_size + (t - 1) * self.other_split_size
+                self.old_dataset = torch.utils.data.ConcatDataset(
+                    [self.target_datasets[ti] for ti in range(0, f)])
+                self.old_dataset.targets = np.concatenate([self.target_datasets[ti].targets for ti in range(0, f)])
+
         self.t = t
 
-    def get_single_class_dataset(self, label):
+    def get_single_class_dataset(self, label, dataset=None):
         """from dataset load images with given label"""
-        if hasattr(self.dataset, 'targets'):
-            targets = np.array(self.dataset.targets)
+        if dataset is None:
+            dataset = self.dataset
+
+        if hasattr(dataset, 'targets'):
+            targets = np.array(dataset.targets)
         else:
-            targets = np.concatenate([self.dataset.datasets[t].targets for t in self.dataset.datasets])
+            targets = np.concatenate([dataset.datasets[t].targets for t in dataset.datasets])
         cls_indices = np.where(targets == label)[0]
         return torch.utils.data.Subset(self, cls_indices)
 

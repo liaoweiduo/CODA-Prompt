@@ -322,9 +322,7 @@ class SLOTPrompt(Prompt):
         self.n_cls = len(self.tasks[self.t])     # tasks: [[0,1,...,49], [50,...,59], ...]
         print(f'num of classes: {self.n_cls}.')
         if self.config['args'].use_old_samples_for_reg:
-            dataset_with_old = copy.deepcopy(train_dataset)
-            dataset_with_old.load_dataset(self.t, train=False)
-            self.aux.update_source(dataset_with_old, self.t)       # aux samples from the current task
+            self.aux.update_source(train_dataset, self.t)       # aux samples from the current task
 
         # try to load model
         need_train = True
@@ -505,6 +503,9 @@ class SLOTPrompt(Prompt):
 
                     for epoch in range(epochs):       # self.config['schedule'][-1]
                         self.epoch = epoch
+
+                        if self.config['args'].use_old_samples_for_reg:
+                            self.aux.update_dataloader()       # update dataloader yield
 
                         if epoch > 0: self.scheduler.step()
                         for param_group in self.optimizer.param_groups:
@@ -1192,7 +1193,7 @@ class SLOTPrompt(Prompt):
             ext_slots, ext_slot_weights = [], []
             if self.config['args'].use_old_samples_for_reg and self.t > 0:
                 # append some old samples
-                old_inputs, old_targets = self.aux.sampling(bs=self.config['batch_size'])
+                old_inputs, old_targets = self.aux.sampling()
 
                 res = self.forward(old_inputs, old_targets,
                                    train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
@@ -2597,55 +2598,85 @@ class Auxiliary:
     def __init__(self, args, source=None, tasks=None, t=0):
         """source can be a val_dataset"""
         self.args = args
-        self.source = source
+        self.dataset = source
+        self.dataset_loader = None
+        self.dataset_loader_yield = None
         self.t = t
         self.tasks = tasks
         self.single_class_datasets = {}
         self.single_class_dataset_dataloaders = {}
         self.single_class_dataset_dataloaders_yield = {}
-        self.bs = 2
+        self.bs = args.batch_size
 
     def update_source(self, source, t):
-        self.source = source
+        self.dataset = source
         self.t = t
         tasks = self.tasks
+        self.dataset_loader = torch.utils.data.DataLoader(
+            self.dataset.old_datset, batch_size=self.bs,
+            shuffle=True, drop_last=False, num_workers=self.args.workers
+        )
+        self.dataset_loader_yield = iter(self.dataset_loader)
+
         for old_task_id in range(t):
             for class_id in tasks[old_task_id]:
-                self.single_class_datasets[class_id] = self.source.get_single_class_dataset(class_id)
+                self.single_class_datasets[class_id] = self.dataset.get_single_class_dataset(
+                    class_id, dataset=self.dataset.old_dataset)
                 self.single_class_dataset_dataloaders[class_id] = torch.utils.data.DataLoader(
                     self.single_class_datasets[class_id], batch_size=self.bs,
                     shuffle=True, drop_last=False, num_workers=self.args.workers)
                 self.single_class_dataset_dataloaders_yield[class_id] = iter(
                     self.single_class_dataset_dataloaders[class_id])
 
-    def sampling(self, bs=1, split_sampling=False):
-        inputs = []
-        targets = []
+    def update_dataloader(self):
+        self.dataset_loader_yield = iter(self.dataset_loader)
         for old_task_id in range(self.t):
             for class_id in self.tasks[old_task_id]:
-                sample = next(self.single_class_dataset_dataloaders_yield[class_id])
+                self.single_class_dataset_dataloaders_yield[class_id] = iter(
+                    self.single_class_dataset_dataloaders[class_id])
 
-                if len(sample) == 3:
-                    x, y, task = sample
-                else:
-                    x, y, c, task = sample
-                # send data to gpu
-                x = x.cuda()
-                y = y.cuda()
-                c = c.cuda()
+    def sampling(self, split_sampling=False):
+        inputs = []
+        targets = []
+        if split_sampling:
+            for old_task_id in range(self.t):
+                for class_id in self.tasks[old_task_id]:
+                    sample = next(self.single_class_dataset_dataloaders_yield[class_id])
 
-                inputs.append(x)
-                targets.append(y)
+                    if len(sample) == 3:
+                        x, y, task = sample
+                    else:
+                        x, y, c, task = sample
+                    # send data to gpu
+                    x = x.cuda()
+                    y = y.cuda()
+
+                    inputs.append(x)
+                    targets.append(y)
+
+        else:
+            sample = next(self.dataset_loader_yield)
+            if len(sample) == 3:
+                x, y, task = sample
+            else:
+                x, y, c, task = sample
+            # send data to gpu
+            x = x.cuda()
+            y = y.cuda()
+            # task is incorrect because it is ori_idx
+
+            inputs.append(x)
+            targets.append(y)
 
         if len(inputs) > 0:
             inputs = torch.cat(inputs, dim=0)
             targets = torch.cat(targets, dim=0)
 
-            if not split_sampling:
-                # random select bs samples
-                selected = np.random.permutation(range(len(inputs)))[:bs]
-                inputs = inputs[selected]
-                targets = targets[selected]
+            # if not split_sampling:
+            #     # random select bs samples
+            #     selected = np.random.permutation(range(len(inputs)))[:bs]
+            #     inputs = inputs[selected]
+            #     targets = targets[selected]
 
         return inputs, targets
 
