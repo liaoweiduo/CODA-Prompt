@@ -1192,7 +1192,7 @@ class SLOTPrompt(Prompt):
             ext_slots, ext_slot_weights = [], []
             if self.config['args'].use_old_samples_for_reg and self.t > 0:
                 # append some old samples
-                old_inputs, old_targets = self.aux.sampling()
+                old_inputs, old_targets = self.aux.sampling(bs=self.config['batch_size'])
 
                 res = self.forward(old_inputs, old_targets,
                                    train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
@@ -2603,7 +2603,7 @@ class Auxiliary:
         self.single_class_datasets = {}
         self.single_class_dataset_dataloaders = {}
         self.single_class_dataset_dataloaders_yield = {}
-        self.bs = 1
+        self.bs = 2
 
     def update_source(self, source, t):
         self.source = source
@@ -2618,7 +2618,7 @@ class Auxiliary:
                 self.single_class_dataset_dataloaders_yield[class_id] = iter(
                     self.single_class_dataset_dataloaders[class_id])
 
-    def sampling(self):
+    def sampling(self, bs=1, split_sampling=False):
         inputs = []
         targets = []
         for old_task_id in range(self.t):
@@ -2640,6 +2640,12 @@ class Auxiliary:
         if len(inputs) > 0:
             inputs = torch.cat(inputs, dim=0)
             targets = torch.cat(targets, dim=0)
+
+            if not split_sampling:
+                # random select bs samples
+                selected = np.random.permutation(range(len(inputs)))[:bs]
+                inputs = inputs[selected]
+                targets = targets[selected]
 
         return inputs, targets
 
