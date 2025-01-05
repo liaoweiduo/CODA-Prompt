@@ -296,7 +296,7 @@ class Slot2Prompt(nn.Module):
                 mapped_slots = mapped_slots + slot_selection_b
                 mapped_slots = torch.tanh(mapped_slots)
                 task_key = self.task_key  # [128] or [self.n_tasks, 128]
-                if self.cond_mode == 1:     # sig(1/sqrt(D)S_m@K_t)
+                if self.cond_mode == 1:     # sig(1/sqrt(D) S_m@K_t)
                     w = torch.einsum('bnd,d->bn', mapped_slots, task_key)
                     w = w * (task_key.shape[-1] ** -0.5)
                     w = w * self.select_slot_temp

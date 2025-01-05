@@ -1286,22 +1286,21 @@ class SLOTPrompt(Prompt):
 
         if 'cos' in self.config['args'].concept_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            temp = 10
             concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
-            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * temp
-        else:
-            concept_sim = torch.matmul(concepts, concepts.t()) / 0.8
-            logit_sim = torch.matmul(logits, logits.t()) / 0.8
+            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
+        else:       # dot
+            concept_sim = torch.matmul(concepts, concepts.t()) * (0.1 * concepts.shape[-1] ** -0.5)
+            logit_sim = torch.matmul(logits, logits.t()) * (0.1 * logits.shape[-1] ** -0.5)
 
         if 'l2' in self.config['args'].concept_similar_reg_mode:
-            loss = F.mse_loss(logit_sim, concept_sim)
+            loss = F.mse_loss(torch.sigmoid(logit_sim), concept_sim)
         elif 'l1' in self.config['args'].concept_similar_reg_mode:
-            loss = F.l1_loss(logit_sim, concept_sim)
+            loss = F.l1_loss(torch.sigmoid(logit_sim), concept_sim)
         # elif 'ce' in self.config['args'].slot_logit_similar_reg_mode:
         #     distances = F.l1_loss(logit_sim, slot_sim, reduction='none')    # [bs, bs]
         #     F.cross_entropy(distances, torch.range(0, distances.shape[0] - 1).long().to(distances.device))
         else:
-            loss = cross_entropy_with_soft_labels(logit_sim, F.softmax(concept_sim, dim=-1))
+            loss = cross_entropy_with_soft_labels(logit_sim, concept_sim / concept_sim.sum(dim=-1))
 
         return loss
 
@@ -1321,11 +1320,11 @@ class SLOTPrompt(Prompt):
         if 'cos' in self.config['args'].slot_logit_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             temp = 10
-            slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * temp  # [bs, bs]  each slot
-            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * temp
+            slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
+            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
         else:
-            slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) / 0.8
-            logit_sim = torch.matmul(logits, logits.t()) / 0.8
+            slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (0.1 * weighted_slot.shape[-1] ** -0.5)
+            logit_sim = torch.matmul(logits, logits.t()) * (0.1 * logits.shape[-1] ** -0.5)
 
         if 'l2' in self.config['args'].slot_logit_similar_reg_mode:
             loss = F.mse_loss(logit_sim, slot_sim)
@@ -2606,7 +2605,7 @@ class Auxiliary:
         self.single_class_datasets = {}
         self.single_class_dataset_dataloaders = {}
         self.single_class_dataset_dataloaders_yield = {}
-        self.bs = args.batch_size // 2
+        self.bs = args.batch_size
 
     def update_source(self, source, t):
         self.dataset = source
