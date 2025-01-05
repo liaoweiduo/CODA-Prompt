@@ -146,8 +146,8 @@ mkdir -p $OUTDIR
 ##    --eval_class_wise \
 
 # concept similar reg + larger prompt lr
-devices=(0 1 2 3 4 5); i=-1
-for concept_similar_reg_coeff in 0.0 0.001 0.01 0.1; do
+devices=(4 5); i=-1
+for concept_similar_reg_coeff in 1 10; do
 for lr in 1e-3; do
 ((i++))
 device=${devices[${i}]}
