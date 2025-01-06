@@ -146,8 +146,8 @@ mkdir -p $OUTDIR
 ##    --eval_class_wise \
 
 # concept similar reg + larger prompt lr
-devices=(4 5); i=-1
-for concept_similar_reg_coeff in 1 10; do
+devices=(0 1 2 3); i=-1
+for concept_similar_reg_coeff in 1 10 50 100; do
 for lr in 1e-3; do
 ((i++))
 device=${devices[${i}]}
@@ -171,10 +171,10 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
     --concept_similar_reg_coeff_sensitivity ${concept_similar_reg_coeff_sensitivity} \
     --concept_similar_reg_mode ${concept_similar_reg_mode} \
-    --eval_class_wise \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
+#    --eval_class_wise \
 
 # cfst
 #for mode in sys pro sub non noc
