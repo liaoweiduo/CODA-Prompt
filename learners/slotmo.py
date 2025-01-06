@@ -1284,13 +1284,14 @@ class SLOTPrompt(Prompt):
             torch.from_numpy(concepts_batch).long(), num_concepts).to(logits.device)
         # [bs, n_concepts]
 
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         if 'cos' in self.config['args'].concept_similar_reg_mode:
-            cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
         else:       # dot
-            concept_sim = torch.matmul(concepts, concepts.t()) * (0.1 * concepts.shape[-1] ** -0.5)
-            logit_sim = torch.matmul(logits, logits.t()) * (0.1 * logits.shape[-1] ** -0.5)
+            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
+            concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
+            logit_sim = torch.matmul(logits, logits.t()) * (0.001 * logits.shape[-1] ** -0.5)
 
         if 'l2' in self.config['args'].concept_similar_reg_mode:
             loss = F.mse_loss(torch.sigmoid(logit_sim), concept_sim)
@@ -1300,7 +1301,7 @@ class SLOTPrompt(Prompt):
         #     distances = F.l1_loss(logit_sim, slot_sim, reduction='none')    # [bs, bs]
         #     F.cross_entropy(distances, torch.range(0, distances.shape[0] - 1).long().to(distances.device))
         else:
-            loss = cross_entropy_with_soft_labels(logit_sim, concept_sim / concept_sim.sum(dim=-1))
+            loss = cross_entropy_with_soft_labels(logit_sim, concept_sim)
 
         return loss
 

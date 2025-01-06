@@ -146,14 +146,14 @@ mkdir -p $OUTDIR
 ##    --eval_class_wise \
 
 # concept similar reg + larger prompt lr
-devices=(0 1 2 3); i=-1
-for concept_similar_reg_coeff in 1 10 50 100; do
+devices=(0 1 2 3 4); i=-1
+for concept_similar_reg_coeff in 0.1 1 10 50 100; do
 for lr in 1e-3; do
 ((i++))
 device=${devices[${i}]}
 temp=1
 concept_similar_reg_coeff_sensitivity=0
-concept_similar_reg_mode=cos+l1
+concept_similar_reg_mode=dot+ce
 LOGNAME=10-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_s${concept_similar_reg_coeff_sensitivity}-lr${lr}-p100-l8-k10-nt5-sig${temp}_FPS
 #  -d
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
