@@ -146,35 +146,32 @@ mkdir -p $OUTDIR
 ##    --eval_class_wise \
 
 # concept similar reg + larger prompt lr
-devices=(0 1 2 3 4); i=-1
+concept_similar_reg_temp=$1
+
 for concept_similar_reg_coeff in 0.1 1 10 50 100; do
-for lr in 1e-3; do
-((i++))
-device=${devices[${i}]}
-temp=1
-concept_similar_reg_coeff_sensitivity=0
 concept_similar_reg_mode=dot+ce
-LOGNAME=10-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_s${concept_similar_reg_coeff_sensitivity}-lr${lr}-p100-l8-k10-nt5-sig${temp}_FPS
-docker run -d --rm --runtime=nvidia --gpus device=${device} \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
+lr=1e-3
+LOGNAME=11-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+#((i++))
+#device=${devices[${i}]}
+#docker run -d --rm --runtime=nvidia --gpus device=${device} \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
-    --s2p_temp ${temp} \
     --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
     --larger_prompt_lr \
     --concept_weight \
     --use_old_samples_for_reg \
     --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
-    --concept_similar_reg_coeff_sensitivity ${concept_similar_reg_coeff_sensitivity} \
     --concept_similar_reg_mode ${concept_similar_reg_mode} \
+    --concept_similar_reg_temp ${concept_similar_reg_temp} \
     --max_task 3 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
-done
 done
 #    --eval_class_wise \
 

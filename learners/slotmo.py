@@ -1187,8 +1187,13 @@ class SLOTPrompt(Prompt):
                 # append some old samples
                 old_inputs, old_targets = self.aux.sampling()
 
-                res = self.forward(old_inputs, old_targets,
-                                   train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
+                if self.config['args'].use_old_samples_for_reg_no_grad:
+                    with torch.no_grad():
+                        res = self.forward(old_inputs, old_targets,
+                                           train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
+                else:
+                    res = self.forward(old_inputs, old_targets,
+                                       train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
                 old_slots = res['slots']
                 old_slot_weights = res['slot_weights']
                 old_logits = res['logits'][:,:self.valid_out_dim]
@@ -1283,7 +1288,8 @@ class SLOTPrompt(Prompt):
         else:       # dot
             concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
             concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
-            logit_sim = torch.matmul(logits, logits.t()) * (0.001 * logits.shape[-1] ** -0.5)
+            logit_sim = torch.matmul(logits, logits.t()) * (
+                    self.config['args'].concept_similar_reg_temp * (logits.shape[-1] ** -0.5))
 
         if 'l2' in self.config['args'].concept_similar_reg_mode:
             loss = F.mse_loss(torch.sigmoid(logit_sim), concept_sim)

@@ -75,7 +75,7 @@ class Debugger:
         if self.args.get('use_prompt_concept_alignment_reg', False):
             output_args.extend(['prompt_concept_alignment_reg_coeff'])
         if self.args.get('concept_weight', False):
-            output_args.extend(['concept_similar_reg_mode', 'concept_similar_reg_coeff'])
+            output_args.extend(['concept_similar_reg_mode', 'concept_similar_reg_coeff', 'concept_similar_reg_temp'])
         if self.args.get('use_old_samples_for_reg', False):
             output_args.extend(['use_old_samples_for_reg'])
         if self.args.get('use_slot_logit_similar_reg', False):
