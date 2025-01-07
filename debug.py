@@ -90,7 +90,7 @@ class Debugger:
 
         return output_args, columns
 
-    def generate_df(self, index, column_info=None):
+    def generate_df(self, column_info=None):
         """args and storage to value"""
         # form dict
         if column_info is None:
@@ -106,7 +106,7 @@ class Debugger:
             row[res] = target['Mean']
             row[f'{res}(str)'] = F"{target['Mean']:.2f}$\pm${target['CI95']:.2f}({target['Std']:.2f})"
 
-        df = pd.DataFrame(row, index=index)
+        df = pd.Series(data=row).to_frame().T
 
         return df
 
