@@ -101,10 +101,10 @@ class Debugger:
         for output_arg in output_args:
             row[output_arg] = self.args.get(output_arg, '-')
         for res in columns:
-            target = self.storage['results'][res]
-
-            row[res] = target['Mean']
-            row[f'{res}(str)'] = F"{target['Mean']:.2f}$\pm${target['CI95']:.2f}({target['Std']:.2f})"
+            target = self.storage['results'].get(res, None)
+            if target:
+                row[res] = target['Mean']
+                row[f'{res}(str)'] = F"{target['Mean']:.2f}$\pm${target['CI95']:.2f}({target['Std']:.2f})"
 
         df = pd.Series(data=row).to_frame().T
 
@@ -119,7 +119,8 @@ class Debugger:
         except:
             if self.check_level('INFO'):
                 print(f'File not find: {file}.')
-            data = np.zeros((2,2,2))
+            return
+            # data = np.zeros((2,2,2))
         # example: data[:,:,0]
         # [[94.2 84.4 78.7 69.3 69.  66.5 62.  60.6 49.4 44.1]
         #  [ 0.  80.7 74.6 70.1 65.2 63.2 57.1 57.2 51.9 44.8]
@@ -135,6 +136,9 @@ class Debugger:
         if max_task == -1:
             max_task = data.shape[1]
             self.args['max_task'] = max_task        # visually change the number of finished tasks
+
+        if max_task > data.shape[1]:    # haven't finish yet
+            return
 
         AA = data[:, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
         data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [10, n_run]
@@ -156,7 +160,8 @@ class Debugger:
         except:
             if self.check_level('INFO'):
                 print(f'File not find: {file}.')
-            data = np.zeros((2,2,2))
+            return
+            # data = np.zeros((2,2,2))
         AA = data[:, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
         data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [10, n_run]
         CA = data_cu.mean(axis=0)
@@ -180,7 +185,8 @@ class Debugger:
             except:
                 if self.check_level('INFO'):
                     print(f'File not find: {file}.')
-                data = np.zeros((2))
+                return
+                # data = np.zeros((2))
 
             mean_data = data.mean()
             mean_datas[target] = mean_data
