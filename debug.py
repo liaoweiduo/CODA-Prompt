@@ -143,10 +143,10 @@ class Debugger:
         if max_task > data.shape[1]:    # haven't finish yet
             return
 
-        AA = data[:, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
-        data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [10, n_run]
+        AA = data[:max_task, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
+        data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [n_tsk, n_run]
         CA = data_cu.mean(axis=0)
-        data_ff = np.array([data[i, i] - data[i, -1] for i in range(max_task - 1)])  # [10, n_run]
+        data_ff = np.array([data[i, i] - data[i, -1] for i in range(max_task - 1)])  # [n_tsk, n_run]
         FF = data_ff.mean(axis=0)
         self.storage['results']['AA'] = {
             'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
