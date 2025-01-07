@@ -33,13 +33,14 @@ class Debugger:
             self.load_args(exp_path=self.exp_path)
         else:
             self.exp_path = self.args['log_dir']
+        args = self.args
         self.name = name
 
-        for k, v in args.items():       # list to str
+        for k, v in self.args.items():       # list to str
             if type(v) is list:
-                args[k] = str(v)
+                self.args[k] = str(v)
 
-        self.dataset = args['dataset']         # CIFAR100, CGQA,...
+        self.dataset = self.args['dataset']         # CIFAR100, CGQA,...
 
         self.storage = {}
 
