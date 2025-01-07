@@ -1,7 +1,9 @@
 import copy
+import yaml
 import json
 import os
 import pickle
+from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -18,11 +20,199 @@ from learners.pmo_utils import Pool, draw_heatmap, draw_objs, cal_hv, cal_min_cr
 
 
 class Debugger:
-    def __init__(self, level='DEBUG'):
+    def __init__(self, level='DEBUG', args=None, exp_path=None, name='[Default]'):
+        """args need to be dict"""
+        assert (args is not None or exp_path is not None
+                ), "args and exp_path should not be both None."
+
         self.levels = ['DEBUG', 'INFO']
         self.level = self.levels.index(level)   # 0 or 1
+        self.args = args
+        self.exp_path = exp_path
+        if self.exp_path is not None:
+            self.load_args(exp_path=self.exp_path)
+        else:
+            self.exp_path = self.args['log_dir']
+        self.name = name
+
+        for k, v in args.items():       # list to str
+            if type(v) is list:
+                args[k] = str(v)
+
+        self.dataset = args['dataset']         # CIFAR100, CGQA,...
 
         self.storage = {}
+
+    def collect_results(self, max_task=-1):
+        # collect results
+        self.storage['results'] = {}
+        self.collect_AA_CA_FF(max_task)
+        self.collect_CFST()
+
+    def default_columns(self):
+        # default params
+        output_args = [
+            'name', 'exp_path', 'max_task', 'lr', 'prompt_param', 'larger_prompt_lr']
+        if self.args['lr_decreace_ratio'] != 1.0:
+            output_args.append('lr_decrease_ratio')
+
+        if self.args['learner_name'] == 'SLOTPrompt':
+            # slot params
+            output_args.extend(['n_slots', 'n_iters', 'slot_temp', 's2p_mode'])
+            if self.args.get('use_intra_consistency_reg', False):
+                output_args.extend(['intra_consistency_reg_coeff'])
+            if self.args.get('use_slot_ortho_reg', False):
+                output_args.extend(['slot_ortho_reg_mode', 'slot_ortho_reg_coeff'])
+
+        # prompt param
+        if self.args.get('use_weight_reg', False):
+            output_args.extend(['weight_reg_mode', 'weight_reg_coeff'])
+        if self.args.get('use_selection_onehot_reg', False):
+            output_args.extend(['selection_onehot_reg_mode', 'selection_onehot_reg_coeff'])
+        if self.args.get('use_selection_slot_similar_reg', False):
+            output_args.extend(['selection_slot_similar_reg_mode', 'selection_slot_similar_reg_coeff'])
+        if self.args.get('use_prompt_concept_alignment_reg', False):
+            output_args.extend(['prompt_concept_alignment_reg_coeff'])
+        if self.args.get('concept_weight', False):
+            output_args.extend(['concept_similar_reg_mode', 'concept_similar_reg_coeff'])
+        if self.args.get('use_old_samples_for_reg', False):
+            output_args.extend(['use_old_samples_for_reg'])
+        if self.args.get('use_slot_logit_similar_reg', False):
+            output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff'])
+
+        columns = []
+        columns.extend(['AA', 'l-AA', 'CA', 'l-CA', 'FF', 'l-FF'])
+        if self.dataset == 'CGQA':
+            columns.extend(['sys', 'pro', 'sub', 'Hn', 'non', 'noc', 'Hr', 'Ha'])
+        else:
+            columns.extend(['sys', 'pro', 'Hn', 'non', 'noc', 'Hr', 'Ha'])   # no sub
+
+        return output_args, columns
+
+    def generate_df(self, column_info=None):
+        """args and storage to value"""
+        # form dict
+        if column_info is None:
+            column_info = self.default_columns()
+        output_args, columns = column_info
+
+        row = OrderedDict()
+        for output_arg in output_args:
+            row[output_arg] = self.args.get(output_arg, '-')
+        for res in columns:
+            target = self.storage['results'][res]
+
+            row[res] = target['Mean']
+            row[f'{res}(str)'] = F"{target['Mean']:.2f}$\pm${target['CI95']:.2f}({target['Std']:.2f})"
+
+        df = pd.DataFrame(row)
+
+        return df
+
+    def collect_AA_CA_FF(self, max_task=-1):
+        # pt
+        file = os.path.join(self.exp_path, 'results-acc', 'pt.yaml')
+        try:
+            data_yaml = yaml.load(open(file, 'r'), Loader=yaml.Loader)
+            data = np.array(data_yaml['history'])  # [n_tsk, n_tsk, n_run]
+        except:
+            if self.check_level('INFO'):
+                print(f'File not find: {file}.')
+            data = np.zeros((2,2,2))
+        # example: data[:,:,0]
+        # [[94.2 84.4 78.7 69.3 69.  66.5 62.  60.6 49.4 44.1]
+        #  [ 0.  80.7 74.6 70.1 65.2 63.2 57.1 57.2 51.9 44.8]
+        #  [ 0.   0.  79.1 74.2 74.2 66.7 61.9 61.3 55.9 48.3]
+        #  [ 0.   0.   0.  75.8 72.4 62.4 59.7 57.5 55.3 50.9]
+        #  [ 0.   0.   0.   0.  58.6 54.1 53.  48.6 45.  40.1]
+        #  [ 0.   0.   0.   0.   0.  70.  66.3 64.9 61.  56. ]
+        #  [ 0.   0.   0.   0.   0.   0.  74.5 67.9 66.5 64.4]
+        #  [ 0.   0.   0.   0.   0.   0.   0.  62.3 55.5 51.7]
+        #  [ 0.   0.   0.   0.   0.   0.   0.   0.  78.2 75.4]
+        #  [ 0.   0.   0.   0.   0.   0.   0.   0.   0.  55. ]]
+
+        if max_task == -1:
+            max_task = data.shape[1]
+            self.args['max_task'] = max_task        # visually change the number of finished tasks
+
+        AA = data[:, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
+        data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [10, n_run]
+        CA = data_cu.mean(axis=0)
+        data_ff = np.array([data[i, i] - data[i, -1] for i in range(max_task - 1)])  # [10, n_run]
+        FF = data_ff.mean(axis=0)
+        self.storage['results']['AA'] = {
+            'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
+        self.storage['results']['CA'] = {
+            'Details': CA, 'Mean': CA.mean(), 'Std': CA.std(), 'CI95': 1.96 * (CA.std() / np.sqrt(len(CA)))}
+        self.storage['results']['FF'] = {
+            'Details': FF, 'Mean': FF.mean(), 'Std': FF.std(), 'CI95': 1.96 * (FF.std() / np.sqrt(len(FF)))}
+
+        # local pt
+        try:
+            file = os.path.join(self.exp_path, 'results-acc', 'pt-local.yaml')
+            data_yaml = yaml.load(open(file, 'r'), Loader=yaml.Loader)
+            data = np.array(data_yaml['history'])  # [n_tsk, n_tsk, n_run]
+        except:
+            if self.check_level('INFO'):
+                print(f'File not find: {file}.')
+            data = np.zeros((2,2,2))
+        AA = data[:, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
+        data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [10, n_run]
+        CA = data_cu.mean(axis=0)
+        data_ff = np.array([data[i, i] - data[i, -1] for i in range(max_task - 1)])  # [10, n_run]
+        FF = data_ff.mean(axis=0)
+        self.storage['results']['l-AA'] = {
+            'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
+        self.storage['results']['l-CA'] = {
+            'Details': CA, 'Mean': CA.mean(), 'Std': CA.std(), 'CI95': 1.96 * (CA.std() / np.sqrt(len(CA)))}
+        self.storage['results']['l-FF'] = {
+            'Details': FF, 'Mean': FF.mean(), 'Std': FF.std(), 'CI95': 1.96 * (FF.std() / np.sqrt(len(FF)))}
+
+    def collect_CFST(self):
+        dataset = self.dataset
+        mean_datas = {}
+        for target in ['sys', 'pro', 'sub', 'non', 'noc'] if dataset == 'CGQA' else ['sys', 'pro', 'non', 'noc']:
+            file = os.path.join(self.exp_path, 'results-acc', f'global-{target}.yaml')
+            try:
+                data_yaml = yaml.load(open(file, 'r'), Loader=yaml.Loader)
+                data = np.array(data_yaml['mean'])  # [50]
+            except:
+                if self.check_level('INFO'):
+                    print(f'File not find: {file}.')
+                data = np.zeros((2))
+
+            mean_data = data.mean()
+            mean_datas[target] = mean_data
+            std_data = data.std()
+            ci95_data = 1.96 * (std_data / np.sqrt(len(data)))
+
+            # print(f'{target}: {mean_data:.2f}$\pm${ci95_data:.2f}, std:{std_data:.2f}')
+            self.storage['results'][target] = {'Details': data, 'Mean': mean_data, 'Std': std_data, 'CI95': ci95_data}
+
+        if dataset == 'CGQA':
+            hn = 3 / (1 / mean_datas['sys'] + 1 / mean_datas['pro'] + 1 / mean_datas['sub'])
+            hr = 2 / (1 / mean_datas['non'] + 1 / mean_datas['noc'])
+            ha = 5 / (1 / mean_datas['sys'] + 1 / mean_datas['pro'] + 1 / mean_datas['sub'] + 1 / mean_datas[
+                'non'] + 1 / mean_datas['noc'])
+        else:
+            hn = 2 / (1 / mean_datas['sys'] + 1 / mean_datas['pro'])
+            hr = 2 / (1 / mean_datas['non'] + 1 / mean_datas['noc'])
+            ha = 4 / (1 / mean_datas['sys'] + 1 / mean_datas['pro'] + 1 / mean_datas['non'] + 1 / mean_datas['noc'])
+        # print(f"Hn: {hn:.2f}; Hr: {hr:.2f}; Ha: {ha:.2f}")
+        self.storage['results']['Hn'] = {'Details': [hn], 'Mean': hn, 'Std': 0, 'CI95': 0}
+        self.storage['results']['Hr'] = {'Details': [hr], 'Mean': hr, 'Std': 0, 'CI95': 0}
+        self.storage['results']['Ha'] = {'Details': [ha], 'Mean': ha, 'Std': 0, 'CI95': 0}
+
+    def load_args(self, exp_path):
+        print(f'Load args from {exp_path}.')
+        self.exp_path = exp_path
+        path = os.path.join(exp_path, 'args.yaml')
+        args = yaml.load(open(path, 'r'), Loader=yaml.Loader)
+        self.args = args
+
+    def check_level(self, level):
+        thres = self.levels.index(level)
+        return thres >= self.level
 
     def print_prototype_change(self, model: nn.Module, i, writer: Optional[SummaryWriter] = None):
         """

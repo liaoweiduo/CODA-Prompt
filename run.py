@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+
+import copy
 import os
 import sys
 from datetime import datetime
@@ -47,8 +49,21 @@ def create_args():
                          help="e prompt pool size, e prompt length, g prompt length")
     parser.add_argument('--larger_prompt_lr', action='store_true',
                         help='if using larger prompt lr, prompt lr = 10 * head lr')
+    parser.add_argument('--eval_class_wise', default=False, action='store_true')
 
     # Slot Args
+    parser.add_argument('--n_slots', type=int, default=10, help="number of slots for one extraction")
+    parser.add_argument('--n_iters', type=int, default=5, help="num of iter to extract slots")
+    parser.add_argument('--slot_temp', type=float, default=1.0,
+                        help="temperature to control how sharp are slot attns")
+    parser.add_argument('--s2p_temp', type=float, default=1.0,
+                        help="temperature to control how sharp are the selection of slots")
+    parser.add_argument('--s2p_mode', type=str, default='attn+sig',
+                        help="some options: [attn+sig, attn+cos, attn+avg, "
+                             "attn+FPS+sig, attn+FPS+cos, attn+FPS+avg, mlp, gate]")
+    parser.add_argument('--slot_cross_attn_temp', type=float, default=80.,
+                        help="temperature to measure how popular of the slots across the batch imgs.")
+
     parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots')
     parser.add_argument('--slot_pre_learn_model', type=str, default='none',
                         help="The model name to the pre-learned slot attn model.")
@@ -58,13 +73,47 @@ def create_args():
     parser.add_argument('--slot_schedule_type', type=str, default='cosine')
     parser.add_argument('--logit_task_mask_top_k', type=int, default=10, help="no use")
 
-    # MO Args
-    parser.add_argument('--eval_class_wise', default=False, action='store_true')
+    parser.add_argument('--use_intra_consistency_reg', action='store_true')
+    parser.add_argument('--intra_consistency_reg_coeff', type=float, default=0.0,
+                        help="coeff of reg on maintaining intra-consistency of slots")
+
+    parser.add_argument('--use_slot_ortho_reg', action='store_true')
+    parser.add_argument('--slot_ortho_reg_mode', type=str, default='l2',
+                        help="l1, l2, ce")
+    parser.add_argument('--slot_ortho_reg_coeff', type=float, default=0.0,
+                        help="coeff of reg on slot ortho.")
+
+    # Prompt learn Args
+    parser.add_argument('--prompt_pre_learn_model', type=str, default='none',
+                        help="The model name to the pre-learned prompt model.")
+    parser.add_argument('--use_feature_statistics', action='store_true')
+    parser.add_argument('--use_slot_statistics', action='store_true')
+
+    parser.add_argument('--use_weight_reg', action='store_true')
+    parser.add_argument('--weight_reg_coeff', type=float, default=0.0,
+                        help="coeff of reg on s2p weights changes (or response)")
+    parser.add_argument('--weight_reg_mode', type=str, default='weights',
+                        help="weights, response")
+
+    parser.add_argument('--use_selection_onehot_reg', action='store_true')
+    parser.add_argument('--selection_onehot_reg_coeff', type=float, default=0.0,
+                        help="coeff of reg on prompt selection to make it sparse")
+    parser.add_argument('--selection_onehot_reg_mode', type=str, default='l1',
+                        help="l1, l2")
+
+    parser.add_argument('--use_selection_slot_similar_reg', action='store_true')
+    parser.add_argument('--selection_slot_similar_reg_mode', type=str, default='l1',
+                        help="l1, l2, ce")
+    parser.add_argument('--selection_slot_similar_reg_coeff', type=float, default=0.0,
+                        help="coeff of reg on prompt selection sim to match with the distribution of slot sim")
+
+    parser.add_argument('--use_prompt_concept_alignment_reg', action='store_true')
+    parser.add_argument('--prompt_concept_alignment_reg_coeff', type=float, default=0.0,
+                        help="coeff of reg on feature similarity of masked img with concept and use prompt.")
+
     parser.add_argument('--concept_weight', default=False, action='store_true',
                         help='True to use concept weighting on data.')
     parser.add_argument('--target_concept_id', type=int, default=-1, help="specify specific concept to weight")
-    parser.add_argument('--prompt_pre_learn_model', type=str, default='none',
-                        help="The model name to the pre-learned slot attn model.")
     parser.add_argument('--concept_similar_reg_coeff', type=float, default=0,
                         help="coeff for concept similar reg.")
     parser.add_argument('--concept_similar_reg_coeff_sensitivity', type=float, default=1.,
@@ -73,16 +122,16 @@ def create_args():
     parser.add_argument('--dynamic_concept_similar_reg_coeff', default=False, action='store_true',
                         help='coeff from 0 for the first epoch.')
     parser.add_argument('--use_old_samples_for_reg', action='store_true')
+
     parser.add_argument('--use_slot_logit_similar_reg', action='store_true')
     parser.add_argument('--slot_logit_similar_reg_coeff', type=float, default=0.,
                         help="coeff for concept similar reg.")
     parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=0.,
                         help="sensitivity for reg on n_cls.")
     parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='cos+l2')
-    parser.add_argument('--use_feature_statistics', action='store_true')
-    parser.add_argument('--use_slot_statistics', action='store_true')
 
     # CFST Args
+    parser.add_argument('--compositional_testing', action='store_true')
     parser.add_argument('--mode', type=str, default='continual',
                         help="choices: [continual, sys, pro, sub, non, noc]")
     parser.add_argument('--test_model', type=int, default=-1, help="-1 for last model, starting from 1. ")
@@ -116,6 +165,25 @@ class Logger(object):
 
     def flush(self):
         self.log.flush()
+
+def comp_test(args):
+    from run_ft import start
+    # check args differences
+    if args.dataset == 'CGQA':
+        modes = ['sys', 'pro', 'sub', 'non', 'noc']
+    elif args.dataset == 'COBJ':
+        modes = ['sys', 'pro', 'non', 'noc']
+    else:
+        print(f'{args.dataset} does not implement CFST testing.')
+        return
+
+    for mode in modes:
+        args_ft = copy.deepcopy(args)
+        args_ft.lr = 0.001
+        args_ft.use_feature_statistics = True
+        args_ft.mode = mode
+        start(args_ft)
+
 
 if __name__ == '__main__':
     args = get_args(sys.argv[1:])
@@ -234,4 +302,6 @@ if __name__ == '__main__':
         '''nvidia-smi'''
         os.system('nvidia-smi')     # vir sys.out and not write to log file
 
-
+    # do compositional testing on all available mode
+    if args.compositional_testing:
+        comp_test(args)

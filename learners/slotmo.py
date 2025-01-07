@@ -60,16 +60,6 @@ class SLOTPrompt(Prompt):
         config = self.config['prompt_param'][1]
         while len(config) < 15:
             config.append(0)
-        self.weight_coeff = float(config[7])
-        self.onehot_coeff = float(config[8])
-        self.cross_attn_temp = float(config[9])
-        self.intra_consistency_coeff = float(config[10])
-        self.slot_vsI_coeff = float(config[11])
-        self.selection_ortho_coeff = float(config[12])
-        self.prompt_concept_alignment_coeff = float(config[13])
-
-        self.selection_ortho_type = 'l1'
-        self.selection_onehot_type = 'l1'
 
         try:
             prompt = self.model.module.prompt
@@ -87,7 +77,13 @@ class SLOTPrompt(Prompt):
         cfg = self.config
         n_task = self.prompt_param[0]
         tasks = cfg['tasks']
-        prompt_parameters = self.prompt_param[1]
+        prompt_parameters = self.prompt_param[1][:2]    # [100, 8]
+        prompt_parameters.append(self.config['args'].n_slots)
+        prompt_parameters.append(self.config['args'].n_iters)
+        prompt_parameters.append(self.config['args'].slot_temp)
+        prompt_parameters.append(self.config['args'].s2p_temp)
+        prompt_parameters.append(self.config['args'].s2p_mode)
+
         prompt_param = [[n_task, tasks], prompt_parameters]
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=prompt_param, use_vit_emb=False)
 
@@ -349,7 +345,7 @@ class SLOTPrompt(Prompt):
                 except:
                     model = self.model
 
-                if self.weight_coeff > 0.0:
+                if self.config['args'].use_weight_reg:
                     self.log(f'record s2p weights')
                     self.s2p_copy = copy.deepcopy(model.prompt.s2p)
                 else:
@@ -415,7 +411,7 @@ class SLOTPrompt(Prompt):
                             # model update
                             loss, output, loss_dict = self.update_model(x, y, learn_slots=True)
                             intra_consistency_loss = loss_dict['intra_consistency_loss']
-                            slot_sim_mse = loss_dict['slot_sim_mse']
+                            slot_sim_mse = loss_dict['slot_ortho_loss']
                             # alpha = loss_dict['alpha']
 
                             # measure elapsed time
@@ -438,7 +434,7 @@ class SLOTPrompt(Prompt):
                         self.log(
                             ' * Loss {loss.avg:.3f} a({alpha1.avg:.3f}) | '
                             'Intra Cons Loss {intra_consistency_loss.avg:.3f} a({alpha2.avg:.3f}) | '
-                            'Slot Sim MSE {slot_sim_mse.avg:.3f} a({alpha3.avg:.3f}) | '
+                            'Slot Ortho Loss {slot_sim_mse.avg:.3f} a({alpha3.avg:.3f}) | '
                             'Time {time:.3f}s ({i} batches)'.format(
                                 loss=losses, intra_consistency_loss=intra_consistency_losses, slot_sim_mse=slot_sim_mses,
                                 alpha1=alpha1s, alpha2=alpha2s, alpha3=alpha3s,
@@ -726,7 +722,7 @@ class SLOTPrompt(Prompt):
 
             # supercon on positive samples to enhance intra-class consistency
             intra_consistency_loss = torch.zeros(1).mean().to(recon_loss.device)
-            if self.intra_consistency_coeff > 0:
+            if self.config['args'].use_intra_consistency_reg:
                 img_slots = slots.reshape(bs, t * k, h)
                 weights = self.cross_attn(img_slots)        # [bs, k]
                 cross_enhanced_slots = torch.einsum('bkh,bk->bh', img_slots, weights)
@@ -748,30 +744,25 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Value'].append(intra_consistency_loss.item())
 
             # image-wise mse for slot cosine sim vs I
-            slot_sim_mse = torch.zeros(1).mean().to(recon_loss.device)
-            if self.slot_vsI_coeff > 0:
+            slot_ortho_loss = torch.zeros(1).mean().to(recon_loss.device)
+            if self.config['args'].use_slot_ortho_reg:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
                 img_slots = slots.reshape(bs, t*k, h)
-                ## slot to be ortho
                 sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [bs, k, k]
-                eye = torch.eye(t*k).expand_as(sim).to(sim.device)
-                slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
-                ## selection to be ortho
-                # slot_mapping_k = model.prompt.slot_attn_mapping_k
-                # slot_mapping_k = nn.functional.normalize(slot_mapping_k, dim=-1)        # [pp30, h]
-                # img_slots = nn.functional.normalize(img_slots, dim=-1)                  # [bs, k, h]
-                # image_selections = torch.einsum('bnh,kh->bnk', img_slots, slot_mapping_k)   # [bs, k, pp30]
-                # sim = cos(image_selections.unsqueeze(1), image_selections.unsqueeze(2))  # [bs*e, k, k]
-                # eye = torch.eye(k).expand_as(sim).to(sim.device)
-                # slot_sim_mse = torch.nn.functional.mse_loss(sim, eye)
+                slot_ortho_reg_mode = self.config['args'].slot_ortho_reg_mode
+                if slot_ortho_reg_mode == 'l2':
+                    eye = torch.eye(t*k).expand_as(sim).to(sim.device)
+                    slot_ortho_loss = torch.nn.functional.mse_loss(sim, eye)
+                else:
+                    raise Exception(f'Un-implemented slot_ortho_reg_mode {slot_ortho_reg_mode}.')
 
-                self.epoch_log['scaler']['Tag'].append('loss/slot_sim_mse')
+                self.epoch_log['scaler']['Tag'].append('loss/slot_ortho_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
-                self.epoch_log['scaler']['Value'].append(slot_sim_mse.item())
+                self.epoch_log['scaler']['Value'].append(slot_ortho_loss.item())
 
             loss = (recon_loss +
-                    self.intra_consistency_coeff * intra_consistency_loss +
-                    self.slot_vsI_coeff * slot_sim_mse)
+                    self.config['args'].intra_consistency_reg_coeff * intra_consistency_loss +
+                    self.config['args'].slot_ortho_reg_coeff * slot_ortho_loss)
 
             # alpha = model.prompt.slot_attn_alpha    # [3]
             # for alpha_idx in range(len(alpha)):
@@ -791,7 +782,7 @@ class SLOTPrompt(Prompt):
             logits = None
             return loss.detach(), logits, {'recon_loss': recon_loss.detach(),
                                            'intra_consistency_loss': intra_consistency_loss.detach(),
-                                           'slot_sim_mse': slot_sim_mse.detach(),
+                                           'slot_ortho_loss': slot_ortho_loss.detach(),
                                            # 'alpha': alpha.detach(),
                                            }
 
@@ -871,19 +862,23 @@ class SLOTPrompt(Prompt):
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             # selection_ortho_loss
             selection_ortho_loss = torch.zeros(1).mean().to(loss.device)
-            if self.selection_ortho_coeff > 0:
+            if self.config['args'].use_selection_slot_similar_reg:
                 bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
                 batched_selections = selections.reshape(bs, t*k, e*pp)
                 bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                 batched_slots = slots.reshape(bs, t*k, h)
                 selection_sim = cos(batched_selections.unsqueeze(1), batched_selections.unsqueeze(2))  # [bs, k, k]
                 slot_sim = cos(batched_slots.unsqueeze(1), batched_slots.unsqueeze(2))  # [bs, k, k]
-                if self.selection_ortho_type == 'l1':
+                selection_slot_similar_reg_mode = self.config['args'].selection_slot_similar_reg_mode
+                if selection_slot_similar_reg_mode == 'l1':
                     selection_ortho_loss = F.l1_loss(selection_sim, slot_sim)
-                else:
+                elif selection_slot_similar_reg_mode == 'l2':
                     selection_ortho_loss = F.mse_loss(selection_sim, slot_sim)
+                else:
+                    raise Exception(f'Un-implemented selection_slot_similar_reg_mode: '
+                                    f'{selection_slot_similar_reg_mode}')
 
-                loss = loss + self.selection_ortho_coeff * selection_ortho_loss
+                loss = loss + self.config['args'].selection_slot_similar_reg_coeff * selection_ortho_loss
 
                 self.epoch_log['scaler']['Tag'].append('loss/selection_ortho_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
@@ -891,7 +886,7 @@ class SLOTPrompt(Prompt):
 
             # prompt-concept alignment loss
             prompt_concept_alignment_loss = torch.zeros(1).mean().to(loss.device)
-            if self.prompt_concept_alignment_coeff > 0:
+            if self.config['args'].use_prompt_concept_alignment_reg:
                 bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
                 attn = attn.clone().permute(0, 1, 3, 2).reshape(bs, t*k, n)
                 bs, channel, height, weight = inputs.shape  # [bs, 3, H, W] [100, 3, 224, 224]
@@ -998,7 +993,7 @@ class SLOTPrompt(Prompt):
                 # negative_loss = -torch.sum(probs * torch.log(probs + 1e-8), dim=1).mean()
                 # prompt_concept_alignment_loss = positive_loss - 1 * negative_loss
 
-                loss = loss + self.prompt_concept_alignment_coeff * prompt_concept_alignment_loss
+                loss = loss + self.config['args'].prompt_concept_alignment_reg_coeff * prompt_concept_alignment_loss
 
                 if self.debug_mode:
                     print(f'prompt_concept_alignment_loss: {prompt_concept_alignment_loss.item()}')
@@ -1024,35 +1019,31 @@ class SLOTPrompt(Prompt):
 
             # onehot loss
             onehot_loss = torch.zeros(1).mean().to(loss.device)
-            if self.onehot_coeff > 0:       # and self.epoch >= 5:
+            if self.config['args'].use_selection_onehot_reg:       # and self.epoch >= 5:
                 bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
                 batched_selections = selections.reshape(bs*t*k*e, pp)
                 with torch.no_grad():
                     onehot_selections = torch.argmax(batched_selections, dim=-1)
                     onehot_selections = F.one_hot(onehot_selections, num_classes=pp)
 
-                if self.selection_onehot_type == 'l1':
+                if self.config['args'].selection_onehot_reg_mode == 'l1':
                     onehot_loss = F.l1_loss(batched_selections, onehot_selections)
                 else:
                     onehot_loss = F.mse_loss(batched_selections, onehot_selections)
 
-                loss = loss + self.onehot_coeff * onehot_loss
+                onehot_coeff = self.config['args'].selection_onehot_reg_coeff
+                loss = loss + onehot_coeff * onehot_loss
 
-                self.epoch_log['scaler']['Tag'].append('loss/onehot_loss')
+                self.epoch_log['scaler']['Tag'].append('loss/selection_onehot_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(onehot_loss.item())
 
-            # out = out[:, :, :self.valid_out_dim]
-            # bs, n_slots, n_cls = out.shape
-            # # ce with heuristic
-            # out[:, :, :self.last_valid_out_dim] = -float('inf')
-
             # if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
             s2p_loss = torch.zeros(1).mean().to(loss.device)
-            if self.weight_coeff > 0.0:
+            if self.config['args'].use_weight_reg:
                 # regularization loss on slot2prompt mapping
                 # selection: ['weights', 'response']
-                reg_mode = 'weights'
+                reg_mode = self.config['args'].weight_reg_mode
                 if self.t > 0 and reg_mode == 'weights':
                     # s2p_loss = torch.stack([
                     #     F.kl_div(torch.log(F.softmax(v.flatten(), dim=0)),
@@ -1180,7 +1171,8 @@ class SLOTPrompt(Prompt):
                     if self.debug_mode:
                         print(f's2p_loss {s2p_loss.shape}: {s2p_loss}')
 
-                loss = loss + self.weight_coeff * s2p_loss
+                weight_coeff = self.config['args'].weight_reg_coeff
+                loss = loss + weight_coeff * s2p_loss
 
                 self.epoch_log['scaler']['Tag'].append('loss/s2p_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
@@ -1348,7 +1340,7 @@ class SLOTPrompt(Prompt):
         weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs * k, h), dim=-1)
         # [bs, k, bs*k] cosine sim matrix
         weights = torch.mean(weights, dim=-1)  # [bs, k]
-        weights = weights * self.cross_attn_temp  # cross_attn_temp: 0.1
+        weights = weights * self.config['args'].slot_cross_attn_temp  # cross_attn_temp: 0.1
         weights = torch.softmax(weights, dim=-1)  # [b, k]; sum over k == 1
         return weights
 

@@ -155,14 +155,14 @@ temp=1
 concept_similar_reg_coeff_sensitivity=0
 concept_similar_reg_mode=dot+ce
 LOGNAME=10-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_s${concept_similar_reg_coeff_sensitivity}-lr${lr}-p100-l8-k10-nt5-sig${temp}_FPS
-#  -d
 docker run -d --rm --runtime=nvidia --gpus device=${device} \
   -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
   -v ~/.cache:/workspace/.cache \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 8 10 5 1.0 ${temp} 1 0.0 0.0 80 0.0 0.0 0.0 0.0 \
+    --prompt_param 100 8 \
+    --s2p_temp ${temp} \
     --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
     --larger_prompt_lr \
@@ -171,12 +171,14 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
     --concept_similar_reg_coeff_sensitivity ${concept_similar_reg_coeff_sensitivity} \
     --concept_similar_reg_mode ${concept_similar_reg_mode} \
+    --max_task 3 \
+    --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
 done
 #    --eval_class_wise \
 
-# cfst
+## cfst
 #for mode in sys pro sub non noc
 #do
 # # do not use -d to avoid running in parallel
@@ -186,7 +188,8 @@ done
 ##    --shm-size 8G liaoweiduo/hide:2.0 \
 #  python -u run_ft.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type slotmo --learner_name SLOTPrompt \
-#    --prompt_param 100 8 10 5 1.0 ${temp} 1 0.0 0.0 80 0.0 0.0 0.0 0.0 \
+#    --prompt_param 100 8 \
+#    --s2p_temp ${temp} \
 #    --log_dir ${OUTDIR}/${LOGNAME} \
 #    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
 #    --lr 0.001 \

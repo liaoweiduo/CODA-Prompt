@@ -93,27 +93,14 @@ class Logger(object):
     def flush(self):
         self.log.flush()
 
-if __name__ == '__main__':
-    args = get_args(sys.argv[1:])
 
-    # determinstic backend
-    torch.backends.cudnn.deterministic=True
-
-    # duplicate output stream to output file
-    if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
-    log_out = args.log_dir + '/output.log'
-    sys.stdout = Logger(log_out)
-    log_err = args.log_dir + '/err.log'
-    sys.stderr = Logger(log_err)
-
-    print(vars(args))
-
+def start(args):
     print(f'********start mode {args.mode}********')
-    metric_keys = ['acc','time',]
+    metric_keys = ['acc', 'time', ]
     save_keys = ['global']
     global_only = ['time']
     avg_metrics = {}
-    for mkey in metric_keys: 
+    for mkey in metric_keys:
         avg_metrics[mkey] = {}
         for skey in save_keys: avg_metrics[mkey][skey] = []
 
@@ -130,7 +117,7 @@ if __name__ == '__main__':
         finished_repeats = his.shape[-1]
         if args.test_model == -1:
             # change to the last model
-            args.test_model = his.shape[0]    # test model id starting from 1
+            args.test_model = his.shape[0]  # test model id starting from 1
 
         assert (finished_repeats >= args.repeat
                 ), f"haven't finish continual training: finished:target={finished_repeats}:{args.repeat}."
@@ -143,7 +130,7 @@ if __name__ == '__main__':
             for mkey in metric_keys:
                 for skey in save_keys:
                     if (not (mkey in global_only)) or (skey == 'global'):
-                        save_file = args.log_dir+'/results-'+mkey+'/'+skey+f'-{args.mode}.yaml'
+                        save_file = args.log_dir + '/results-' + mkey + '/' + skey + f'-{args.mode}.yaml'
                         if os.path.exists(save_file):
                             with open(save_file, 'r') as yaml_file:
                                 yaml_result = yaml.safe_load(yaml_file)
@@ -156,13 +143,19 @@ if __name__ == '__main__':
             if start_r < args.repeat:
                 max_task = avg_metrics['acc']['global'].shape[0]
                 for mkey in metric_keys:
-                    avg_metrics[mkey]['global'] = np.append(avg_metrics[mkey]['global'], np.zeros((max_task,args.repeat-start_r)), axis=-1)
+                    avg_metrics[mkey]['global'] = np.append(avg_metrics[mkey]['global'],
+                                                            np.zeros((max_task, args.repeat - start_r)), axis=-1)
                     if (not (mkey in global_only)):
-                        avg_metrics[mkey]['pt'] = np.append(avg_metrics[mkey]['pt'], np.zeros((max_task,max_task,args.repeat-start_r)), axis=-1)
-                        avg_metrics[mkey]['pt-local'] = np.append(avg_metrics[mkey]['pt-local'], np.zeros((max_task,max_task,args.repeat-start_r)), axis=-1)
+                        avg_metrics[mkey]['pt'] = np.append(avg_metrics[mkey]['pt'],
+                                                            np.zeros((max_task, max_task, args.repeat - start_r)),
+                                                            axis=-1)
+                        avg_metrics[mkey]['pt-local'] = np.append(avg_metrics[mkey]['pt-local'],
+                                                                  np.zeros((max_task, max_task, args.repeat - start_r)),
+                                                                  axis=-1)
 
         except:
             start_r = 0
+
     # start_r = 0
     for r in range(start_r, args.repeat):
 
@@ -196,7 +189,7 @@ if __name__ == '__main__':
         # avg_metrics = trainer.evaluate(avg_metrics)
 
         # save results
-        for mkey in metric_keys: 
+        for mkey in metric_keys:
             m_dir = args.log_dir+'/results-'+mkey+'/'
             if not os.path.exists(m_dir): os.makedirs(m_dir)
             for skey in save_keys:
@@ -217,10 +210,25 @@ if __name__ == '__main__':
 
         # Print the summary so far
         print('===Summary of experiment repeats:',r+1,'/',args.repeat,'===')
-        for mkey in metric_keys: 
+        for mkey in metric_keys:
             print(mkey, ' | mean:', avg_metrics[mkey]['global'][-1,:r+1].mean(), 'std:', avg_metrics[mkey]['global'][-1,:r+1].std())
 
         '''nvidia-smi'''
         print(os.system('nvidia-smi'))
 
+if __name__ == '__main__':
+    args = get_args(sys.argv[1:])
 
+    # determinstic backend
+    torch.backends.cudnn.deterministic=True
+
+    # duplicate output stream to output file
+    if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
+    log_out = args.log_dir + '/output.log'
+    sys.stdout = Logger(log_out)
+    log_err = args.log_dir + '/err.log'
+    sys.stderr = Logger(log_err)
+
+    print(vars(args))
+
+    start(args)

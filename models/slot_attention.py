@@ -165,22 +165,39 @@ class Slot2Prompt(nn.Module):
         self.FPS = FPS          # or can be True all the time?
         self.select_slot_temp = temp
         self.select_prompt_temp = 1.0
-        if mode in [-1, 1, 2]:
-            self.cond_mode = mode
-            # -1 -> slot-avg;
-            # 1 or 2 -> learn to select slot to avg: 1: sigmoid(); 2: cosine
-
-            self.selector_mode = 'attn'     # [gate, mlp, attn]
-        elif mode == 3:
-            self.cond_mode = None
-            self.selector_mode = 'mlp'     # [gate, mlp, attn]
-            self.FPS = True
+        self.selector_mode = None
+        if 'attn' in mode:
+            self.selector_mode = 'attn'
+        elif 'mlp' in mode:
+            self.selector_mode = 'mlp'
+        elif 'gate' in mode:
+            self.selector_mode = 'gate'
+        self.cond_mode = None
+        if 'sig' in mode:
+            self.cond_mode = 'sig'
+        elif 'cos' in mode:
+            self.cond_mode = 'cos'
+        elif 'avg' in mode:
+            self.cond_mode = 'avg'
         else:
-            self.cond_mode = None
-            self.selector_mode = 'gate'     # [gate, mlp, attn]
-            self.FPS = True
+            raise Exception(f'Un-implemented {mode}.')
 
-        print(f'Initial s2p in mode {self.selector_mode}, FPS {self.FPS}.')
+        # if mode in [-1, 1, 2]:
+        #     self.cond_mode = mode
+        #     # -1 -> slot-avg;
+        #     # 1 or 2 -> learn to select slot to avg: 1: sigmoid(); 2: cosine
+        #
+        #     self.selector_mode = 'attn'     # [gate, mlp, attn]
+        # elif mode == 3:
+        #     self.cond_mode = None
+        #     self.selector_mode = 'mlp'     # [gate, mlp, attn]
+        #     self.FPS = True
+        # else:
+        #     self.cond_mode = None
+        #     self.selector_mode = 'gate'     # [gate, mlp, attn]
+        #     self.FPS = True
+
+        print(f'Initial s2p in mode {self.selector_mode} with cond {self.cond_mode}, FPS {self.FPS}.')
 
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
             self.slot_map = nn.ModuleList([
@@ -287,7 +304,7 @@ class Slot2Prompt(nn.Module):
             # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
             # slots = slots.reshape(bs, n, h)
 
-            if self.cond_mode > 0:
+            if 'sig' in self.cond_mode or 'cos' in self.cond_mode:
                 # learn to weights slots as inputs to select prompt
                 slot_selection_w = self.slot_selection_w  # [128, 128] or [self.n_tasks, 128, 128]
                 slot_selection_b = self.slot_selection_b  # [128] or [self.n_tasks, 128]
@@ -296,12 +313,12 @@ class Slot2Prompt(nn.Module):
                 mapped_slots = mapped_slots + slot_selection_b
                 mapped_slots = torch.tanh(mapped_slots)
                 task_key = self.task_key  # [128] or [self.n_tasks, 128]
-                if self.cond_mode == 1:     # sig(1/sqrt(D) S_m@K_t)
+                if 'sig' in self.cond_mode:     # sig(1/sqrt(D) S_m@K_t)
                     w = torch.einsum('bnd,d->bn', mapped_slots, task_key)
                     w = w * (task_key.shape[-1] ** -0.5)
                     w = w * self.select_slot_temp
                     w = torch.sigmoid(w)
-                elif self.cond_mode == 2:   # cos(S_m, K_t)
+                elif 'cos' in self.cond_mode:   # cos(S_m, K_t)
                     n_m_s = nn.functional.normalize(mapped_slots, dim=-1)
                     n_k_t = nn.functional.normalize(task_key, dim=-1)
                     w = torch.einsum('bnd,d->bn', n_m_s, n_k_t)
@@ -397,10 +414,10 @@ class Slot2Prompt(nn.Module):
                 # P = torch.einsum('bnk,kld->bnld', aq_k_repa, p)   # wei-sum over k -> bnld
 
                 # image-wise selection for prompt
-                if self.cond_mode == -1:
+                if 'avg' in self.cond_mode:
                     # use average slots as inputs to select prompt
                     slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
-                elif self.cond_mode > 0:
+                elif 'cos' in self.cond_mode or 'sig' in self.cond_mode:
                     slots_ = torch.einsum('bh,kh->bkh', w_slots, A)      # attended slots
                 else:
                     raise Exception(f'Un-implemented {self.cond_mode}.')
