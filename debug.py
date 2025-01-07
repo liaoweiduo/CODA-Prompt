@@ -53,7 +53,7 @@ class Debugger:
     def default_columns(self):
         # default params
         output_args = [
-            'name', 'exp_path', 'max_task', 'lr', 'prompt_param', 'larger_prompt_lr']
+            'max_task', 'lr', 'prompt_param', 'larger_prompt_lr']
         if self.args['lr_decreace_ratio'] != 1.0:
             output_args.append('lr_decrease_ratio')
 
@@ -98,6 +98,9 @@ class Debugger:
         output_args, columns = column_info
 
         row = OrderedDict()
+        row['name'] = self.name
+        row['exp_path'] = self.exp_path
+
         for output_arg in output_args:
             row[output_arg] = self.args.get(output_arg, '-')
         for res in columns:
@@ -135,7 +138,7 @@ class Debugger:
 
         if max_task == -1:
             max_task = data.shape[1]
-            self.args['max_task'] = max_task        # visually change the number of finished tasks
+        self.args['max_task'] = max_task        # visually change the number of finished tasks
 
         if max_task > data.shape[1]:    # haven't finish yet
             return
