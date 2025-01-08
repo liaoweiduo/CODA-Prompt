@@ -151,7 +151,7 @@ concept_similar_reg_temp=$1
 for concept_similar_reg_coeff in 0.05 0.1 0.3 0.5; do
 concept_similar_reg_mode=dot+ce
 lr=1e-3
-LOGNAME=11-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_no_grad_old_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+LOGNAME=11-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
 #((i++))
 #device=${devices[${i}]}
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
@@ -166,7 +166,6 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --larger_prompt_lr \
     --concept_weight \
     --use_old_samples_for_reg \
-    --use_old_samples_for_reg_no_grad \
     --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
     --concept_similar_reg_mode ${concept_similar_reg_mode} \
     --concept_similar_reg_temp ${concept_similar_reg_temp} \
@@ -174,6 +173,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
+#    --use_old_samples_for_reg_no_grad \
 #    --eval_class_wise \
 
 ## cfst
