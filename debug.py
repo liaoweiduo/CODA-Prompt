@@ -41,7 +41,12 @@ class Debugger:
                 self.args[k] = str(v)
 
         self.dataset = self.args['dataset']         # CIFAR100, CGQA,...
+        self.max_seed = self.args['repeat']
+        self.max_task = self.args['max_task']
 
+        self.output_args = []
+        self.columns = []
+        self._default_output_args()
         self.storage = {}
 
     def collect_results(self, max_task=-1):
@@ -49,47 +54,21 @@ class Debugger:
         self.storage['results'] = {}
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
-        # self.collect_reg_losses()
+        self.collect_reg_losses()
 
-    def default_columns(self):
+    def _default_output_args(self):
         # default params
-        output_args = [
+        self.output_args = [
             'max_task', 'lr', 'prompt_param', 'larger_prompt_lr']
         if self.args['lr_decreace_ratio'] != 1.0:
-            output_args.append('lr_decrease_ratio')
+            self.output_args.append('lr_decrease_ratio')
 
         if self.args['learner_name'] == 'SLOTPrompt':
             # slot params
-            output_args.extend(['n_slots', 'n_iters', 'slot_temp', 's2p_mode'])
-            if self.args.get('use_intra_consistency_reg', False):
-                output_args.extend(['intra_consistency_reg_coeff'])
-            if self.args.get('use_slot_ortho_reg', False):
-                output_args.extend(['slot_ortho_reg_mode', 'slot_ortho_reg_coeff'])
+            self.output_args.extend(['n_slots', 'n_iters', 'slot_temp', 's2p_mode'])
 
-        # prompt param
-        if self.args.get('use_weight_reg', False):
-            output_args.extend(['weight_reg_mode', 'weight_reg_coeff'])
-        if self.args.get('use_selection_onehot_reg', False):
-            output_args.extend(['selection_onehot_reg_mode', 'selection_onehot_reg_coeff'])
-        if self.args.get('use_selection_slot_similar_reg', False):
-            output_args.extend(['selection_slot_similar_reg_mode', 'selection_slot_similar_reg_coeff'])
-        if self.args.get('use_prompt_concept_alignment_reg', False):
-            output_args.extend(['prompt_concept_alignment_reg_coeff'])
-        if self.args.get('concept_weight', False):
-            output_args.extend(['concept_similar_reg_mode', 'concept_similar_reg_coeff', 'concept_similar_reg_temp'])
-        if self.args.get('use_old_samples_for_reg', False):
-            output_args.extend(['use_old_samples_for_reg'])
-        if self.args.get('use_slot_logit_similar_reg', False):
-            output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff'])
-
-        columns = []
-        columns.extend(['AA', 'l-AA', 'CA', 'l-CA', 'FF', 'l-FF'])
-        if self.dataset == 'CGQA':
-            columns.extend(['sys', 'pro', 'sub', 'Hn', 'non', 'noc', 'Hr', 'Ha'])
-        else:
-            columns.extend(['sys', 'pro', 'Hn', 'non', 'noc', 'Hr', 'Ha'])   # no sub
-
-        return output_args, columns
+    def default_columns(self):
+        return self.output_args, self.columns
 
     def generate_df(self, column_info=None):
         """args and storage to value"""
@@ -178,6 +157,9 @@ class Debugger:
         self.storage['results']['l-FF'] = {
             'Details': FF, 'Mean': FF.mean(), 'Std': FF.std(), 'CI95': 1.96 * (FF.std() / np.sqrt(len(FF)))}
 
+        # extend columns
+        self.columns.extend(['AA', 'l-AA', 'CA', 'l-CA', 'FF', 'l-FF'])
+
     def collect_CFST(self):
         dataset = self.dataset
         mean_datas = {}
@@ -214,20 +196,92 @@ class Debugger:
         self.storage['results']['Hr'] = {'Details': [hr], 'Mean': hr, 'Std': 0, 'CI95': 0}
         self.storage['results']['Ha'] = {'Details': [ha], 'Mean': ha, 'Std': 0, 'CI95': 0}
 
-    def collect_reg_losses(self):
+        # extend columns
+        if self.dataset == 'CGQA':
+            self.columns.extend(['sys', 'pro', 'sub', 'Hn', 'non', 'noc', 'Hr', 'Ha'])
+        else:
+            self.columns.extend(['sys', 'pro', 'Hn', 'non', 'noc', 'Hr', 'Ha'])  # no sub
+
+
+    def load_log_data(self):
         # load log
+        if self.check_level('INFO'):
+            print(f'Load log data.')
+
+        self.storage['log'] = {}
+        for seed in range(self.max_seed):
+            self.storage['log'][seed] = {}
+            for task in range(self.max_task):
+                file = os.path.join(self.exp_path, 'temp', f'log_seed{seed}_t{task}.pkl')
+                try:
+                    data = pickle.load(open(file, 'rb'))     # {'scaler': df, 'mo': df}
+                    # df = data['scaler']
+                    # df_mo = data['mo']
+                    self.storage['log'][seed][task] = data
+                except:
+                    if self.check_level('INFO'):
+                        print(f'File not find: {file}.')
+
+    def collect_reg_losses(self, draw=False):
+        if 'log' not in self.storage:
+            self.load_log_data()
+
+        # keys and put coeff to output_args
+        keys = []
+        if self.args['learner_name'] == 'SLOTPrompt':
+            # slot params
+            if self.args.get('use_intra_consistency_reg', False):
+                self.output_args.extend(['intra_consistency_reg_coeff'])
+                keys.extend(['loss/intra_consistency_loss'])
+            if self.args.get('use_slot_ortho_reg', False):
+                self.output_args.extend(['slot_ortho_reg_mode', 'slot_ortho_reg_coeff'])
+                keys.extend(['loss/slot_ortho_loss'])
+
+        # prompt param
+        if self.args.get('use_weight_reg', False):
+            self.output_args.extend(['weight_reg_mode', 'weight_reg_coeff'])
+            keys.extend(['loss/s2p_loss'])
+        if self.args.get('use_selection_onehot_reg', False):
+            self.output_args.extend(['selection_onehot_reg_mode', 'selection_onehot_reg_coeff'])
+            keys.extend(['loss/selection_onehot_loss'])
+        if self.args.get('use_selection_slot_similar_reg', False):
+            self.output_args.extend(['selection_slot_similar_reg_mode', 'selection_slot_similar_reg_coeff'])
+            keys.extend(['loss/selection_ortho_loss'])
+        if self.args.get('use_prompt_concept_alignment_reg', False):
+            self.output_args.extend(['prompt_concept_alignment_reg_coeff'])
+            keys.extend(['loss/prompt_concept_alignment_loss'])
+        if self.args.get('concept_weight', False):
+            self.output_args.extend(['concept_similar_reg_mode', 'concept_similar_reg_coeff', 'concept_similar_reg_temp'])
+            keys.extend(['loss/concept_similar_reg'])
+        if self.args.get('use_old_samples_for_reg', False):
+            self.output_args.extend(['use_old_samples_for_reg'])
+        if self.args.get('use_slot_logit_similar_reg', False):
+            self.output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff'])
+            keys.extend(['loss/slot_logit_similar_reg'])
+
         max_seed = self.args['repeat']
         max_task = self.args['max_task']
-        # for seed in range(max_seed):
-        #
-        #     for task in range(max_task):
-        #         file = os.path.join(self.exp_path, 'temp', f'log_seed{seed}_t{task}.pkl')
-        #         try:
-        #
-        #         except:
-        #             if self.check_level('INFO'):
-        #                 print(f'File not find: {file}.')
-        #             return
+        for seed in range(max_seed):
+            for task in range(max_task):
+                df = self.storage['log'][seed][task]['scaler']
+
+                for key in keys:
+
+                    t_df = df[df.Tag == key]
+                    max_idx = np.max(list(set(t_df.Idx)))
+                    t_series = t_df[t_df.Idx == max_idx].Value
+                    self.storage['results'][key] = {'Details': t_series, 'Mean': t_series.mean(),
+                                                    'Std': t_series.std(),
+                                                    'CI95': 1.96 * (t_series.std() / np.sqrt(len(t_series)))}
+
+                    # if draw: todo
+                    # fig, ax = plt.subplots()
+                    # ax.grid(True)
+                    # sns.lineplot(t_df, x='Idx', y='Value', ax=ax)
+
+
+        # extend columns
+        self.columns.extend(keys)
 
         # if self.args.get('use_intra_consistency_reg', False):
         #     output_args.extend(['intra_consistency_reg_coeff'])
