@@ -27,7 +27,7 @@ class Debugger:
 
         self.levels = ['DEBUG', 'INFO']
         self.level = self.levels.index(level)   # 0 or 1
-        self.args = args
+        self.args = copy.deepcopy(args)
         self.exp_path = exp_path
         if self.exp_path is not None:
             self.load_args(exp_path=self.exp_path)
@@ -49,6 +49,7 @@ class Debugger:
         self.storage['results'] = {}
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
+        self.collect_reg_losses()
 
     def default_columns(self):
         # default params
@@ -212,6 +213,44 @@ class Debugger:
         self.storage['results']['Hn'] = {'Details': [hn], 'Mean': hn, 'Std': 0, 'CI95': 0}
         self.storage['results']['Hr'] = {'Details': [hr], 'Mean': hr, 'Std': 0, 'CI95': 0}
         self.storage['results']['Ha'] = {'Details': [ha], 'Mean': ha, 'Std': 0, 'CI95': 0}
+
+    def collect_reg_losses(self):
+        # load log
+        max_seed = self.args['repeat']
+        max_task = self.args['max_task']
+        for seed in range(max_seed):
+
+            for task in range(max_task):
+                file = os.path.join(self.exp_path, 'temp', f'log_seed{seed}_t{task}.pkl')
+                try:
+
+                except:
+                    if self.check_level('INFO'):
+                        print(f'File not find: {file}.')
+                    return
+
+        # if self.args.get('use_intra_consistency_reg', False):
+        #     output_args.extend(['intra_consistency_reg_coeff'])
+        # if self.args.get('use_slot_ortho_reg', False):
+        #     output_args.extend(['slot_ortho_reg_mode', 'slot_ortho_reg_coeff'])
+        #
+        # # prompt param
+        # if self.args.get('use_weight_reg', False):
+        #     output_args.extend(['weight_reg_mode', 'weight_reg_coeff'])
+        # if self.args.get('use_selection_onehot_reg', False):
+        #     output_args.extend(['selection_onehot_reg_mode', 'selection_onehot_reg_coeff'])
+        # if self.args.get('use_selection_slot_similar_reg', False):
+        #     output_args.extend(['selection_slot_similar_reg_mode', 'selection_slot_similar_reg_coeff'])
+        # if self.args.get('use_prompt_concept_alignment_reg', False):
+        #     output_args.extend(['prompt_concept_alignment_reg_coeff'])
+        # if self.args.get('concept_weight', False):
+        #     output_args.extend(['concept_similar_reg_mode', 'concept_similar_reg_coeff', 'concept_similar_reg_temp'])
+        # if self.args.get('use_old_samples_for_reg', False):
+        #     output_args.extend(['use_old_samples_for_reg'])
+        # if self.args.get('use_slot_logit_similar_reg', False):
+        #     output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff'])
+
+
 
     def load_args(self, exp_path):
         print(f'Load args from {exp_path}.')
