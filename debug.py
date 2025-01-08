@@ -49,7 +49,7 @@ class Debugger:
         self.storage['results'] = {}
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
-        self.collect_reg_losses()
+        # self.collect_reg_losses()
 
     def default_columns(self):
         # default params
@@ -218,16 +218,16 @@ class Debugger:
         # load log
         max_seed = self.args['repeat']
         max_task = self.args['max_task']
-        for seed in range(max_seed):
-
-            for task in range(max_task):
-                file = os.path.join(self.exp_path, 'temp', f'log_seed{seed}_t{task}.pkl')
-                try:
-
-                except:
-                    if self.check_level('INFO'):
-                        print(f'File not find: {file}.')
-                    return
+        # for seed in range(max_seed):
+        #
+        #     for task in range(max_task):
+        #         file = os.path.join(self.exp_path, 'temp', f'log_seed{seed}_t{task}.pkl')
+        #         try:
+        #
+        #         except:
+        #             if self.check_level('INFO'):
+        #                 print(f'File not find: {file}.')
+        #             return
 
         # if self.args.get('use_intra_consistency_reg', False):
         #     output_args.extend(['intra_consistency_reg_coeff'])
