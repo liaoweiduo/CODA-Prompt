@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/50-10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot_50-10task.yaml
 CONFIG=configs/cgqa_prompt_50-10task.yaml
-REPEAT=1
+REPEAT=3
 OVERWRITE=0
 
 ###############################################################
@@ -83,20 +83,30 @@ mkdir -p $OUTDIR
 # larger prompt size
 lr=1e-3
 LOGNAME=coda-l8-p100-lpl-lr${lr}
+docker run -d --rm --runtime=nvidia --gpus device=4 \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
    --prompt_param 100 8 0.0 0 \
    --lr ${lr} \
    --larger_prompt_lr \
+   --max_task 3 \
+   --compositional_testing \
    --log_dir ${OUTDIR}/${LOGNAME}
 
-lr=1e-4
-LOGNAME=coda-l8-p100-FPS-lr${lr}
+LOGNAME=coda-l8-p100
+docker run -d --rm --runtime=nvidia --gpus device=5 \
+  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+  -v ~/.cache:/workspace/.cache \
+  --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 1 \
+   --prompt_param 100 8 0.0 0 \
    --lr ${lr} \
-   --larger_prompt_lr \
+   --max_task 3 \
+   --compositional_testing \
    --log_dir ${OUTDIR}/${LOGNAME}
 
 ## cfst
