@@ -212,7 +212,7 @@ class Debugger:
         for seed in range(self.max_seed):
             self.storage['log'][seed] = {}
             for task in range(self.max_task):
-                file = os.path.join(self.exp_path, 'temp', f'log_seed{seed}_t{task}.pkl')
+                file = os.path.join(self.exp_path, 'temp', f'train_log_seed{seed}_t{task}.pkl')
                 try:
                     data = pickle.load(open(file, 'rb'))     # {'scaler': df, 'mo': df}
                     # df = data['scaler']
