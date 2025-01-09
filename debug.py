@@ -43,6 +43,7 @@ class Debugger:
         self.dataset = self.args['dataset']         # CIFAR100, CGQA,...
         self.max_seed = self.args['repeat']
         self.max_task = self.args['max_task']
+        self.save_path = os.path.join(self.exp_path, 'temp')
 
         self.output_args = []
         self.columns = []
@@ -90,6 +91,7 @@ class Debugger:
                 row[f'{res}(str)'] = F"{target['Mean']:.2f}$\pm${target['CI95']:.2f}({target['Std']:.2f})"
 
         df = pd.Series(data=row).to_frame().T
+        df.to_csv(os.path.join(self.save_path, 'data.csv'))
 
         return df
 
@@ -304,6 +306,10 @@ class Debugger:
                 ax.grid(True)
                 sns.lineplot(dfs, x='Idx', y='Value', ax=ax)
                 ax.set_title(f'{key}')
+
+                # save
+                file_name = f'{key}.png'
+                fig.savefig(os.path.join(self.save_path, file_name), bbox_inches='tight', dpi=50)
 
     def draw_scaler(self, key, seed, task, ax=None, title=False):
         if 'log' not in self.storage:
