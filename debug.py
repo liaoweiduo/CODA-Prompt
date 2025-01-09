@@ -38,7 +38,7 @@ class Debugger:
 
         for k, v in self.args.items():       # list to str
             if type(v) is list:
-                self.args[k] = str(v)
+                self.args[k] = ' '.join(str(v).split(','))
 
         self.dataset = self.args['dataset']         # CIFAR100, CGQA,...
         self.max_seed = self.args['repeat']
@@ -55,7 +55,11 @@ class Debugger:
         self.storage['results'] = {}
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
-        self.collect_reg_losses(draw=draw)
+        axes = self.collect_reg_losses(draw=draw)
+
+        res = {'reg': axes}
+
+        return res
 
     def _default_output_args(self):
         # default params
@@ -81,6 +85,7 @@ class Debugger:
         row = OrderedDict()
         row['name'] = self.name
         row['exp_path'] = self.exp_path
+        row['dataset'] = self.dataset
 
         for output_arg in output_args:
             row[output_arg] = self.args.get(output_arg, '-')
@@ -310,7 +315,9 @@ class Debugger:
                 # save
                 file_name = f'{key}.png'
                 file_name = '-'.join(file_name.split('/'))
-                fig.savefig(os.path.join(self.save_path, file_name), bbox_inches='tight', dpi=50)
+                fig.savefig(os.path.join(self.save_path, file_name), bbox_inches='tight', dpi=100)
+
+        return axes
 
     def draw_scaler(self, key, seed, task, ax=None, title=False):
         if 'log' not in self.storage:
