@@ -268,7 +268,7 @@ class CodaPrompt(nn.Module):
 
         # strenth of ortho penalty
         self.ortho_mu = prompt_param[2]  # 0.0
-        self.beta_version = False    # not use gram_schmidt, directly offline init ortho and use ortho penalty
+        self.beta_version = True    # not use gram_schmidt, directly offline init ortho and use ortho penalty
 
         # trigger fixed prompt size (FPS)
         if len(prompt_param) > 3 and int(prompt_param[3]) == 1:
