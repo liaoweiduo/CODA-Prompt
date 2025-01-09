@@ -20,7 +20,7 @@ from learners.pmo_utils import Pool, draw_heatmap, draw_objs, cal_hv, cal_min_cr
 
 
 class Debugger:
-    def __init__(self, level='DEBUG', args=None, exp_path=None, name='[Default]'):
+    def __init__(self, level='DEBUG', args=None, exp_path=None, name=''):
         """args need to be dict"""
         assert (args is not None or exp_path is not None
                 ), "args and exp_path should not be both None."
@@ -49,12 +49,12 @@ class Debugger:
         self._default_output_args()
         self.storage = {}
 
-    def collect_results(self, max_task=-1):
+    def collect_results(self, max_task=-1, draw=False):
         # collect results
         self.storage['results'] = {}
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
-        self.collect_reg_losses()
+        self.collect_reg_losses(draw=draw)
 
     def _default_output_args(self):
         # default params
@@ -259,52 +259,60 @@ class Debugger:
             self.output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff'])
             keys.extend(['loss/slot_logit_similar_reg'])
 
-        max_seed = self.args['repeat']
-        max_task = self.args['max_task']
-        for seed in range(max_seed):
-            for task in range(max_task):
-                df = self.storage['log'][seed][task]['scaler']
-
-                for key in keys:
-
-                    t_df = df[df.Tag == key]
-                    max_idx = np.max(list(set(t_df.Idx)))
-                    t_series = t_df[t_df.Idx == max_idx].Value
-                    self.storage['results'][key] = {'Details': t_series, 'Mean': t_series.mean(),
-                                                    'Std': t_series.std(),
-                                                    'CI95': 1.96 * (t_series.std() / np.sqrt(len(t_series)))}
-
-                    # if draw: todo
-                    # fig, ax = plt.subplots()
-                    # ax.grid(True)
-                    # sns.lineplot(t_df, x='Idx', y='Value', ax=ax)
-
-
         # extend columns
         self.columns.extend(keys)
 
-        # if self.args.get('use_intra_consistency_reg', False):
-        #     output_args.extend(['intra_consistency_reg_coeff'])
-        # if self.args.get('use_slot_ortho_reg', False):
-        #     output_args.extend(['slot_ortho_reg_mode', 'slot_ortho_reg_coeff'])
-        #
-        # # prompt param
-        # if self.args.get('use_weight_reg', False):
-        #     output_args.extend(['weight_reg_mode', 'weight_reg_coeff'])
-        # if self.args.get('use_selection_onehot_reg', False):
-        #     output_args.extend(['selection_onehot_reg_mode', 'selection_onehot_reg_coeff'])
-        # if self.args.get('use_selection_slot_similar_reg', False):
-        #     output_args.extend(['selection_slot_similar_reg_mode', 'selection_slot_similar_reg_coeff'])
-        # if self.args.get('use_prompt_concept_alignment_reg', False):
-        #     output_args.extend(['prompt_concept_alignment_reg_coeff'])
-        # if self.args.get('concept_weight', False):
-        #     output_args.extend(['concept_similar_reg_mode', 'concept_similar_reg_coeff', 'concept_similar_reg_temp'])
-        # if self.args.get('use_old_samples_for_reg', False):
-        #     output_args.extend(['use_old_samples_for_reg'])
-        # if self.args.get('use_slot_logit_similar_reg', False):
-        #     output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff'])
+        # cat df
+        max_seed = self.args['repeat']
+        max_task = self.args['max_task']
+        nrows, ncols = 1, len(keys)
+        if draw:
+            fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*5, nrows*5))   # sharex=True, sharey=True
+            fig.suptitle(f'{self.name}', fontsize=16)
+        else:
+            fig, axes = None, None
+        for key_idx, key in enumerate(keys):
+            dfs = []
+            for seed in range(max_seed):
+                task_offset = 0
+                for task in range(max_task):
+                    df = self.storage['log'][seed][task]['scaler']
+                    t_df = copy.deepcopy(df[df.Tag == key])
+                    # shift Idx with task
+                    unique_idx = list(set(t_df.Idx))
+                    num_idx = np.max(unique_idx) - np.min(unique_idx) + 1
+                    t_df.Idx = t_df.Idx + task_offset
+                    task_offset += num_idx
+                    dfs.append(t_df)
+            dfs = pd.concat(dfs, ignore_index=True)
 
+            max_idx = np.max(list(set(dfs.Idx)))
+            t_series = dfs[dfs.Idx == max_idx].Value
+            # collect last Idx's value to show in the table
+            self.storage['results'][key] = {'Details': t_series, 'Mean': t_series.mean(),
+                                            'Std': t_series.std(),
+                                            'CI95': 1.96 * (t_series.std() / np.sqrt(len(t_series)))}
 
+            if draw:
+                axes[key_idx].grid(True)
+                sns.lineplot(dfs, x='Idx', y='Value', ax=axes[key_idx])
+                axes[key_idx].set_title(f'{key}')
+
+    def draw_scaler(self, key, seed, task, ax=None, title=False):
+        if 'log' not in self.storage:
+            self.load_log_data()
+        if ax is None:
+            fig, ax = plt.subplots()
+        ax.grid(True)
+
+        df = self.storage['log'][seed][task]['scaler']
+        t_df = df[df.Tag == key]
+
+        sns.lineplot(t_df, x='Idx', y='Value', ax=ax)
+        if title:
+            ax.set_title(f'{key}-run{seed}-t{task}')
+
+        return ax
 
     def load_args(self, exp_path):
         print(f'Load args from {exp_path}.')
@@ -316,6 +324,10 @@ class Debugger:
     def check_level(self, level):
         thres = self.levels.index(level)
         return thres >= self.level
+
+    """
+    RUNTIME FUNCTION BELOW
+    """
 
     def print_prototype_change(self, model: nn.Module, i, writer: Optional[SummaryWriter] = None):
         """
