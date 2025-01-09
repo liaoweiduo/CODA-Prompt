@@ -309,6 +309,7 @@ class Debugger:
 
                 # save
                 file_name = f'{key}.png'
+                file_name = '-'.join(file_name.split('/'))
                 fig.savefig(os.path.join(self.save_path, file_name), bbox_inches='tight', dpi=50)
 
     def draw_scaler(self, key, seed, task, ax=None, title=False):
