@@ -269,7 +269,7 @@ class Debugger:
         max_seed = self.args['repeat']
         max_task = self.args['max_task']
         nrows, ncols = 1, len(keys)
-        if draw:
+        if draw and nrows > 0 and ncols > 0:
             fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*5, nrows*5))   # sharex=True, sharey=True
             fig.suptitle(f'{self.name}', fontsize=16)
         else:
@@ -296,10 +296,14 @@ class Debugger:
                                             'Std': t_series.std(),
                                             'CI95': 1.96 * (t_series.std() / np.sqrt(len(t_series)))}
 
-            if draw:
-                axes[key_idx].grid(True)
-                sns.lineplot(dfs, x='Idx', y='Value', ax=axes[key_idx])
-                axes[key_idx].set_title(f'{key}')
+            if draw and nrows > 0 and ncols > 0:
+                if nrows == 1 and ncols == 1:
+                    ax = axes
+                else:
+                    ax = axes[key_idx]
+                ax.grid(True)
+                sns.lineplot(dfs, x='Idx', y='Value', ax=ax)
+                ax.set_title(f'{key}')
 
     def draw_scaler(self, key, seed, task, ax=None, title=False):
         if 'log' not in self.storage:
