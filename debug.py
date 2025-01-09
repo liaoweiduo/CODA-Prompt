@@ -100,7 +100,7 @@ class Debugger:
             data_yaml = yaml.load(open(file, 'r'), Loader=yaml.Loader)
             data = np.array(data_yaml['history'])  # [n_tsk, n_tsk, n_run]
         except:
-            if self.check_level('INFO'):
+            if self.check_level('DEBUG'):
                 print(f'File not find: {file}.')
             return
             # data = np.zeros((2,2,2))
@@ -141,7 +141,7 @@ class Debugger:
             data_yaml = yaml.load(open(file, 'r'), Loader=yaml.Loader)
             data = np.array(data_yaml['history'])  # [n_tsk, n_tsk, n_run]
         except:
-            if self.check_level('INFO'):
+            if self.check_level('DEBUG'):
                 print(f'File not find: {file}.')
             return
             # data = np.zeros((2,2,2))
@@ -169,7 +169,7 @@ class Debugger:
                 data_yaml = yaml.load(open(file, 'r'), Loader=yaml.Loader)
                 data = np.array(data_yaml['mean'])  # [50]
             except:
-                if self.check_level('INFO'):
+                if self.check_level('DEBUG'):
                     print(f'File not find: {file}.')
                 return
                 # data = np.zeros((2))
@@ -205,7 +205,7 @@ class Debugger:
 
     def load_log_data(self):
         # load log
-        if self.check_level('INFO'):
+        if self.check_level('DEBUG'):
             print(f'Load log data.')
 
         self.storage['log'] = {}
@@ -219,7 +219,7 @@ class Debugger:
                     # df_mo = data['mo']
                     self.storage['log'][seed][task] = data
                 except:
-                    if self.check_level('INFO'):
+                    if self.check_level('DEBUG'):
                         print(f'File not find: {file}.')
 
     def collect_reg_losses(self, draw=False):
@@ -261,6 +261,9 @@ class Debugger:
 
         # extend columns
         self.columns.extend(keys)
+
+        if self.check_level('INFO'):
+            print(f'Collect regs: {keys}.')
 
         # cat df
         max_seed = self.args['repeat']
