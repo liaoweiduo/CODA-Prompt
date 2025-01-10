@@ -163,7 +163,6 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
     --lr ${lr} ${lr} \
-    --larger_prompt_lr \
     --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
     --concept_weight \
     --use_old_samples_for_reg \
@@ -174,6 +173,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
+#    --larger_prompt_lr \
 #    --use_old_samples_for_reg_no_grad \
 #    --eval_class_wise \
 

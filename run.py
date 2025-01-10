@@ -14,6 +14,7 @@ import yaml
 import json
 import random
 from trainer import Trainer
+from debug import Debugger
 
 def create_args():
     
@@ -308,3 +309,7 @@ if __name__ == '__main__':
     # do compositional testing on all available mode
     if args.compositional_testing:
         comp_test(args)
+
+    debugger = Debugger(args=vars(args))
+    res = debugger.collect_results(max_task=args.max_task, draw=True)
+    df_res = debugger.generate_df()
