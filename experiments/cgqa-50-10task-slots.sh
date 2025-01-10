@@ -152,7 +152,7 @@ concept_similar_reg_temp=0.01
 for concept_similar_reg_coeff in 0.05 0.1 0.3 0.5; do
 concept_similar_reg_mode=dot+ce
 lr=1e-3
-LOGNAME=11-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+LOGNAME=12-slot-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
 #((i++))
 #device=${devices[${i}]}
 #docker run -d --rm --runtime=nvidia --gpus device=${device} \
@@ -162,7 +162,6 @@ LOGNAME=11-slot_prompt-sMT-cheating-lpl-csrc${concept_similar_reg_coeff}_old_${c
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
-    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
     --lr ${lr} ${lr} \
     --larger_prompt_lr \
     --concept_weight \
@@ -174,6 +173,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 done
+#    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
 #    --use_old_samples_for_reg_no_grad \
 #    --eval_class_wise \
 

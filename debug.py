@@ -63,7 +63,7 @@ class Debugger:
     def _default_output_args(self):
         # default params
         self.output_args = [
-            'max_task', 'lr', 'prompt_param', 'larger_prompt_lr']
+            'max_task', 'lr', 'prompt_param', 'larger_prompt_lr', 'batch_size']
         if self.args['lr_decreace_ratio'] != 1.0:
             self.output_args.append('lr_decrease_ratio')
 
@@ -234,10 +234,24 @@ class Debugger:
         if 'log' not in self.storage:
             self.load_log_data()
 
+        max_seed = self.args['repeat']
+        max_task = self.args['max_task']
+        candidate_keys = list(set(self.storage['log'][max_seed-1][max_task-1]['scaler'].Tag))
+
         # keys and put coeff to output_args
         keys = []
+        # training and validation losses
+        if 'val_recon_loss' in candidate_keys:
+            keys.extend(['val_recon_loss'])
+        if 'val_acc' in candidate_keys:
+            keys.extend(['val_acc'])
+        if 'loss/slot_recon_loss' in candidate_keys:
+            keys.extend(['loss/slot_recon_loss'])
+        if 'loss/ce_loss' in candidate_keys:
+            keys.extend(['loss/ce_loss'])
+
+        # slot reg losses
         if self.args['learner_name'] == 'SLOTPrompt':
-            # slot params
             if self.args.get('use_intra_consistency_reg', False):
                 self.output_args.extend(['intra_consistency_reg_coeff'])
                 keys.extend(['loss/intra_consistency_loss'])
@@ -245,7 +259,7 @@ class Debugger:
                 self.output_args.extend(['slot_ortho_reg_mode', 'slot_ortho_reg_coeff'])
                 keys.extend(['loss/slot_ortho_loss'])
 
-        # prompt param
+        # prompt reg losses
         if self.args.get('use_weight_reg', False):
             self.output_args.extend(['weight_reg_mode', 'weight_reg_coeff'])
             keys.extend(['loss/s2p_loss'])
@@ -274,8 +288,6 @@ class Debugger:
             print(f'Collect regs: {keys}.')
 
         # cat df
-        max_seed = self.args['repeat']
-        max_task = self.args['max_task']
         nrows, ncols = 1, len(keys)
         if draw and nrows > 0 and ncols > 0:
             fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*5, nrows*5))   # sharex=True, sharey=True
