@@ -56,9 +56,7 @@ class Debugger:
         self.storage['results'] = {}
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
-        axes = self.collect_reg_losses(draw=draw)
-
-        res = {'reg': axes}
+        res = self.collect_losses(draw=draw)
 
         return res
 
@@ -230,7 +228,9 @@ class Debugger:
                     if self.check_level('DEBUG'):
                         print(f'File not find: {file}.')
 
-    def collect_reg_losses(self, draw=False):
+    def collect_losses(self, res=None, draw=False):
+        if res is None:
+            res = dict()
         if 'log' not in self.storage:
             self.load_log_data()
 
@@ -304,21 +304,34 @@ class Debugger:
                                             'Std': t_series.std(),
                                             'CI95': 1.96 * (t_series.std() / np.sqrt(len(t_series)))}
 
+            res[key] = dfs
+
             if draw and nrows > 0 and ncols > 0:
                 if nrows == 1 and ncols == 1:
                     ax = axes
                 else:
                     ax = axes[key_idx]
-                ax.grid(True)
-                sns.lineplot(dfs, x='Idx', y='Value', ax=ax)
-                ax.set_title(f'{key}')
+                self.draw(dfs, ax=ax, title=f'{key}')
 
-                # save
-                file_name = f'{key}.png'
-                file_name = '-'.join(file_name.split('/'))
-                fig.savefig(os.path.join(self.save_path, file_name), bbox_inches='tight', dpi=100)
+        if draw and nrows > 0 and ncols > 0:
+            self.savefig(fig, 'loss.png')
 
-        return axes
+        return res
+
+    @staticmethod
+    def draw(df, ax=None, title=None):
+        """df contains Idx, Value"""
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        ax.grid(True)
+        sns.lineplot(df, x='Idx', y='Value', ax=ax)
+        if title:
+            ax.set_title(title)
+
+    def savefig(self, fig, file_name):
+        file_name = '-'.join(file_name.split('/'))
+        fig.savefig(os.path.join(self.save_path, file_name), bbox_inches='tight', dpi=100)
 
     def draw_scaler(self, key, seed, task, ax=None, title=False):
         if 'log' not in self.storage:
