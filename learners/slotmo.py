@@ -176,8 +176,10 @@ class SLOTPrompt(Prompt):
         return flag
 
     # sets model optimizers
-    def init_optimizer(self, t, target, schedule):
+    def init_optimizer(self, t=0, target=None, schedule=None):
         """target - slot; prompt+reuse(new); last"""
+        if schedule is None:
+            schedule = [30]
         params_to_opt_s, names_s = [], []
         params_to_opt_p, names_p = [], []
         params_to_opt_l, names_l = [], []
