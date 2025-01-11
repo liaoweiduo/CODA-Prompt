@@ -180,6 +180,8 @@ class SLOTPrompt(Prompt):
         """target - slot; prompt+reuse(new); last"""
         if schedule is None:
             schedule = [30]
+        if target is None:
+            target = 'all'
         params_to_opt_s, names_s = [], []
         params_to_opt_p, names_p = [], []
         params_to_opt_l, names_l = [], []
@@ -200,7 +202,7 @@ class SLOTPrompt(Prompt):
                 if 'prompt' in target and 'new' in target and ('prompt' in k and 'slot_attn' not in k):
                     params_to_opt_p.append(p)
                     names_p.append(k)
-                if target is None:      # all things train together
+                if target == 'all':      # all things train simultaneously
                     if 'slot_attn' in k:
                         params_to_opt_s.append(p)
                         names_s.append(k)
