@@ -34,7 +34,7 @@ def create_args():
     parser.add_argument('--repeat', type=int, default=1, help="Repeat the experiment N times")
     parser.add_argument('--overwrite', type=int, default=0, metavar='N', help='Train regardless of whether saved model exists')
     parser.add_argument('--lr', nargs="+", type=float, default=[0.001, 0.001], help="lr")
-    parser.add_argument('--batch_size', type=int, default=32, help="temperature for distillation")
+    parser.add_argument('--batch_size', type=int, default=32, help="batch size")
     parser.add_argument('--lr_decreace_ratio', type=float, default=1.0,
                         help="lr on prompt = ratio * lr")
 
@@ -62,7 +62,7 @@ def create_args():
     parser.add_argument('--s2p_mode', type=str, default='attn+sig',
                         help="some options: [attn+sig, attn+cos, attn+avg, "
                              "attn+FPS+sig, attn+FPS+cos, attn+FPS+avg, mlp, gate]")
-    parser.add_argument('--slot_cross_attn_temp', type=float, default=80.,
+    parser.add_argument('--slot_cross_attn_temp', type=float, default=10.,
                         help="temperature to measure how popular of the slots across the batch imgs.")
 
     parser.add_argument('--only_learn_slot', default=False, action='store_true', help='only learn slots')
@@ -70,16 +70,18 @@ def create_args():
                         help="The model name to the pre-learned slot attn model.")
     parser.add_argument('--t0_model_from', type=str, default='none',
                         help="The model name to warm-start from the 2nd task.")
-    parser.add_argument('--slot_lr', type=float, default=0.0003, help="slot lr")
+    parser.add_argument('--slot_lr', nargs="+", type=float, default=[0.0001, 0.0001], help="slot lr")
     parser.add_argument('--slot_schedule_type', type=str, default='cosine')
     parser.add_argument('--logit_task_mask_top_k', type=int, default=10, help="no use")
 
     parser.add_argument('--use_intra_consistency_reg', action='store_true')
     parser.add_argument('--intra_consistency_reg_coeff', type=float, default=0.0,
                         help="coeff of reg on maintaining intra-consistency of slots")
+    parser.add_argument('--intra_consistency_reg_mode', type=str, default='learn+l1',
+                        help="learn(cross)+l1(l2, ce)")
 
     parser.add_argument('--use_slot_ortho_reg', action='store_true')
-    parser.add_argument('--slot_ortho_reg_mode', type=str, default='l2',
+    parser.add_argument('--slot_ortho_reg_mode', type=str, default='ce',
                         help="l1, l2, ce")
     parser.add_argument('--slot_ortho_reg_coeff', type=float, default=0.0,
                         help="coeff of reg on slot ortho.")
@@ -121,7 +123,7 @@ def create_args():
                         help="sensitivity for reg on n_cls.")
     parser.add_argument('--concept_similar_reg_temp', type=float, default=0.01,
                         help="temp on logit similarity.")
-    parser.add_argument('--concept_similar_reg_mode', type=str, default='cos+l2')
+    parser.add_argument('--concept_similar_reg_mode', type=str, default='dot+kl')
     parser.add_argument('--dynamic_concept_similar_reg_coeff', default=False, action='store_true',
                         help='coeff from 0 for the first epoch.')
     parser.add_argument('--use_old_samples_for_reg', action='store_true')

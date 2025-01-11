@@ -25,18 +25,47 @@ mkdir -p $OUTDIR
 # prompt parameter args:
 #    arg 1 = prompt component pool size
 #    arg 2 = prompt length
-#    arg 3 = num of slots extracted from one img
-#    arg 4 = num of iter to extract slots
-#    arg 5 = temperature to control how sharp are slot attns
-#    arg 6 = temperature to control slot selection
-#    arg 7 = coeff for weights reg
-#    arg 8 = coeff for ccl
-#    arg 9 = margin for ccl
-#    arg 10 = tau for ccl
-#    arg 11 = temperature for cross attn
-#    arg 12 = coeff for mk loss
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
+
+#concept_similar_reg_coeff=1.0
+## $1
+
+# co-learn slot and prompt
+lr=1e-3
+slot_lr=1e-4
+for intra_consistency_reg_coeff in 0.01; do
+for slot_ortho_reg_coeff in 0.1 0.5 1.0; do
+concept_similar_reg_coeff=1.0
+# $1
+concept_similar_reg_temp=0.01
+LOGNAME=12-slot-icr${intra_consistency_reg_coeff}-sor${slot_ortho_reg_coeff}-slr${slot_lr}-cheating-csrc${concept_similar_reg_coeff}_old_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 \
+    --batch_size 256 \
+    --lr ${lr} ${lr} \
+    --slot_lr ${slot_lr} ${slot_lr} \
+    --use_intra_consistency_reg \
+    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --use_slot_ortho_reg \
+    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
+    --use_old_samples_for_reg \
+    --concept_weight \
+    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+    --concept_similar_reg_temp ${concept_similar_reg_temp} \
+    --max_task 3 \
+    --compositional_testing \
+    --log_dir ${OUTDIR}/${LOGNAME}
+done
+done
+#    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+#    --larger_prompt_lr \
+#    --use_old_samples_for_reg_no_grad \
+#    --eval_class_wise \
+
+
+
 #slot_lrs=(1e-4); temps=(80)
 #mk_coeffs=(0.5); slot_vsI_coeffs=(0.5)
 #devices=(5); i=-1
@@ -145,37 +174,36 @@ mkdir -p $OUTDIR
 #done
 ##    --eval_class_wise \
 
-# concept similar reg + larger prompt lr
-concept_similar_reg_coeff=$1
-# $1
-
-for concept_similar_reg_temp in 0.01; do
-concept_similar_reg_mode=dot+ce
-lr=1e-3
-LOGNAME=11-slot_prompt-sMT-cheating-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
-#((i++))
-#device=${devices[${i}]}
-#docker run -d --rm --runtime=nvidia --gpus device=${device} \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 8 \
-    --lr ${lr} ${lr} \
-    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
-    --concept_weight \
-    --use_old_samples_for_reg \
-    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
-    --concept_similar_reg_mode ${concept_similar_reg_mode} \
-    --concept_similar_reg_temp ${concept_similar_reg_temp} \
-    --max_task 3 \
-    --compositional_testing \
-    --log_dir ${OUTDIR}/${LOGNAME}
-done
-#    --larger_prompt_lr \
-#    --use_old_samples_for_reg_no_grad \
-#    --eval_class_wise \
+## concept similar reg + larger prompt lr
+#concept_similar_reg_coeff=$1
+## $1
+#for concept_similar_reg_temp in 0.01; do
+#concept_similar_reg_mode=dot+ce
+#lr=1e-3
+#LOGNAME=11-slot_prompt-sMT-cheating-csrc${concept_similar_reg_coeff}_old_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+##((i++))
+##device=${devices[${i}]}
+##docker run -d --rm --runtime=nvidia --gpus device=${device} \
+##  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+##  -v ~/.cache:/workspace/.cache \
+##  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type slotmo --learner_name SLOTPrompt \
+#    --prompt_param 100 8 \
+#    --lr ${lr} ${lr} \
+#    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+#    --concept_weight \
+#    --use_old_samples_for_reg \
+#    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+#    --concept_similar_reg_mode ${concept_similar_reg_mode} \
+#    --concept_similar_reg_temp ${concept_similar_reg_temp} \
+#    --max_task 3 \
+#    --compositional_testing \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+#done
+##    --larger_prompt_lr \
+##    --use_old_samples_for_reg_no_grad \
+##    --eval_class_wise \
 
 ## cfst
 #for mode in sys pro sub non noc

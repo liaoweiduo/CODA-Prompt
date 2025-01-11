@@ -112,7 +112,7 @@ class SlotPrompt(nn.Module):
         #     # self.expert_predictor.append(new_exp_pre)
 
     def handle_q(self, q, all=True, learn_slots=True, train=False,
-                 temp=None, n_iter=None, prompt_phase=1):
+                 temp=None, n_iter=None, prompt_phase='new'):
         """all control slot-attn: True all slot-attn module, False the last slot-attn module"""
         # obtain slot-prompts
         if q is None:
@@ -134,7 +134,7 @@ class SlotPrompt(nn.Module):
             else:
                 with torch.no_grad():       # this phase does not learn slot attn
                     _slots, _attn, iter_dict = self.slot_attn[t].forward_slots(q, temp=temp, n_iter=n_iter)
-                _recon_loss = 0
+                _recon_loss = torch.zeros(1).mean().to(_slots.device)
             _prompts, _selection, _w, _w_slots = self.s2p(_slots, train=train, phase=prompt_phase)
             prompts.append(_prompts)
             if _selection is not None:

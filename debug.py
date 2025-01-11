@@ -253,7 +253,7 @@ class Debugger:
         # slot reg losses
         if self.args['learner_name'] == 'SLOTPrompt':
             if self.args.get('use_intra_consistency_reg', False):
-                self.output_args.extend(['intra_consistency_reg_coeff'])
+                self.output_args.extend(['intra_consistency_reg_mode', 'intra_consistency_reg_coeff'])
                 keys.extend(['loss/intra_consistency_loss'])
             if self.args.get('use_slot_ortho_reg', False):
                 self.output_args.extend(['slot_ortho_reg_mode', 'slot_ortho_reg_coeff'])

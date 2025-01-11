@@ -94,7 +94,7 @@ class SLOTPrompt(Prompt):
 
         return model
 
-    def load_model(self, filename, drop_last=False, task_id=-1, from_outside=False, slot_pre_learn_model='none',
+    def load_model(self, filename, drop_last=False, task_id=-1, if_from_outside=False, slot_pre_learn_model='none',
                    freeze=False):
         flag = False        # True if need to further train
         # if slot_pre_learn_model is not none, load slots
@@ -126,7 +126,7 @@ class SLOTPrompt(Prompt):
             # if self.pool is None:
             #     self.register_buffer('pool', torch.randn(self.e_pool_size, self.key_d).float())
 
-            if self.t == 0 and from_outside and self.config['t0_model_from'] != 'none':     # 1-st task load from warm-started one
+            if self.t == 0 and if_from_outside and self.config['t0_model_from'] != 'none':     # 1-st task load from warm-started one
                 filename = ('/'.join(self.config['log_dir'].split('/')[:-1]) + '/' +
                             self.config['t0_model_from'] + f'/models/repeat-{self.seed+1}/task-1/')
                 print(f'redirect loading model from {filename}.')
@@ -176,102 +176,69 @@ class SLOTPrompt(Prompt):
         return flag
 
     # sets model optimizers
-    def init_optimizer(self, t=0, target=None, schedule=None, phase=0):
-        # phase = 0: learn slot; phase = 1: learn prompt
-        if phase == 0:
-            lr = self.config['slot_lr']
-        else:
-            if type(self.config['lr']) is float:
-                lr = self.config['lr']
-            elif t >= len(self.config['lr']):
-                lr = self.config['lr'][-1]
-            else:
-                lr = self.config['lr'][t]
-
-        lr_decreace_ratio = self.config['lr_decreace_ratio']   # for slot
-        larger_prompt_lr = self.config['args'].larger_prompt_lr
-
-        if schedule is None:
-            schedule = self.schedule
-        if t >= len(schedule):
-            schedule = schedule[-1]
-        else:
-            schedule = schedule[t]
-
-        if type(schedule) is not list:
-            schedule = [schedule, 0, schedule]
-
-        # parse optimizer args
-        # Multi-GPU
-        if len(self.config['gpuid']) > 1:
-            last = self.model.module.last
-            prompt = self.model.module.prompt
-        else:
-            last = self.model.last
-            prompt = self.model.prompt
-
+    def init_optimizer(self, t, target, schedule):
+        """target - slot; prompt+reuse(new); last"""
+        params_to_opt_s, names_s = [], []
         params_to_opt_p, names_p = [], []
         params_to_opt_l, names_l = [], []
-        if self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
-            # if fewshot testing self.config['mode'], only learn classifier: model.last
-            for k, p in self.model.named_parameters():
-                if 'last' in k and p.requires_grad:
+        for k, p in self.model.named_parameters():
+            if p.requires_grad:
+                if 'last' in target and 'last' in k:
+                    # include CFST self.config['mode'] in ['sys', 'pro', 'sub', 'non', 'noc']:
+                    # if fewshot testing self.config['mode'], only learn classifier: model.last
                     params_to_opt_l.append(p)
                     names_l.append(k)
-        elif target == 'last':
-            for k, p in self.model.named_parameters():
-                if 'last' in k and p.requires_grad:
-                    params_to_opt_l.append(p)
-                    names_l.append(k)
-        elif target == 'prompt':
-            for k, p in self.model.named_parameters():
-                if 'prompt' in k and p.requires_grad:
+                if 'slot' in target and 'slot_attn' in k:
+                    params_to_opt_s.append(p)
+                    names_s.append(k)
+                if 'prompt' in target and 'reuse' in target and (
+                        'prompt' in k and 'e_p' not in k and 'slot_attn' not in k):     # reuse do not train p
                     params_to_opt_p.append(p)
                     names_p.append(k)
-        elif target == 'expert':
-            raise Exception(f'init {target} optimizer error')
-            # for k, p in self.model.named_parameters():
-            #     if 'expert_' in k:
-            #         params_to_opt.append(p)
-            #         names.append(k)
-        elif target == 'slot':
-            for k, p in self.model.named_parameters():
-                if 'slot_attn' in k and p.requires_grad:
+                if 'prompt' in target and 'new' in target and ('prompt' in k and 'slot_attn' not in k):
                     params_to_opt_p.append(p)
                     names_p.append(k)
-        elif target == '/slot':
-            for k, p in self.model.named_parameters():
-                if 'prompt' in k and 'slot_attn' not in k and p.requires_grad:
-                    params_to_opt_p.append(p)
-                    names_p.append(k)
-                elif 'last' in k and p.requires_grad:
-                    params_to_opt_l.append(p)
-                    names_l.append(k)
-                    # params_to_opt.append(p[self.task[t]])
-                    # names.append(f'{k}[{np.min(self.task[t])}-{self.task[t]}]')
-        else:
-            for k, p in self.model.named_parameters():
-                if 'prompt' in k and p.requires_grad:
-                    params_to_opt_p.append(p)
-                    names_p.append(k)
-                elif 'last' in k and p.requires_grad:
-                    params_to_opt_l.append(p)
-                    names_l.append(k)
+                if target is None:      # all things train together
+                    if 'slot_attn' in k:
+                        params_to_opt_s.append(p)
+                        names_s.append(k)
+                    if 'prompt' in k and 'slot_attn' not in k:
+                        params_to_opt_p.append(p)
+                        names_p.append(k)
+                    elif 'last' in k:
+                        params_to_opt_l.append(p)
+                        names_l.append(k)
 
         print('******************* init optimizer **********************')
         print(f'optimizer params: {"all" if target is None else target} '
-              f'len {[len(params_to_opt_p), len(params_to_opt_l)]}')
-        print(f'{names_p}')
-        print(f'{names_l}')
+              f'len {[len(params_to_opt_s), len(params_to_opt_p), len(params_to_opt_l)]}')
+        print(f'slots: {names_s}')
+        print(f'prompt: {names_p}')
+        print(f'last: {names_l}')
+
+        lr = self.config['lr']          # [1e-3, 1e-3,...]
+        slot_lr = self.config['slot_lr']    # [1e-4, 1e-4,...]
+        if type(lr) is list and t >= len(lr):
+            lr = lr[-1]
+        elif type(lr) is list:
+            lr = lr[t]
+        if type(slot_lr) is list and t >= len(slot_lr):
+            slot_lr = slot_lr[-1]
+        elif type(slot_lr) is list:
+            slot_lr = slot_lr[t]
+        # slot_lr=1e-4; lr=1e-3
+
+        lr_decreace_ratio = self.config['lr_decreace_ratio']   # for prompt
+        larger_prompt_lr = self.config['args'].larger_prompt_lr
 
         if larger_prompt_lr:
-            lrs = [lr, 0.1 * lr]
+            lrs = [slot_lr, lr, 0.1 * lr]
         else:       #
-            lrs = [lr_decreace_ratio * lr, lr]
-        params = [params_to_opt_p, params_to_opt_l]
+            lrs = [slot_lr, lr_decreace_ratio * lr, lr]
         print(f'lrs: {lrs}')
 
         opt_args = []
+        params = [params_to_opt_s, params_to_opt_p, params_to_opt_l]
         for idx in range(len(lrs)):
             _lr = lrs[idx]
             _params = params[idx]
@@ -295,17 +262,18 @@ class SLOTPrompt(Prompt):
         # self.optimizer = torch.optim.__dict__[self.config['optimizer']](**optimizer_arg)
 
         # create schedules
-        if target == 'slot':
+        if target == 'slot':        # only learn slot in this phase
             schedule_type = self.config['slot_schedule_type']     # cosann
         else:
             schedule_type = self.schedule_type
+
         if schedule_type == 'cosine':
-            self.scheduler = CosineSchedule(self.optimizer, K=schedule[phase])
+            self.scheduler = CosineSchedule(self.optimizer, K=schedule[-1])
         elif schedule_type == 'decay':
-            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule[phase], gamma=0.1)
+            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=schedule, gamma=0.1)
         elif schedule_type == 'cosann':
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                self.optimizer, T_0=int(schedule[phase]/2), T_mult=1, eta_min=lr/100)
+                self.optimizer, T_0=int(schedule[-1]/2), T_mult=1, eta_min=lr/100)
         else:       # no change
             self.scheduler = type('empty_scheduler', (), {})()
             self.scheduler.step = lambda x=0: None       # empty object scheduler with empty step() func.
@@ -327,10 +295,10 @@ class SLOTPrompt(Prompt):
             if model_save_dir is not None and self.config['slot_pre_learn_model'] != 'none':
                 # raise exp if no slot trained but train prompt
                 # model_save_dir will be None if do compositional few-shot testing and model is load in trainer_ft.py
-                flag = self.load_model(model_save_dir, task_id=self.t,
-                                       slot_pre_learn_model=self.config['slot_pre_learn_model'])
+                self.load_model(model_save_dir, task_id=self.t,
+                                slot_pre_learn_model=self.config['slot_pre_learn_model'])
             try:
-                flag = self.load_model(model_save_dir, task_id=self.t, from_outside=True)
+                flag = self.load_model(model_save_dir, task_id=self.t, if_from_outside=True)
                 need_train = flag
             except:
                 pass
@@ -351,257 +319,146 @@ class SLOTPrompt(Prompt):
                 else:
                     self.s2p_copy = None
 
-            if self.config['only_learn_slot'] or self.config['slot_pre_learn_model'] == 'none':
-                # for CFST, slot_pre_learn_model is not none, so will not be going to fine-tune slots
-                self.log(f'Phase I： training slots')
-                losses = AverageMeter()
-                intra_consistency_losses = AverageMeter()
-                slot_sim_mses = AverageMeter()
-                alpha1s = AverageMeter()
-                alpha2s = AverageMeter()
-                alpha3s = AverageMeter()
-                batch_time = AverageMeter()
-                batch_timer = Timer()
+            # Determine schedule list for this task
+            schedule = self.schedule     # T*[[epochs for slots], [enhance reuse], [learn new prompt]] or []
+            if self.t >= len(schedule):
+                schedule = schedule[-1]
+            else:
+                schedule = schedule[self.t]   # [[epochs for slots], [enhance reuse], [learn new prompt]]
 
-                schedule = self.config['schedule']
-                if self.t >= len(schedule):
-                    schedule = schedule[-1]
+            if type(schedule) is not list:      # for CFST: 20
+                schedule = [schedule, 0, schedule]  # for CFST: [20, 0, 20]
+
+            # determine train_phases for this task
+            if self.config['only_learn_slot']:      # only learn slot
+                optimizer_targets = ['slot']
+                schedule_phases = [0]
+            elif model_save_dir is None:        # cfst do not load model during training
+                optimizer_targets = ['last']
+                schedule_phases = [0]
+            elif self.config['slot_pre_learn_model'] == 'none':    # learn slot and prompt
+                if schedule[0][-1] > 0:         # if learn slot separately.
+                    optimizer_targets = ['slot', 'prompt+reuse+last', 'prompt+new+last']
+                    schedule_phases = [0, 1, 2]
                 else:
-                    schedule = schedule[self.t]
-                if type(schedule) is not list:
-                    schedule = [schedule, schedule]
-                epochs = schedule[0]        # phase I
+                    optimizer_targets = ['slot+prompt+reuse+last', 'slot+prompt+new+last']
+                    schedule_phases = [1, 2]
+            else:
+                raise Exception(f"Incorrect condition - "
+                                f"only_learn_slot: {self.config['only_learn_slot']}, "
+                                f"slot_pre_learn_model: {self.config['slot_pre_learn_model']}, "
+                                f"model_save_dir: {model_save_dir}.")
+            self.log(f'Optimizer targets: {optimizer_targets}')
+
+            for optimizer_target, schedule_phase in zip(optimizer_targets, schedule_phases):
+                self.log(f'Phase：{optimizer_target}, schedule: {schedule[schedule_phase]}')
+
+                # define tracking things
+                res = dict()
+                batch_timer = Timer()
+                res['Loss'] = AverageMeter()
+                res['Train Acc'] = AverageMeter()
+                res['Time'] = AverageMeter()
+
+                epochs = schedule[schedule_phase][-1]     # [,30] -> 30
+                if epochs == 0:
+                    print(f'Skip this phase, cause epochs=0')
+                    continue
+
                 self.epochs = epochs
+                if self.reset_optimizer:  # Reset optimizer before learning each task
+                    self.log('Optimizer is reset')
+                    self.init_optimizer(t=self.t, target=optimizer_target, schedule=schedule[schedule_phase])
 
-                if epochs > 1:      # do not do phase I if not assign epochs to it.
-                    if self.reset_optimizer:  # Reset optimizer before learning each task
-                        self.log('Optimizer is reset')
-                        self.init_optimizer(t=self.t, target='slot', phase=0)
+                for epoch in range(epochs):
+                    self.epoch = epoch
 
-                    for epoch in range(epochs):
-                        self.epoch = epoch
+                    if epoch > 0: self.scheduler.step()
+                    for param_group in self.optimizer.param_groups:
+                        self.log('LR:', param_group['lr'])
+                    batch_timer.tic()
+                    for i, sample in enumerate(train_loader):
+                        self.batch_idx = i
 
-                        if epoch > 0: self.scheduler.step()
-                        for param_group in self.optimizer.param_groups:
-                            self.log('LR:', param_group['lr'])
+                        concepts = None
+                        if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
+                            x, y, concepts, task = sample
+                        else:
+                            x, y, task = sample
+
+                        # verify in train mode
+                        self.model.train()
+
+                        # send data to gpu
+                        if self.gpu:
+                            x = x.cuda()
+                            y = y.cuda()
+                            # if concepts is not None:
+                            #     concepts = concepts.cuda()      # [bs, 224, 224]
+                            # task = task.cuda()
+
+                        # # debug
+                        # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                        # model update
+                        loss, output, loss_dict = self.update_model(x, y, optimizer_target=optimizer_target)
+
+                        # measure elapsed time
+                        res['Time'].update(batch_timer.toc())
                         batch_timer.tic()
-                        for i, sample in enumerate(train_loader):
-                            self.batch_idx = i
 
-                            concepts = None
-                            if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
-                                x, y, concepts, task = sample
-                            else:
-                                x, y, task = sample
+                        # measure accuracy and record loss
+                        y = y.detach()
+                        accumulate_acc(output, y, task, res['Train Acc'], topk=(self.top_k,))
+                        res['Loss'].update(loss, y.size(0))
+                        # create or maintain records
+                        for key, v in loss_dict.items():
+                            visual_key = ''     # e.g., InCoLo
+                            for word in key.split('_'):
+                                visual_key = visual_key + word[0].upper()+word[1].lower()
+                            if visual_key not in res.keys():
+                                res[visual_key] = AverageMeter()
+                            res[visual_key].update(v, y.size(0))
 
-                            # verify in train mode
-                            self.model.train()
+                        batch_timer.tic()
 
-                            # send data to gpu
-                            if self.gpu:
-                                x = x.cuda()
-                                y = y.cuda()
-                                # if concepts is not None:
-                                #     concepts = concepts.cuda()      # [bs, 224, 224]
-                                # task = task.cuda()
+                    # eval update
+                    self.log(
+                        'Epoch:{epoch:.0f}/{total:.0f}'.format(
+                            epoch=self.epoch + 1, total=epochs))
+                    log_str = (' * Loss {loss.avg:.3f} | '
+                               'Train Acc {acc.avg:.3f} | ').format(loss=res['Loss'], acc=res['Train Acc'])
+                    for name, meter in res.items():
+                        if name != 'Loss' and name != 'Train Acc' and name != 'Time':
+                            log_str = log_str + '{name} {meter.avg:.3f} | '.format(name=name, meter=meter)
+                    log_str = log_str + 'Time {time:.3f}s ({i} batches)'.format(
+                        time=res['Time'].avg*len(train_loader), i=len(train_loader),)
+                    self.log(log_str)
 
-                            # # debug
-                            # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+                    # reset
+                    for name in res.keys():
+                        res[name] = AverageMeter()
 
-                            # model update
-                            loss, output, loss_dict = self.update_model(x, y, learn_slots=True)
-                            intra_consistency_loss = loss_dict['intra_consistency_loss']
-                            slot_sim_mse = loss_dict['slot_ortho_loss']
-                            # alpha = loss_dict['alpha']
+                    # validation
+                    if val_loader is not None:
 
-                            # measure elapsed time
-                            batch_time.update(batch_timer.toc())
-                            batch_timer.tic()
-
-                            # measure accuracy and record loss
-                            y = y.detach()
-                            losses.update(loss, y.size(0))
-                            intra_consistency_losses.update(intra_consistency_loss, y.size(0))
-                            slot_sim_mses.update(slot_sim_mse, y.size(0))
-                            # alpha1s.update(alpha[0], y.size(0))
-                            # alpha2s.update(alpha[1], y.size(0))
-                            # alpha3s.update(alpha[2], y.size(0))
-                            batch_timer.tic()
-
-                        # eval update
-                        self.log(
-                            'Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch + 1, total=epochs))
-                        self.log(
-                            ' * Loss {loss.avg:.3f} a({alpha1.avg:.3f}) | '
-                            'Intra Cons Loss {intra_consistency_loss.avg:.3f} a({alpha2.avg:.3f}) | '
-                            'Slot Ortho Loss {slot_sim_mse.avg:.3f} a({alpha3.avg:.3f}) | '
-                            'Time {time:.3f}s ({i} batches)'.format(
-                                loss=losses, intra_consistency_loss=intra_consistency_losses, slot_sim_mse=slot_sim_mses,
-                                alpha1=alpha1s, alpha2=alpha2s, alpha3=alpha3s,
-                                time=batch_time.avg*len(train_loader), i=len(train_loader)))
-
-                        # reset
-                        losses = AverageMeter()
-                        intra_consistency_losses = AverageMeter()
-                        slot_sim_mses = AverageMeter()
-                        alpha1s = AverageMeter()
-                        alpha2s = AverageMeter()
-                        alpha3s = AverageMeter()
-
-                        # validation recon loss
-                        if val_loader is not None:
+                        if 'slot' == optimizer_target:      # this phase only learn slot with reconstruction task
                             val_recon_loss = self.validation(val_loader, slot_recon_loss=True)
                             # log
                             self.epoch_log['scaler']['Tag'].append(f'val_recon_loss')
                             self.epoch_log['scaler']['Idx'].append(self.epoch)
                             self.epoch_log['scaler']['Value'].append(val_recon_loss)
-
-                        # if self.epoch % 10 == 0:
-                        if self.epoch == 0:
-                            '''nvidia-smi'''
-                            os.system('nvidia-smi')
-
-            if not self.config['only_learn_slot']:
-                self.log(f'Phase II： training slot2prompt mapping and classifier')
-
-                if self.t == 0:
-                    prompt_phases = [1]
-                else:
-                    prompt_phases = [0, 1]
-                for prompt_phase in prompt_phases:
-                    schedule = self.config['schedule']
-                    if self.t >= len(schedule):
-                        schedule = schedule[-1]
-                    else:
-                        schedule = schedule[self.t]
-                    if type(schedule) is not list:
-                        schedule = [schedule, 0, schedule]      # for CFST: [20, 0, 20]
-                    epochs = schedule[prompt_phase+1]        # phase II
-                    self.epochs = epochs
-
-                    if epochs == 0:
-                        print(f'Skip prompt_phase: {prompt_phase}, cause epochs=0')
-                        continue
-
-                    if self.reset_optimizer:  # Reset optimizer before learning each task
-                        self.log('Optimizer is reset')
-                        self.init_optimizer(t=self.t, target='/slot', phase=prompt_phase+1)
-
-                    losses = AverageMeter()
-                    onehot_losses = AverageMeter()
-                    s2p_losses = AverageMeter()
-                    # mk_losses = AverageMeter()
-                    selection_ortho_losses = AverageMeter()
-                    prompt_concept_alignment_losses = AverageMeter()
-                    acc = AverageMeter()
-                    batch_time = AverageMeter()
-                    batch_timer = Timer()
-
-                    for epoch in range(epochs):       # self.config['schedule'][-1]
-                        self.epoch = epoch
-
-                        if self.config['args'].use_old_samples_for_reg and self.t > 0:
-                            self.aux.update_dataloader()       # update dataloader yield
-
-                        if epoch > 0: self.scheduler.step()
-                        for param_group in self.optimizer.param_groups:
-                            self.log('LR:', param_group['lr'])
-                        batch_timer.tic()
-                        for i, sample in enumerate(train_loader):
-                            self.batch_idx = i
-
-                            concepts = None
-                            if hasattr(train_dataset, "return_concepts") and train_dataset.return_concepts:
-                                x, y, concepts, task = sample
-                            else:
-                                x, y, task = sample
-
-                            # verify in train mode
-                            self.model.train()
-
-                            # send data to gpu
-                            if self.gpu:
-                                x = x.cuda()
-                                y = y.cuda()
-                                # if concepts is not None:
-                                #     concepts = concepts.cuda()      # [bs, 224, 224]
-                                # task = task.cuda()
-
-                            # # debug
-                            # print(f'x shape: {x.shape}, y: {y}, task: {task}')
-
-                            # model update
-                            # prompt_phase, first half =0, last half =1
-                            loss, output, loss_dict = self.update_model(
-                                x, y, prompt_phase=prompt_phase)  # , task
-                            onehot_loss, s2p_loss = loss_dict['onehot_loss'], loss_dict['s2p_loss']
-                            # mk_loss = loss_dict['mk_loss']
-                            selection_ortho_loss = loss_dict['selection_ortho_loss']
-                            prompt_concept_alignment_loss = loss_dict['prompt_concept_alignment_loss']
-
-                            # measure elapsed time
-                            batch_time.update(batch_timer.toc())
-                            batch_timer.tic()
-
-                            # measure accuracy and record loss
-                            y = y.detach()
-                            accumulate_acc(output, y, task, acc, topk=(self.top_k,))
-                            losses.update(loss, y.size(0))
-                            onehot_losses.update(onehot_loss, y.size(0))
-                            # mk_losses.update(mk_loss, y.size(0))
-                            s2p_losses.update(s2p_loss, y.size(0))
-                            selection_ortho_losses.update(selection_ortho_loss, y.size(0))
-                            prompt_concept_alignment_losses.update(prompt_concept_alignment_loss, y.size(0))
-                            batch_timer.tic()
-
-                        # eval update
-                        self.log(
-                            'Epoch:{epoch:.0f}/{total:.0f} phase{phase}'.format(
-                                epoch=self.epoch + 1, total=epochs, phase=prompt_phase))
-                        self.log(
-                            ' * Loss {loss.avg:.3f} | '
-                            'Onehot Loss {onehot_loss.avg:.3f} | '
-                            'So Loss {selection_ortho_loss.avg:.3f} | '
-                            'Pca Loss {prompt_concept_alignment_loss.avg:.3f} | '
-                            'Train Acc {acc.avg:.3f} | '
-                            'csr {concept_similar_reg} | '
-                            'slsr {slot_logit_similar_reg} | '
-                            'Time {time:.3f}s ({i} batches)'.format(
-                                loss=losses,
-                                onehot_loss=onehot_losses,   # s2p_loss=s2p_losses,
-                                # mk_loss=mk_losses,
-                                acc=acc,
-                                # prompt_ortho_loss=prompt_ortho_losses,
-                                selection_ortho_loss=selection_ortho_losses,
-                                prompt_concept_alignment_loss=prompt_concept_alignment_losses,
-                                time=batch_time.avg*len(train_loader), i=len(train_loader),
-                                concept_similar_reg=loss_dict.get('concept_similar_reg'),
-                                slot_logit_similar_reg=loss_dict.get('slot_logit_similar_reg'),
-                            ))
-                        # 'S2P Loss {s2p_loss.avg:.3f} | '
-                        #     'MK Loss {mk_loss.avg:.3f} | '
-
-                        # reset
-                        losses = AverageMeter()
-                        onehot_losses = AverageMeter()
-                        # mk_losses = AverageMeter()
-                        s2p_losses = AverageMeter()
-                        selection_ortho_losses = AverageMeter()
-                        prompt_concept_alignment_losses = AverageMeter()
-                        acc = AverageMeter()
-
-                        # validation
-                        if val_loader is not None:
+                        else:
                             val_acc = self.validation(val_loader)
                             # log
                             self.epoch_log['scaler']['Tag'].append(f'val_acc')
                             self.epoch_log['scaler']['Idx'].append(self.epoch)
                             self.epoch_log['scaler']['Value'].append(val_acc)
 
-                        # if self.epoch % 10 == 0:
-                        if self.epoch == 0:
-                            '''nvidia-smi'''
-                            os.system('nvidia-smi')
+                    # if self.epoch % 10 == 0:
+                    if self.epoch == 0:
+                        '''nvidia-smi'''
+                        os.system('nvidia-smi')
 
         if self.config['args'].use_feature_statistics:
             self.log(f'Phase III: update feature statistics for labels')
@@ -623,11 +480,11 @@ class SLOTPrompt(Prompt):
             train_dataset.update_coreset(self.memory_size, np.arange(self.last_valid_out_dim))
 
         try:
-            return batch_time.avg
+            return res['Time'].avg
         except:
             return None
 
-    def forward(self, inputs, targets, train=False, learn_slots=True, prompt_phase=1, model=None):
+    def forward(self, inputs, targets, train=False, learn_slots=True, prompt_phase='new', model=None):
         res = dict()
         if model is None:
             model = self.model
@@ -673,7 +530,7 @@ class SLOTPrompt(Prompt):
 
         return res
 
-    def update_model(self, inputs, targets, match_pool=False, learn_slots=False, prompt_phase=1,
+    def update_model(self, inputs, targets, optimizer_target='slot+prompt+new+head', match_pool=False,
                      p=30, tau=3):
         self.optimizer.zero_grad()
         try:
@@ -682,20 +539,25 @@ class SLOTPrompt(Prompt):
             model = self.model
         FPS = self.FPS
 
-        res = self.forward(inputs, targets, train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
+        prompt_phase = 'new' if 'new' in optimizer_target else 'reuse'
+        res = self.forward(inputs, targets, train=True,
+                           learn_slots='slot' in optimizer_target, prompt_phase=prompt_phase)
         prompts = res['prompts']
         selections = res['selections']
         slot_weights = res['slot_weights']
         slots = res['slots']
         attn = res['attn']
         recon_loss = res['recon_loss']
-        out = res['logits']
+        out = res['logits']     # [bs, 100]
         features = res['features']
+
+        if self.debug_mode:
+            print('samples:', inputs.shape, 'prompts:', prompts.shape)
 
         # q = model.obtain_q(inputs, learn_slots=learn_slots, train=True, prompt_phase=prompt_phase)
         # prompts, selections, ws, slots, attn, recon_loss = q
-        bs, t, k, e, p, d = prompts.shape
-        bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+        # bs, t, k, e, p, d = prompts.shape
+        # bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
 
         # # mk
         # K = model.prompt.slot_attn_class_key        # [c100, h128]
@@ -709,60 +571,61 @@ class SLOTPrompt(Prompt):
         # self.epoch_log['scaler']['Idx'].append(self.epoch)
         # self.epoch_log['scaler']['Value'].append(mk_loss.item())
 
-        if learn_slots:
-            # only update slot attn
+        collections = dict()        # collection for output
+        loss = torch.zeros(1).mean().to(out.device)
+
+        if 'slot' in optimizer_target:
+            # collect recon_loss
             recon_loss = torch.mean(torch.stack(recon_loss))       # list [1\T]
 
             if self.debug_mode:
                 print(f'slot recon loss: {recon_loss.item()}')
 
+            loss = loss + recon_loss
+
             self.epoch_log['scaler']['Tag'].append('loss/slot_recon_loss')
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(recon_loss.item())
 
-            # supercon on positive samples to enhance intra-class consistency
-            intra_consistency_loss = torch.zeros(1).mean().to(recon_loss.device)
-            if self.config['args'].use_intra_consistency_reg:
-                img_slots = slots.reshape(bs, t * k, h)
-                weights = self.cross_attn(img_slots)        # [bs, k]
-                cross_enhanced_slots = torch.einsum('bkh,bk->bh', img_slots, weights)
+            collections['slot_recon_loss'] = recon_loss.detach()
 
-                # find a positive sample for each sample (if only has one sample in this batch, use itself)
-                posi_slots = []
-                for sid in range(bs):
-                    target = targets[sid]
-                    selected_idxs = torch.where(targets == target)[0]
-                    selected_idx = selected_idxs[torch.randperm(selected_idxs.size(0))][0]
-                    posi_slot = cross_enhanced_slots[selected_idx]
-                    posi_slots.append(posi_slot)
-                posi_slots = torch.stack(posi_slots)    # [bs, h]
-                dist = nn.PairwiseDistance(p=1)     # l1-distance
-                intra_consistency_loss = dist(cross_enhanced_slots, posi_slots).mean()
+            # supercon on positive samples to enhance intra-class consistency
+            if self.config['args'].use_intra_consistency_reg:
+                intra_consistency_loss = self._intra_consistency_reg(slots, slot_weights, targets)
+                loss = loss + self.config['args'].intra_consistency_reg_coeff * intra_consistency_loss
 
                 self.epoch_log['scaler']['Tag'].append('loss/intra_consistency_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(intra_consistency_loss.item())
 
+                collections['intra_consistency_loss'] = intra_consistency_loss.detach()
+
             # image-wise mse for slot cosine sim vs I
-            slot_ortho_loss = torch.zeros(1).mean().to(recon_loss.device)
             if self.config['args'].use_slot_ortho_reg:
-                cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                 img_slots = slots.reshape(bs, t*k, h)
-                sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [bs, k, k]
                 slot_ortho_reg_mode = self.config['args'].slot_ortho_reg_mode
                 if slot_ortho_reg_mode == 'l2':
+                    cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                    sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [bs, k, k]
                     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
                     slot_ortho_loss = torch.nn.functional.mse_loss(sim, eye)
+                elif slot_ortho_reg_mode == 'ce':
+                    sim = torch.einsum('bkh,bnh->bkn', img_slots, img_slots) / 0.8     # [bs, k, k]
+                    # sim = torch.matmul(M, M.t()) / 0.8
+                    sim = sim.reshape(bs*k, k)
+                    sim_label = torch.arange(k).repeat(bs).long().to(sim.device)  # [0,1,...,k-1,0,1,...,k-1,...]
+                    slot_ortho_loss = torch.nn.functional.cross_entropy(sim, sim_label)
                 else:
                     raise Exception(f'Un-implemented slot_ortho_reg_mode {slot_ortho_reg_mode}.')
+
+                loss = loss + self.config['args'].slot_ortho_reg_coeff * slot_ortho_loss
 
                 self.epoch_log['scaler']['Tag'].append('loss/slot_ortho_loss')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_ortho_loss.item())
 
-            loss = (recon_loss +
-                    self.config['args'].intra_consistency_reg_coeff * intra_consistency_loss +
-                    self.config['args'].slot_ortho_reg_coeff * slot_ortho_loss)
+                collections['slot_ortho_loss'] = slot_ortho_loss.detach()
 
             # alpha = model.prompt.slot_attn_alpha    # [3]
             # for alpha_idx in range(len(alpha)):
@@ -774,83 +637,18 @@ class SLOTPrompt(Prompt):
             # loss = loss + 1/alpha[2]**2 * self.slot_vsI_coeff * slot_sim_mse
             # loss = loss + torch.sum(torch.log(alpha+1))
 
-            loss.backward()
-
-            # step
-            self.optimizer.step()
-
-            logits = None
-            return loss.detach(), logits, {'recon_loss': recon_loss.detach(),
-                                           'intra_consistency_loss': intra_consistency_loss.detach(),
-                                           'slot_ortho_loss': slot_ortho_loss.detach(),
-                                           # 'alpha': alpha.detach(),
-                                           }
-
-        else:
-            # bs, t, k, e, p, d = prompts.shape
-            # prompts = prompts.reshape(bs, t*k, e, p, d)
-            # prompts = prompts[:, -1]
-
-            # # forward all slots without grad to obtain loss matrix used to select minimal-5 for grads.
-            # # for l in self.e_layers:
-            # # with torch.no_grad():
-            # mo_matrix, features, out = self.obtain_mo_matrix(
-            #     None, prompts=prompts,
-            #     train=True,
-            #     samples=inputs,
-            #     labels=targets,
-            #     group_by_labels=False,
-            #     return_features=True,
-            # )  # [bs, 20]
-            #
-            # if self.debug_mode:
-            #     print(f'mo_matrix {mo_matrix.shape}')
-            #
-            # sorted_mo_matrix, indexes = torch.sort(mo_matrix, dim=1)      # [bs, 1]
-            #
-            # '''log'''
-            # for obj_idx in range(sorted_mo_matrix.shape[0]):
-            #     for pop_idx in range(sorted_mo_matrix.shape[1]):
-            #         self.epoch_log['mo']['Tag'].append('loss')
-            #         self.epoch_log['mo']['Pop_id'].append(pop_idx)
-            #         self.epoch_log['mo']['Obj_id'].append(obj_idx)
-            #         self.epoch_log['mo']['Epoch_id'].append(self.epoch)
-            #         self.epoch_log['mo']['Inner_id'].append(0)
-            #         self.epoch_log['mo']['Value'].append(sorted_mo_matrix[obj_idx, pop_idx].item())
-            #
-            # loss = torch.mean(sorted_mo_matrix, dim=1)        # [bs]
-            # loss = torch.mean(loss)
-            if self.debug_mode:
-                print('samples:', inputs.shape, 'prompts:', prompts.shape)
-
-            # # slot-wise prompt
-            # bs, t, k, e, p, d = prompts.shape
-            # prompts = prompts.reshape(bs, t*k, e, p, d)  # [bs,t*k, e, p, d]
-            # assert t == 1       # if not 1, should permutate t with e then reshape to t*k
-            #
-            # sum_prompts = torch.sum(prompts, dim=1)     # [bs, e, p, d]
-            #
-            # # loss = torch.zeros(1).mean().to(prompts.device)
-            # # pen: penultimate features; train: same forward as batch training.
-            # out, features = self.model(
-            #     inputs, q=sum_prompts,
-            #     pen=True, train=True,
-            #     # register_blk=hard_l,
-            #     debug_mode=self.debug_mode)
-            # # features: [bs, 768]
-            # # out is logits: [bs, 100]
-
-            out = out[:, :self.valid_out_dim]       # [bs, 30]
-            bs, n_cls = out.shape
+        if 'prompt' in optimizer_target or 'head' in optimizer_target:
+            masked_out = out[:, :self.valid_out_dim]       # [bs, 30]
+            bs, n_cls = masked_out.shape
 
             # ce with heuristic
-            logits = out.clone()
+            logits = masked_out.clone()
             logits[:, :self.last_valid_out_dim] = -float('inf')
             # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
             # dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
             # objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
             ce_loss = self.criterion_fn(logits, targets.long()).mean()
-            loss = ce_loss
+            loss = loss + ce_loss
 
             if self.debug_mode:
                 print(f'ce_loss: {ce_loss.item()}')
@@ -859,9 +657,10 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(ce_loss.item())
 
+            collections['ce_loss'] = ce_loss.detach()
+
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             # selection_ortho_loss
-            selection_ortho_loss = torch.zeros(1).mean().to(loss.device)
             if self.config['args'].use_selection_slot_similar_reg:
                 bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
                 batched_selections = selections.reshape(bs, t*k, e*pp)
@@ -884,8 +683,9 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(selection_ortho_loss.item())
 
+                collections['selection_ortho_loss'] = selection_ortho_loss.detach()
+
             # prompt-concept alignment loss
-            prompt_concept_alignment_loss = torch.zeros(1).mean().to(loss.device)
             if self.config['args'].use_prompt_concept_alignment_reg:
                 bs, t, n, k = attn.shape        # [bs, t1, n196, k30]
                 attn = attn.clone().permute(0, 1, 3, 2).reshape(bs, t*k, n)
@@ -903,6 +703,7 @@ class SLOTPrompt(Prompt):
                 k_expand_inputs = select_inputs.repeat_interleave(t*k, dim=0)  # [n_samples*t*k, 3, H, W]
                 # k_expand_targets = select_targets.repeat_interleave(t * k)     # [n_samples*tk]
                 # expand prompts to match k slots
+                bs, t, k, e, p, d = prompts.shape
                 k_expand_prompts = select_prompts.reshape(n_samples * t * k, e, p, d)    # [n_samples*t*k, e, p, d]
 
                 # process mask
@@ -1002,23 +803,9 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(prompt_concept_alignment_loss.item())
 
-            # # prompt ortho loss
-            # prompt_ortho_loss = torch.zeros(1).mean().to(loss.device)
-            # if self.prompt_ortho_coeff > 0:
-            #     weighted_prompts = prompts     # shape[bs, t*k, e, p, d]
-            #     weighted_prompts = weighted_prompts.reshape(bs, t*k, e*p*d)
-            #     sim = cos(weighted_prompts.unsqueeze(1), weighted_prompts.unsqueeze(2))  # [bs, k, k]
-            #     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
-            #     prompt_ortho_loss = F.mse_loss(sim, eye)
-            #
-            #     loss = loss + self.prompt_ortho_coeff * prompt_ortho_loss
-            #
-            #     self.epoch_log['scaler']['Tag'].append('loss/prompt_ortho_loss')
-            #     self.epoch_log['scaler']['Idx'].append(self.epoch)
-            #     self.epoch_log['scaler']['Value'].append(prompt_ortho_loss.item())
+                collections['prompt_concept_alignment_loss'] = prompt_concept_alignment_loss.detach()
 
             # onehot loss
-            onehot_loss = torch.zeros(1).mean().to(loss.device)
             if self.config['args'].use_selection_onehot_reg:       # and self.epoch >= 5:
                 bs, t, k, e, pp = selections.shape   # [bs, t1, k10, e5, pp30]
                 batched_selections = selections.reshape(bs*t*k*e, pp)
@@ -1038,8 +825,9 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(onehot_loss.item())
 
+                collections['selection_onehot_loss'] = onehot_loss.detach()
+
             # if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
-            s2p_loss = torch.zeros(1).mean().to(loss.device)
             if self.config['args'].use_weight_reg:
                 # regularization loss on slot2prompt mapping
                 # selection: ['weights', 'response']
@@ -1095,7 +883,7 @@ class SLOTPrompt(Prompt):
                     # kl on response without target logits
                     # out [bs, 1, n_cls]
                     # remove target logits
-                    selected_out = out.reshape(bs, n_cls)
+                    selected_out = masked_out.reshape(bs, n_cls)
 
                     if self.debug_mode:
                         print(f'selected_out {selected_out.shape}: {selected_out[0]}')
@@ -1178,6 +966,8 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
+                collections['s2p_loss'] = s2p_loss.detach()
+
                 # if self.debug_mode:
                 #     print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
 
@@ -1189,11 +979,12 @@ class SLOTPrompt(Prompt):
 
                 if self.config['args'].use_old_samples_for_reg_no_grad:
                     with torch.no_grad():
-                        res = self.forward(old_inputs, old_targets,
-                                           train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
+                        res = self.forward(
+                            old_inputs, old_targets,
+                            train=True, learn_slots=False, prompt_phase=prompt_phase)
                 else:
                     res = self.forward(old_inputs, old_targets,
-                                       train=True, learn_slots=learn_slots, prompt_phase=prompt_phase)
+                                       train=True, learn_slots=False, prompt_phase=prompt_phase)
                 old_slots = res['slots']
                 old_slot_weights = res['slot_weights']
                 old_logits = res['logits'][:,:self.valid_out_dim]
@@ -1212,12 +1003,13 @@ class SLOTPrompt(Prompt):
             ext_slot_weights = torch.cat(ext_slot_weights, dim=0)
 
             # cheating reg on logits
-            concept_similar_reg = torch.zeros(1).mean().to(loss.device)
             if self.concept_weight:
                 concept_similar_reg = self._concept_similar_reg(None, ext_logits, ext_targets)
                 self.epoch_log['scaler']['Tag'].append('loss/concept_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
+
+                collections['concept_similar_reg'] = concept_similar_reg.detach()
 
                 # cal current_coeff
                 coeff = self.config['concept_similar_reg_coeff']
@@ -1227,13 +1019,12 @@ class SLOTPrompt(Prompt):
                     current_coeff = last_coeff * (self.epoch+1) / self.epochs
                 else:
                     current_coeff = last_coeff
-                self.epoch_log['scaler']['Tag'].append(f'coeff/concept_similar_reg/t{self.t}')
+                self.epoch_log['scaler']['Tag'].append(f'coeff/concept_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(current_coeff)
 
                 loss = loss + current_coeff * concept_similar_reg
 
-            slot_logit_similar_reg = torch.zeros(1).mean().to(loss.device)
             if self.config['args'].use_slot_logit_similar_reg:
                 # cal current_coeff
                 coeff = self.config['args'].slot_logit_similar_reg_coeff
@@ -1243,10 +1034,16 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(current_coeff)
 
-                slot_logit_similar_reg = self._slot_logit_similar_reg(ext_slots, ext_slot_weights, ext_logits)
+                # if 'slot' in optimizer_target:
+                #     slot_logit_similar_reg = self._slot_logit_similar_reg(ext_slots, ext_slot_weights, ext_logits)
+                # else:
+                slot_logit_similar_reg = self._slot_logit_similar_reg(
+                    ext_slots.detach(), ext_slot_weights.detach(), ext_logits)  # detach slots and weights
                 self.epoch_log['scaler']['Tag'].append('loss/slot_logit_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_logit_similar_reg.item())
+
+                collections['slot_logit_similar_reg'] = slot_logit_similar_reg.detach()
 
                 loss = loss + current_coeff * slot_logit_similar_reg
 
@@ -1255,16 +1052,45 @@ class SLOTPrompt(Prompt):
             # step
             self.optimizer.step()
 
-            out = out.reshape(bs, n_cls)        # [bs, 1, n_cls] -> [bs, n_cls]
-            return (loss.detach(), out,
-                    {'onehot_loss': onehot_loss.detach(), 's2p_loss': s2p_loss.detach(),
-                     # 'mk_loss': mk_loss.detach(), 'mk_logit': mk_logit.detach(), 'mk_weights': mk_weights.detach(),
-                     # 'prompt_ortho_loss': prompt_ortho_loss.detach(),
-                     'selection_ortho_loss': selection_ortho_loss.detach(),
-                     'prompt_concept_alignment_loss': prompt_concept_alignment_loss.detach(),
-                     'concept_similar_reg': torch.round(concept_similar_reg.detach()*100).item() / 100,
-                     'slot_logit_similar_reg': torch.round(slot_logit_similar_reg.detach()*100).item() / 100,
-                     })
+            # logits is used to cal train acc, so use masked out (-inf for old) to show local acc
+            return loss.detach(), logits, collections
+
+    def _intra_consistency_reg(self, slots, slot_weights, targets):
+        bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
+        img_slots = slots.reshape(bs, t * k, h)
+
+        mode = self.config['args'].intra_consistency_reg_mode
+        if 'learn' in mode:
+            # learned slot selection
+            bs, t, k = slot_weights.shape
+            img_weights = slot_weights.reshape(bs, t * k)
+            weighted_slots = torch.einsum('bkh,bk->bh', img_slots, img_weights)
+        elif 'cross' in mode:
+            # cross attn
+            weights = self.cross_attn(img_slots)        # [bs, k]
+            weighted_slots = torch.einsum('bkh,bk->bh', img_slots, weights)
+        else:
+            raise Exception(f'Un-implemented intra_consistency_reg_mode: {mode}')
+
+        # find a positive sample for each sample (if only has one sample in this batch, use itself)
+        posi_slots = []
+        for sid in range(bs):
+            target = targets[sid]
+            selected_idxs = torch.where(targets == target)[0]
+            selected_idx = selected_idxs[torch.randperm(selected_idxs.size(0))][0]
+            posi_slot = weighted_slots[selected_idx]
+            posi_slots.append(posi_slot)
+        posi_slots = torch.stack(posi_slots)  # [bs, h]
+        if 'l1' in mode:
+            dist = nn.PairwiseDistance(p=1)  # l1-distance
+        elif 'l2' in mode:
+            dist = nn.PairwiseDistance(p=2)
+        else:
+            raise Exception(f'Un-implemented intra_consistency_reg_mode: {mode}')
+
+        intra_consistency_loss = dist(weighted_slots, posi_slots).mean()
+
+        return intra_consistency_loss
 
     def _concept_similar_reg(self, features, logits, targets):
         """Cheating on concept-aware to decrease distance between two imgs that share the same concept"""
@@ -1298,7 +1124,7 @@ class SLOTPrompt(Prompt):
         # elif 'ce' in self.config['args'].slot_logit_similar_reg_mode:
         #     distances = F.l1_loss(logit_sim, slot_sim, reduction='none')    # [bs, bs]
         #     F.cross_entropy(distances, torch.range(0, distances.shape[0] - 1).long().to(distances.device))
-        else:
+        else:       # kl
             loss = cross_entropy_with_soft_labels(logit_sim, concept_sim)
 
         return loss
@@ -1311,7 +1137,7 @@ class SLOTPrompt(Prompt):
         bs, t, k = weights.shape
         batched_weights = weights.reshape(bs, t * k)
 
-        weighted_slot = torch.einsum('bkd,bk->bd', batched_slots, batched_weights).detach()
+        weighted_slot = torch.einsum('bkd,bk->bd', batched_slots, batched_weights)
 
         # preprocess logits
         logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
@@ -2778,9 +2604,11 @@ def cross_entropy_with_soft_labels(logits, soft_targets):
     """
     # Apply log softmax to logits to get the log probabilities
     log_probs = F.log_softmax(logits, dim=-1)
+    # log_soft_targets = torch.log(soft_targets)
 
     # Calculate the KL divergence loss
-    loss = F.kl_div(log_probs, soft_targets, reduction='batchmean')
+    loss = F.kl_div(log_probs, soft_targets, reduction='batchmean')     # the M-proj argmin_q KL(p||q), p: target; q: pred
+    # loss = F.kl_div(log_probs, log_soft_targets, reduction='batchmean', log_target=True)
 
     return loss
 

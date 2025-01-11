@@ -269,8 +269,8 @@ class Slot2Prompt(nn.Module):
                     setattr(self, f'e_k_{e}', K)
                     setattr(self, f'e_a_{e}', A)
 
-    def forward(self, slots, s2p=None, train=False, phase=1, select_mode='coda'):
-        """phase 0: only use detached old prompts """
+    def forward(self, slots, s2p=None, train=False, phase='new', select_mode='coda'):
+        """phase reuse: only use detached old prompts; new: use learnable new prompts"""
         # train control the detach of old K and p
         # slots [bs, n20, h64]
         bs, n, h = slots.shape
@@ -349,7 +349,7 @@ class Slot2Prompt(nn.Module):
                     s = int(self.task_count * pt)  # 10 prompts for one task
                     f = int((self.task_count + 1) * pt)
 
-                    if phase == 0 and self.task_count > 0:      # only use detached old prompts for new tasks
+                    if phase == 'reuse' and self.task_count > 0:      # only use detached old prompts for new tasks
                         f = s
 
                 # freeze/control past tasks
@@ -357,7 +357,7 @@ class Slot2Prompt(nn.Module):
                     if self.task_count > 0:
                         # K = K[0:f]
                         # A = A[0:f]
-                        if phase == 0:
+                        if phase == 'reuse':        # reuse learn prompt selection for new samples
                             K = K[0:f]
                             A = A[0:f]
                         else:
