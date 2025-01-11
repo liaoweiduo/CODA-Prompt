@@ -35,7 +35,7 @@ mkdir -p $OUTDIR
 lr=1e-3
 slot_lr=1e-4
 for intra_consistency_reg_coeff in 0.01; do
-for slot_ortho_reg_coeff in 0.1 0.5 1.0; do
+for slot_ortho_reg_coeff in 0.05 0.1 0.5 1.0; do
 concept_similar_reg_coeff=1.0
 # $1
 concept_similar_reg_temp=0.01
