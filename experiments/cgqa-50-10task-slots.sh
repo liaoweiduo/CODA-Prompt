@@ -42,7 +42,7 @@ LOGNAME=12-slot-icr${intra_consistency_reg_coeff}-sor${slot_ortho_reg_coeff}-slr
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
-    --batch_size 256 \
+    --batch_size 128 \
     --lr ${lr} ${lr} \
     --slot_lr ${slot_lr} ${slot_lr} \
     --use_intra_consistency_reg \
