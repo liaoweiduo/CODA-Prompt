@@ -34,7 +34,7 @@ mkdir -p $OUTDIR
 # co-learn slot and prompt
 lr=1e-3
 slot_lr=1e-4
-for intra_consistency_reg_coeff in 0.1; do
+for intra_consistency_reg_coeff in 0.5; do
 for slot_ortho_reg_coeff in 0.05 0.1 0.5 1.0; do
 concept_similar_reg_coeff=1.0
 # $1
