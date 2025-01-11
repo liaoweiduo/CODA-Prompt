@@ -28,13 +28,12 @@ mkdir -p $OUTDIR
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
 
-#concept_similar_reg_coeff=1.0
 ## $1
 
 # co-learn slot and prompt
 lr=1e-3
 slot_lr=1e-4
-for intra_consistency_reg_coeff in 0.5; do
+intra_consistency_reg_coeff=$1
 for slot_ortho_reg_coeff in 0.05 0.1 0.5 1.0; do
 concept_similar_reg_coeff=1.0
 # $1
@@ -57,7 +56,6 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --max_task 3 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
-done
 done
 #    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
 #    --larger_prompt_lr \
