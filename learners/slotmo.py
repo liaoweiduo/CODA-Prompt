@@ -289,9 +289,6 @@ class SLOTPrompt(Prompt):
         self.t = train_dataset.t
         self.n_cls = len(self.tasks[self.t])     # tasks: [[0,1,...,49], [50,...,59], ...]
         print(f'num of classes: {self.n_cls}.')
-        if self.config['args'].use_old_samples_for_reg:
-            self.aux.update_source(train_dataset, self.t)       # aux samples from the current task
-
         # try to load model
         need_train = True
         if not self.overwrite:
@@ -356,6 +353,9 @@ class SLOTPrompt(Prompt):
 
             for optimizer_target, schedule_phase in zip(optimizer_targets, schedule_phases):
                 self.log(f'Phase：{optimizer_target}, schedule: {schedule[schedule_phase]}')
+
+                if self.config['args'].use_old_samples_for_reg:
+                    self.aux.update_source(train_dataset, self.t)       # aux samples from the current task
 
                 # define tracking things
                 res = dict()
