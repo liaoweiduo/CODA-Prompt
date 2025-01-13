@@ -1229,11 +1229,6 @@ def visualize_att_map(att_map, image, grid_size=14, alpha=0.6, ax=None):
 
     assert len(att_map.shape) == 1
 
-    cls_weight = 0
-    if len(att_map) == grid_size[0] * grid_size[0] + 1:
-        cls_weight = att_map[0]
-        att_map = att_map[1:]
-
     mask = att_map.reshape(grid_size[0], grid_size[1])
     mask = Image.fromarray(mask).resize((image.size))
 
@@ -1241,16 +1236,8 @@ def visualize_att_map(att_map, image, grid_size=14, alpha=0.6, ax=None):
         fig, ax = plt.subplots(1, 2, figsize=(10, 7))
         fig.tight_layout()
 
-    if cls_weight > 0:
-        # mask = mask/np.max(mask)
-        image, mask, meta_mask = cls_padding(image, mask, cls_weight, grid_size)
-
-        ax.imshow(image)
-        ax.imshow(mask, alpha=alpha, cmap='rainbow')
-        ax.imshow(meta_mask)
-    else:
-        ax.imshow(image)
-        ax.imshow(mask / np.max(mask), alpha=alpha, cmap='rainbow')
+    ax.imshow(image)
+    ax.imshow(mask / np.max(mask), alpha=alpha, cmap='rainbow')
     # ax.axis('off')
     ax.set_xticks([])
     ax.set_yticks([])
