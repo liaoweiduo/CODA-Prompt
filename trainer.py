@@ -11,7 +11,7 @@ from dataloaders.utils import *
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import learners
-from debug import Debugger
+from debug import Debugger as _Debugger
 
 class Trainer:
 
@@ -230,7 +230,7 @@ class Trainer:
         temp_dir = self.log_dir + '/temp/'
         if not os.path.exists(temp_dir): os.makedirs(temp_dir)
         writer = SummaryWriter(temp_dir)
-        debugger = Debugger(level='DEBUG', args=vars(self.args))
+        debugger = _Debugger(level='DEBUG', args=vars(self.args))
 
         # for each task
         for i in range(self.max_task):      # for few-shot testing, if should start from an offset
