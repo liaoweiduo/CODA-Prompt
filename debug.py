@@ -23,7 +23,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 from learners.pmo_utils import Pool, draw_heatmap, draw_objs, cal_hv, cal_min_crowding_distance
 from learners.slotmo import hungarian_algorithm
-from trainer import Trainer as _Trainer
 
 class Debugger:
     def __init__(self, level='DEBUG', args=None, exp_path=None, name=''):
@@ -141,6 +140,8 @@ class Debugger:
 
     def prepare_trainer(self, seed=0):
         "seed to determine which run to load"
+        from trainer import Trainer
+
         metric_keys = ['acc', 'time', ]
         save_keys = ['global', 'pt', 'pt-local']
         avg_metrics = {}
@@ -150,7 +151,7 @@ class Debugger:
 
         self.seed = seed
         self.reset_seed(seed)
-        trainer = _Trainer(argparse.Namespace(**self.args), seed, metric_keys, save_keys)  # new trainer
+        trainer = Trainer(argparse.Namespace(**self.args), seed, metric_keys, save_keys)  # new trainer
         self.trainer = trainer
         self.learners = []
         for task_id in range(self.max_task):

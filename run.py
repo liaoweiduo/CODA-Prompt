@@ -14,7 +14,6 @@ import yaml
 import json
 import random
 from trainer import Trainer
-from debug import Debugger
 
 def create_args():
     
@@ -311,6 +310,8 @@ if __name__ == '__main__':
     # do compositional testing on all available mode
     if args.compositional_testing:
         comp_test(args)
+
+    from debug import Debugger
 
     args.gpuid = [0]        # prevent using multi-gpu
     args.debug_mode = 1
