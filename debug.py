@@ -628,7 +628,12 @@ class Debugger:
 
         max_seed = self.args['repeat']
         max_task = self.args['max_task']
-        candidate_keys = list(set(self.storage['log'][max_seed-1][max_task-1]['scaler'].Tag))
+        try:
+            candidate_keys = list(set(self.storage['log'][max_seed-1][max_task-1]['scaler'].Tag))
+        except:
+            if self.check_level('DEBUG'):
+                print(f'Exp is not finished.')
+            return None
 
         # keys and put coeff to output_args
         keys = []
