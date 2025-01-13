@@ -41,10 +41,10 @@ class Debugger:
         args = self.args
         self.name = name
 
-        for k, v in self.args.items():       # list to str
-            if type(v) is list:
-                # self.args[k] = ''.join(str(v).split(','))
-                self.args[k] = str(v)
+        # for k, v in self.args.items():       # list to str
+        #     if type(v) is list:
+        #         # self.args[k] = ''.join(str(v).split(','))
+        #         self.args[k] = str(v)
 
         self.dataset = self.args['dataset']         # CIFAR100, CGQA,...
         self.max_seed = self.args['repeat']
