@@ -328,9 +328,11 @@ class Debugger:
         sim = cos_attn(img_attns.unsqueeze(2), img_attns.unsqueeze(3))  # [n_task*bs, k, k]
         eye = torch.eye(sim.shape[-1]).expand_as(sim).to(sim.device)
         attn_sim_mae = torch.abs(sim - eye)       # [n_task*bs, k, k]
+        sim = sim.cpu().detach().numpy()
+        attn_sim_mae = attn_sim_mae.cpu().detach().numpy()
         self.storage['results']['samples/per_img/attn_sim_mae'] = {
             'Details': sim, 'Mean': attn_sim_mae.mean(), 'Std': attn_sim_mae.std(),
-            'CI95': 1.96 * (attn_sim_mae.std() / np.sqrt(torch.prod(torch.tensor(attn_sim_mae.shape))))}
+            'CI95': 1.96 * (attn_sim_mae.std() / np.sqrt(np.prod(attn_sim_mae.shape)))}
 
         # extend columns
         self.columns.extend(['samples/per_img/attn_sim_mae'])
@@ -385,9 +387,11 @@ class Debugger:
         sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [n_task*bs, k, k]
         eye = torch.eye(sim.shape[-1]).expand_as(sim).to(sim.device)
         slot_sim_mae = torch.abs(sim - eye)  # [n_task*bs, k, k]
+        sim = sim.cpu().detach().numpy()
+        slot_sim_mae = slot_sim_mae.cpu().detach().numpy()
         self.storage['results']['samples/per_img/slot_sim_mae'] = {
             'Details': sim, 'Mean': slot_sim_mae.mean(), 'Std': slot_sim_mae.std(),
-            'CI95': 1.96 * (slot_sim_mae.std() / np.sqrt(torch.prod(torch.tensor(slot_sim_mae.shape))))}
+            'CI95': 1.96 * (slot_sim_mae.std() / np.sqrt(np.prod(slot_sim_mae.shape)))}
 
         # extend columns
         self.columns.extend(['samples/per_img/slot_sim_mae'])
@@ -445,9 +449,10 @@ class Debugger:
             cls_sims = torch.stack(cls_sims)    # [n_cls, 2, 2]
             task_sims.append(cls_sims)
         task_sims = torch.stack(task_sims)  # [n_tasks, n_cls, 2, 2]
+        task_sims = task_sims.cpu().detach().numpy()
         self.storage['results']['samples/per_cls/w_slot_sim'] = {
             'Details': task_sims, 'Mean': task_sims.mean(), 'Std': task_sims.std(),
-            'CI95': 1.96 * (task_sims.std() / np.sqrt(torch.prod(torch.tensor(task_sims.shape))))}
+            'CI95': 1.96 * (task_sims.std() / np.sqrt(np.prod(task_sims.shape)))}
 
         # extend columns
         self.columns.extend(['samples/per_cls/w_slot_sim'])
