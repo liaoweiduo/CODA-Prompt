@@ -417,9 +417,9 @@ class SLOTPrompt(Prompt):
                         res['Loss'].update(loss, y.size(0))
                         # create or maintain records
                         for key, v in loss_dict.items():
-                            visual_key = ''     # e.g., InCoLo
+                            visual_key = ''     # e.g., IntrConsLoss
                             for word in key.split('_'):
-                                visual_key = visual_key + word[0].upper()+word[1].lower()
+                                visual_key = visual_key + word[0].upper()+word[1:3].lower()
                             if visual_key not in res.keys():
                                 res[visual_key] = AverageMeter()
                             res[visual_key].update(v, y.size(0))

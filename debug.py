@@ -1,23 +1,29 @@
+
+from typing import List, Dict, Any, Optional
 import copy
 import yaml
 import json
 import os
 import pickle
 from collections import OrderedDict
+import argparse
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from PIL import Image, ImageDraw
 
 import torch
 import torch.nn as nn
-
-from typing import List, Dict, Any, Optional
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 
 from learners.pmo_utils import Pool, draw_heatmap, draw_objs, cal_hv, cal_min_crowding_distance
-
+from learners.slotmo import hungarian_algorithm
+from trainer import Trainer
 
 class Debugger:
     def __init__(self, level='DEBUG', args=None, exp_path=None, name=''):
@@ -51,14 +57,38 @@ class Debugger:
         self._default_output_args()
         self.storage = {}
 
-    def collect_results(self, max_task=-1, draw=False):
+        # if use dataset
+        self.trainer = None
+        self.seed = 0
+        self.learners = []
+        self.tasks = None
+        self.label_set = []      # [0,...,99]
+        self.single_label_datasets = {}
+        self.single_label_dataloaders = {}
+
+    def collect_results(self, max_task=-1, draw=False, use_dataset=False):
         # collect results
         self.storage['results'] = {}
+        self.storage['loss_df'] = {}
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
-        res = self.collect_losses(draw=draw)
+        self.collect_losses(draw=draw)
 
-        return res
+        if use_dataset:
+            self.prepare_trainer(seed=0)
+            self.load_samples(num_samples_per_class=2)
+            self.collect_sample_results()       # obtain slots, prompts, attns,...
+            self.collect_samples_attns_sim_per_img()
+            self.draw_attns(select_id=0)
+            self.collect_samples_slots_sim_per_img()
+            self.draw_slot_cos_sim(select_id=0)
+            self.collect_samples_weighted_slot_sim_per_class()
+            self.draw_slot_weights()
+
+            # self.draw_prompt_selection()
+
+    def loss_df(self):
+        return self.storage['loss_df']
 
     def _default_output_args(self):
         # default params
@@ -98,6 +128,362 @@ class Debugger:
         df.to_csv(os.path.join(self.save_path, 'data.csv'))
 
         return df
+
+    def reset_seed(self, seed_value=0):
+        # random.seed(seed_value)
+        np.random.seed(seed_value)
+        torch.manual_seed(seed_value)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed_value)
+            torch.cuda.manual_seed_all(seed_value)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
+    def prepare_trainer(self, seed=0):
+        "seed to determine which run to load"
+        metric_keys = ['acc', 'time', ]
+        save_keys = ['global', 'pt', 'pt-local']
+        avg_metrics = {}
+        for mkey in metric_keys:
+            avg_metrics[mkey] = {}
+            for skey in save_keys: avg_metrics[mkey][skey] = []
+
+        self.seed = seed
+        self.reset_seed(seed)
+        trainer = Trainer(argparse.Namespace(**self.args), seed, metric_keys, save_keys)  # new trainer
+        self.trainer = trainer
+        self.learners = []
+        for task_id in range(self.max_task):
+            trainer.current_t_index = task_id
+            task = trainer.tasks_logits[task_id]
+            trainer.train_dataset.load_dataset(task_id, train=True)
+            trainer.test_dataset.load_dataset(task_id, train=True)
+            trainer.add_dim = len(task)
+            if task_id > 0:
+                try:
+                    trainer.learner.model.prompt.process_task_count()
+                except:
+                    pass
+            trainer.learner.last_valid_out_dim = trainer.learner.valid_out_dim
+            trainer.learner.first_task = False
+            trainer.learner.add_valid_output_dim(len(task))
+            trainer.learner.pre_steps()
+            trainer.learner.model.task_id = task_id
+            trainer.learner.task_count = task_id
+            trainer.learner.data_weighting(trainer.train_dataset)
+
+            # load model
+            model_save_dir = trainer.model_top_dir + '/models/repeat-' + str(trainer.seed + 1) + '/task-' + \
+                             trainer.task_names[task_id] + '/'
+            trainer.learner.load_model(model_save_dir)
+
+            self.learners.append(copy.deepcopy(trainer.learner))
+
+        # load tasks
+        self.tasks = trainer.tasks_logits
+
+        if self.check_level('DEBUG'):
+            print(f'tasks: {self.tasks}.')
+            # tasks
+            dataset = trainer.test_dataset
+            map_tuple_label_to_int = dataset.benchmark.label_info[1]
+            class_mappings = dataset.benchmark.class_mappings[-1]
+            map_related_int_to_tuple_label = {class_mappings[int_label]: str_label for str_label, int_label in
+                                              map_tuple_label_to_int.items()}
+            print(sorted(map_related_int_to_tuple_label.items()))
+            # concepts
+            label_concepts = dataset.get_concepts()
+            map_int_concepts_label_to_str = dataset.benchmark.label_info[3]['map_int_concepts_label_to_str']
+            print(f'label_concepts: {label_concepts}')
+            print(sorted(map_int_concepts_label_to_str.items()))
+
+        # load single-class-datasets
+        dataset = trainer.test_dataset
+        self.label_set = dataset.get_unique_labels()
+        self.single_label_datasets = {
+            label: copy.deepcopy(dataset.get_single_class_dataset(label)) for label in self.label_set}
+        self.single_label_dataloaders = {
+            label: DataLoader(self.single_label_datasets[label], batch_size=32, shuffle=False, drop_last=False,
+                              num_workers=int(self.trainer.workers)) for label in self.label_set}
+
+    def load_samples(self, num_samples_per_class=2, reset_seed=True, draw=False):
+        """load samples and store to storage['samples']"""
+        if reset_seed:
+            self.reset_seed(self.seed)
+
+        xs, ys, cs = [], [], []
+        num_samples = num_samples_per_class
+        for label in self.label_set:
+            iterator = iter(self.single_label_dataloaders[label])
+            sample = next(iterator)
+            if len(sample) == 3:
+                x, y, task = sample
+            else:
+                x, y, c, task = sample
+            # send data to gpu
+            x = x[:num_samples].cuda()
+            y = y[:num_samples].cuda()
+            c = c[:num_samples].cuda()
+
+            xs.append(x)
+            ys.append(y)
+            cs.append(c)
+
+        x = torch.cat(xs)
+        y = torch.cat(ys)
+        c = torch.cat(cs)
+
+        self.storage['samples'] = [x, y, c]
+
+        if draw:
+            fig, axes = plt.subplots(len(self.label_set), num_samples, figsize=(num_samples*5,len(self.label_set)*5))
+            for x_id in range(len(x)):
+                xi = x_id // num_samples
+                yi = x_id % num_samples
+                label = y[x_id].item()
+                ori_y_str = self.get_label_str(label)
+
+                ori_x = unnormalize(x[x_id])
+                axes[xi, yi].imshow(ori_x)
+                axes[xi, yi].axis('off')
+                axes[xi, yi].set_title(f'{x_id} {label} {ori_y_str}')
+
+            self.savefig(fig, 'samples.png')
+
+    def collect_sample_results(self, reset_seed=True):
+        """把attn,slot,prompts等等放到self.storage['attn']等里面, 要放到table里的放到'results'里用标准格式
+        """
+        if reset_seed:
+            self.reset_seed(self.seed)
+
+        self.storage['attns'] = []  # n_task*[bs, n, k]
+        self.storage['slots'] = []  # n_task*[bs, k, h]
+        self.storage['proms'] = []  # n_task*[bs, k, e, p, d]
+        self.storage['weigs'] = []  # n_task*[bs, k]
+        self.storage['seles'] = []  # n_task*[bs, k, e, pp]
+
+        x, y, c = self.storage['samples']
+        num_tasks = self.max_task
+        # trainer = prepare(trainer, task_id=-1, load=False)
+        for task_id in range(num_tasks):
+            learner = self.learners[task_id]
+            model = learner.model
+            prompt = model.prompt
+            model.eval()
+
+            # prompt.n_slots = 3
+            # prompt.slot_attn[0].n_slots = 3
+
+            with torch.no_grad():
+                res = learner.forward(x, y)
+                prompts = res['prompts']
+                selections = res['selections']
+                slot_weights = res['slot_weights']
+                slots = res['slots']
+                attn = res['attn']
+                recon_loss = res['recon_loss']
+                out = res['logits']
+                features = res['features']
+
+                bs, t, kk, e, p, d = prompts.shape      # [bs, t1, kk1, e5, p8, d768]
+                bs, t, kk, e, pp = selections.shape  # [bs, t1, kk1, e5, pp50]   kk=1 use w-slot to select
+                bs, t, k, h = slots.shape  # [bs, t1, k10, h128]
+                bs, t, n, k = attn.shape  # [bs, t1, n196, k10]
+                bs, t, k = slot_weights.shape   # [bs, t1, k10]
+                assert t == 1
+
+                prompts = prompts.reshape(bs, kk, e, p, d)
+                attn = attn.reshape(bs, n, k)
+                slots = slots.reshape(bs, k, h)
+                slot_weights = slot_weights.reshape(bs, k)
+                selections = selections.reshape(bs, kk, e, pp)
+
+                self.storage['attns'].append(attn)
+                self.storage['slots'].append(slots)
+                self.storage['proms'].append(prompts)
+                self.storage['weigs'].append(slot_weights)
+                self.storage['seles'].append(selections)
+
+        # align on pure slots
+        anchor = self.storage['slots'][0].unsqueeze(2)  # [b, k, 1, h]
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        for task_id in range(1, len(self.storage['slots'])):
+            ith_task_slots = self.storage['slots'][task_id].unsqueeze(1)  # [b, 1, k, h]
+            sim = cos(anchor, ith_task_slots)  # [b, k, k]
+            cost = 1 - sim
+            _, index = hungarian_algorithm(cost)  # [b, 2, k]
+            index = index[:, 1]  # [b, k]
+            for sample_id in range(bs):
+                self.storage['slots'][task_id][sample_id] = self.storage['slots'][task_id][sample_id][index[sample_id]]
+                self.storage['attns'][task_id][sample_id] = self.storage['attns'][task_id][sample_id][:, index[sample_id]]
+                # self.storage['proms'][task_id][sample_id] = self.storage['proms'][task_id][sample_id][index[sample_id]]
+                self.storage['weigs'][task_id][sample_id] = self.storage['weigs'][task_id][sample_id][index[sample_id]]
+                # collection_seles[task_id][sample_id] = collection_seles[task_id][sample_id][index[sample_id]]
+
+    def collect_samples_attns_sim_per_img(self):
+        # for every img, cal MAE(attn sim, I) to store in results
+        img_attns = torch.cat(self.storage['attns'])  # [n_task*bs, n, k]
+        cos_attn = nn.CosineSimilarity(dim=1, eps=1e-6)
+        sim = cos_attn(img_attns.unsqueeze(2), img_attns.unsqueeze(3))  # [n_task*bs, k, k]
+        eye = torch.eye(sim.shape[-1]).expand_as(sim).to(sim.device)
+        attn_sim_mae = torch.abs(sim - eye)       # [n_task*bs, k, k]
+        self.storage['results']['samples/per_img/attn_sim_mae'] = {
+            'Details': sim, 'Mean': attn_sim_mae.mean(), 'Std': attn_sim_mae.std(),
+            'CI95': 1.96 * (attn_sim_mae.std() / np.sqrt(torch.prod(torch.tensor(attn_sim_mae.shape))))}
+
+        # extend columns
+        self.columns.extend(['samples/per_img/attn_sim_mae'])
+
+    def draw_attns(self, select_id, ax=None):
+        ori_x = unnormalize(self.storage['samples'][0][select_id])
+
+        label = self.storage['samples'][1][select_id].item()
+        ori_y_str = self.get_label_str(label)
+
+        # draw attn
+        k = self.storage['attns'][0].shape[-1]      # 10
+        n_row = len(self.storage['attns'])  # n_tasks
+        n_column = k
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+        # otherwise, ax is a list of axis to fill in the imgs
+
+        for task_id in range(n_row):
+            attns = self.storage['attns'][task_id][select_id]  # [n196, k10]
+            # slots = collection_slots[task_id][select_id]    # [k10, h128]
+
+            for slot_id in range(k):
+                xi = (slot_id + k * task_id) // n_column
+                yi = (slot_id + k * task_id) % n_column
+                _attn = attns[:, slot_id]
+                if n_row == 1:
+                    visualize_att_map(_attn.cpu().numpy(), ori_x, grid_size=14, alpha=0.6, ax=ax[yi])
+                    if xi == 0:
+                        ax[yi].set_title(yi, fontsize=50)
+                    if yi == 0:
+                        ax[yi].set_ylabel(f't{xi}', fontsize=50)
+                else:
+                    visualize_att_map(_attn.cpu().numpy(), ori_x, grid_size=14, alpha=0.6, ax=ax[xi, yi])
+                    if xi == 0:
+                        ax[xi, yi].set_title(yi, fontsize=50)
+                    if yi == 0:
+                        ax[xi, yi].set_ylabel(f't{xi}', fontsize=50)
+
+        if save:
+            fig.suptitle(f'{self.name}: {label}, {ori_y_str}', fontsize=16)
+            self.savefig(fig, f'{label}-{ori_y_str}-slot-attn.png')
+
+    def collect_samples_slots_sim_per_img(self):
+        # for every img, cal MAE(slot sim, I) to store in results
+        img_slots = torch.cat(self.storage['slots'])  # [n_task*bs, k, h]
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [n_task*bs, k, k]
+        eye = torch.eye(sim.shape[-1]).expand_as(sim).to(sim.device)
+        slot_sim_mae = torch.abs(sim - eye)  # [n_task*bs, k, k]
+        self.storage['results']['samples/per_img/slot_sim_mae'] = {
+            'Details': sim, 'Mean': slot_sim_mae.mean(), 'Std': slot_sim_mae.std(),
+            'CI95': 1.96 * (slot_sim_mae.std() / np.sqrt(torch.prod(torch.tensor(slot_sim_mae.shape))))}
+
+        # extend columns
+        self.columns.extend(['samples/per_img/slot_sim_mae'])
+
+    def draw_slot_cos_sim(self, select_id=0, ax=None):
+        # global map of slot cossim
+        k = self.storage['slots'][0].shape[1]      # 10
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(k * 1.5, k * 1.5))
+            save = True
+
+        _slotss = []
+        for task_id in range(len(self.storage['slots'])):
+            slots = self.storage['slots'][task_id][select_id]  # [k30, d128]
+            _slotss.append(slots)
+
+        _slotss = torch.cat(_slotss)  # [k30*3, d128]
+        sim = F.cosine_similarity(_slotss.unsqueeze(0), _slotss.unsqueeze(1), dim=-1)
+        # sim = -torch.norm(p.unsqueeze(0) - p.unsqueeze(1), dim=2)       # l2 -> [20, 20]
+        # sim = torch.softmax(sim, dim=1)
+        sim = sim.cpu().numpy()
+
+        draw_heatmap(sim, verbose=True, ax=ax, fmt=".3f")
+        ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+
+        # save
+        if save:
+            label = self.storage['samples'][1][select_id].item()
+            ori_y_str = self.get_label_str(label)
+
+            fig.suptitle(f'{self.name}: {label}, {ori_y_str}', fontsize=16)
+            self.savefig(fig, f'{label}-{ori_y_str}-slot-cos-sim.png')
+
+    def collect_samples_weighted_slot_sim_per_class(self):
+        """refer to intra-class-consistency-reg"""
+        slots = self.storage['slots']       # n_tasks * [bs, k, h]
+        slot_weights = self.storage['weigs']    # n_tasks * [bs, k]
+        ys = self.storage['samples'][1]     # [bs]
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        task_sims = []
+        for task_id in range(len(self.storage['slots'])):
+            cls_sims = []
+            weighted_slots = torch.einsum('bkh,bk->bh', slots[task_id], slot_weights[task_id])
+            label_set = self.label_set
+            for label in label_set:
+                selected_idxs = torch.where(ys == label)[0]
+                selected_w_slots = weighted_slots[selected_idxs]    # [2, h]
+                sim = cos(selected_w_slots.unsqueeze(0), selected_w_slots.unsqueeze(1))  # [2, 2]
+                cls_sims.append(sim)
+            cls_sims = torch.stack(cls_sims)    # [n_cls, 2, 2]
+            task_sims.append(cls_sims)
+        task_sims = torch.stack(task_sims)  # [n_tasks, n_cls, 2, 2]
+        self.storage['results']['samples/per_cls/w_slot_sim'] = {
+            'Details': task_sims, 'Mean': task_sims.mean(), 'Std': task_sims.std(),
+            'CI95': 1.96 * (task_sims.std() / np.sqrt(torch.prod(torch.tensor(task_sims.shape))))}
+
+        # extend columns
+        self.columns.extend(['samples/per_cls/w_slot_sim'])
+
+    def draw_slot_weights(self, ax=None):
+        # draw ws
+        n_row = 1
+        n_column = len(self.storage['weigs'])  # n_tasks
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+
+        for task_id in range(n_column):
+            ws = self.storage['weigs'][task_id]  # [bs, k10]
+            yi = task_id
+            draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax[yi], fmt=".3f")
+            ax[yi].set_ylabel(f't{task_id}', fontsize=16)
+
+        # save
+        if save:
+            fig.suptitle(f'{self.name}', fontsize=16)
+            self.savefig(fig, f'slot-selection.png')
+
+    def draw_prompt_selection(self):
+        pass
+
+    def get_label_str(self, related_label):
+        try:
+            ori_y = self.trainer.test_dataset.benchmark.original_classes_in_exp.flatten()[related_label]
+            ori_y_str = self.trainer.test_dataset.benchmark.label_info[2][ori_y]
+        except:
+            ori_y_str = ''
+
+        return ori_y_str
 
     def collect_AA_CA_FF(self, max_task=-1):
         # pt
@@ -208,7 +594,6 @@ class Debugger:
         else:
             self.columns.extend(['sys', 'pro', 'Hn', 'non', 'noc', 'Hr', 'Ha'])  # no sub
 
-
     def load_log_data(self):
         # load log
         if self.check_level('DEBUG'):
@@ -228,9 +613,10 @@ class Debugger:
                     if self.check_level('DEBUG'):
                         print(f'File not find: {file}.')
 
-    def collect_losses(self, res=None, draw=False):
-        if res is None:
-            res = dict()
+    def collect_losses(self, draw=False):
+        if 'loss_df' not in self.storage.keys():
+            self.storage['loss_df'] = dict()
+        res = self.storage['loss_df']
         if 'log' not in self.storage:
             self.load_log_data()
 
@@ -366,6 +752,8 @@ class Debugger:
         self.exp_path = exp_path
         path = os.path.join(exp_path, 'args.yaml')
         args = yaml.load(open(path, 'r'), Loader=yaml.Loader)
+        args['gpuid'] = [0]
+        args['debug_mode'] = 1
         self.args = args
 
     def check_level(self, level):
@@ -811,3 +1199,88 @@ class Debugger:
         sim = torch.cat([img_sim, *[tsk_sim] * (img_sim.shape[0] // 10)]).cpu().numpy()
         figure = draw_heatmap(sim, verbose=False)
         writer.add_figure(f"{prefix}/{task_title}/sim", figure, i + 1)
+
+
+def unnormalize(sample):
+    # 标准化图像的逆变换
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+    unnormalize = transforms.Normalize(mean=[-m / s for m, s in zip(mean, std)],
+                                       std=[1 / s for s in std])
+
+    # 将图像标准化到0到1范围
+    normalized_image = unnormalize(sample)
+    normalized_image = torch.clamp(normalized_image, 0, 1)
+
+    # 转换为Numpy数组
+    numpy_image = normalized_image.permute(1, 2, 0).cpu().numpy()
+
+    # 缩放像素值到0到255范围
+    numpy_image = (numpy_image * 255).astype(np.uint8)
+
+    image = Image.fromarray(numpy_image, mode='RGB')
+
+    return image
+
+
+def visualize_att_map(att_map, image, grid_size=14, alpha=0.6, ax=None):
+    if not isinstance(grid_size, tuple):
+        grid_size = (grid_size, grid_size)
+
+    assert len(att_map.shape) == 1
+
+    cls_weight = 0
+    if len(att_map) == grid_size[0] * grid_size[0] + 1:
+        cls_weight = att_map[0]
+        att_map = att_map[1:]
+
+    mask = att_map.reshape(grid_size[0], grid_size[1])
+    mask = Image.fromarray(mask).resize((image.size))
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 2, figsize=(10, 7))
+        fig.tight_layout()
+
+    if cls_weight > 0:
+        # mask = mask/np.max(mask)
+        image, mask, meta_mask = cls_padding(image, mask, cls_weight, grid_size)
+
+        ax.imshow(image)
+        ax.imshow(mask, alpha=alpha, cmap='rainbow')
+        ax.imshow(meta_mask)
+    else:
+        ax.imshow(image)
+        ax.imshow(mask / np.max(mask), alpha=alpha, cmap='rainbow')
+    # ax.axis('off')
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+
+def visualize_att_map_with_color(att_map, image, color, grid_size=14, alpha=0.6, ax=None):
+    # color with range [0-1, 0-1, 0-1]
+    # argmax att
+    if not isinstance(grid_size, tuple):
+        grid_size = (grid_size, grid_size)
+
+    assert len(att_map.shape) == 1
+
+    # mask attn to 0,1
+    mask = att_map.reshape(grid_size[0], grid_size[1])
+    mask = Image.fromarray(mask).resize((image.size), Image.BICUBIC)
+    mask = np.asarray(mask)
+    mask = mask - mask.min()
+    mask = mask / mask.max()
+
+    colored_mask = np.stack([np.zeros_like(mask) for _ in range(4)], axis=2)
+    colored_mask[mask > 0.5] = [*color, alpha]
+    # alpha_mask = np.ones_like(mask, dtype=float)
+    # alpha_mask[mask > 0.5] = alpha
+    if ax is None:
+        fig, ax = plt.subplots(1, 2, figsize=(10, 7))
+        fig.tight_layout()
+
+    # ax.imshow(ori_x)
+    ax.imshow(colored_mask)  # , alpha=alpha_mask
+    # ax.axis('off')
+    ax.set_xticks([])
+    ax.set_yticks([])

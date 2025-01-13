@@ -312,6 +312,8 @@ if __name__ == '__main__':
     if args.compositional_testing:
         comp_test(args)
 
-    debugger = Debugger(args=vars(args))
-    res = debugger.collect_results(max_task=args.max_task, draw=True)
+    args.gpuid = [0]        # prevent using multi-gpu
+    args.debug_mode = 1
+    debugger = Debugger(level='INFO', args=vars(args))
+    res = debugger.collect_results(max_task=args.max_task, draw=True, use_dataset=True)
     df_res = debugger.generate_df()
