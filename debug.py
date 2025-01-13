@@ -74,17 +74,20 @@ class Debugger:
         self.collect_losses(draw=draw)
 
         if use_dataset:
-            self.prepare_trainer(seed=0)
-            self.load_samples(num_samples_per_class=2)
-            self.collect_sample_results()       # obtain slots, prompts, attns,...
-            self.collect_samples_attns_sim_per_img()
-            self.draw_attns(select_id=0)
-            self.collect_samples_slots_sim_per_img()
-            self.draw_slot_cos_sim(select_id=0)
-            self.collect_samples_weighted_slot_sim_per_class()
-            self.draw_slot_weights()
-
-            # self.draw_prompt_selection()
+            try:
+                self.prepare_trainer(seed=0)
+                self.load_samples(num_samples_per_class=2)
+                self.collect_sample_results()       # obtain slots, prompts, attns,...
+                self.collect_samples_attns_sim_per_img()
+                self.draw_attns(select_id=0)
+                self.collect_samples_slots_sim_per_img()
+                self.draw_slot_cos_sim(select_id=0)
+                self.collect_samples_weighted_slot_sim_per_class()
+                self.draw_slot_weights()
+                # self.draw_prompt_selection()
+            except:
+                if self.check_level('DEBUG'):
+                    print(f'Error collecting trainer results.')
 
     def loss_df(self):
         return self.storage['loss_df']
@@ -176,9 +179,12 @@ class Debugger:
             # load model
             model_save_dir = trainer.model_top_dir + '/models/repeat-' + str(trainer.seed + 1) + '/task-' + \
                              trainer.task_names[task_id] + '/'
-            trainer.learner.load_model(model_save_dir)
+            try:
+                trainer.learner.load_model(model_save_dir)
 
-            self.learners.append(copy.deepcopy(trainer.learner))
+                self.learners.append(copy.deepcopy(trainer.learner))
+            except:
+                pass
 
         # load tasks
         self.tasks = trainer.tasks_logits
@@ -264,7 +270,7 @@ class Debugger:
         self.storage['seles'] = []  # n_task*[bs, k, e, pp]
 
         x, y, c = self.storage['samples']
-        num_tasks = self.max_task
+        num_tasks = len(self.learners)
         # trainer = prepare(trainer, task_id=-1, load=False)
         for task_id in range(num_tasks):
             learner = self.learners[task_id]
