@@ -488,7 +488,8 @@ class SLOTPrompt(Prompt):
         except:
             return None
 
-    def forward(self, inputs, targets, train=False, learn_slots=True, prompt_phase='new', model=None):
+    def forward(self, inputs, targets, train=False, learn_slots=True, only_slots=False,
+                prompt_phase='new', model=None):
         res = dict()
         if model is None:
             model = self.model
@@ -521,11 +522,19 @@ class SLOTPrompt(Prompt):
 
         # loss = torch.zeros(1).mean().to(prompts.device)
         # pen: penultimate features; train: same forward as batch training.
-        out, features = self.model(
-            inputs, q=sum_prompts,
-            pen=True, train=train,
-            # register_blk=hard_l,
-            debug_mode=self.debug_mode)
+        if only_slots:
+            with torch.no_grad():
+                out, features = self.model(
+                    inputs, q=sum_prompts,
+                    pen=True, train=train,
+                    # register_blk=hard_l,
+                    debug_mode=self.debug_mode)
+        else:
+            out, features = self.model(
+                inputs, q=sum_prompts,
+                pen=True, train=train,
+                # register_blk=hard_l,
+                debug_mode=self.debug_mode)
         # features: [bs, 768]
         # out is logits: [bs, 100]
 
@@ -545,7 +554,8 @@ class SLOTPrompt(Prompt):
 
         prompt_phase = 'new' if 'new' in optimizer_target else 'reuse'
         res = self.forward(inputs, targets, train=True,
-                           learn_slots='slot' in optimizer_target, prompt_phase=prompt_phase)
+                           learn_slots='slot' in optimizer_target, only_slots='slot' == optimizer_target,
+                           prompt_phase=prompt_phase)
         prompts = res['prompts']
         selections = res['selections']
         slot_weights = res['slot_weights']
