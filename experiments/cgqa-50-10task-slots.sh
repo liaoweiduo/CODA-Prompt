@@ -88,7 +88,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 
 concept_similar_reg_coeff=1.0
 concept_similar_reg_temp=0.01
-LOGNAME=14-slot_prompt-cheating-csrc${concept_similar_reg_coeff}_old_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+LOGNAME=14-slot_prompt-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_t${slot_ortho_reg_temp}-slr${slot_lr}-cheating-csrc${concept_similar_reg_coeff}_old_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \

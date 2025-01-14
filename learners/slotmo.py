@@ -1052,13 +1052,13 @@ class SLOTPrompt(Prompt):
 
                 loss = loss + current_coeff * slot_logit_similar_reg
 
-            loss.backward()
+        loss.backward()
 
-            # step
-            self.optimizer.step()
+        # step
+        self.optimizer.step()
 
-            # logits is used to cal train acc, so use masked out (-inf for old) to show local acc
-            return loss.detach(), logits, collections
+        # logits is used to cal train acc, so use masked out (-inf for old) to show local acc
+        return loss.detach(), logits, collections
 
     def _intra_consistency_reg(self, slots, slot_weights, targets):
         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
