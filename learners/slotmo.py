@@ -419,7 +419,7 @@ class SLOTPrompt(Prompt):
                         for key, v in loss_dict.items():
                             visual_key = ''     # e.g., IntrConsLoss
                             for word in key.split('_'):
-                                visual_key = visual_key + word[0].upper()+word[1:3].lower()
+                                visual_key = visual_key + word[0].upper()+word[1:4].lower()
                             if visual_key not in res.keys():
                                 res[visual_key] = AverageMeter()
                             res[visual_key].update(v, y.size(0))

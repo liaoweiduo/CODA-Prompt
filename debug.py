@@ -75,16 +75,19 @@ class Debugger:
 
         if use_dataset:
             try:
-                self.prepare_trainer(seed=0)
+                select_id = 0
+                self.prepare_trainer(seed=select_id)
                 self.load_samples(num_samples_per_class=2)
                 self.collect_sample_results()       # obtain slots, prompts, attns,...
                 self.collect_samples_attns_sim_per_img()
-                self.draw_attns(select_id=0)
+                self.draw_attns(select_id=select_id)
                 self.collect_samples_slots_sim_per_img()
-                self.draw_slot_cos_sim(select_id=0)
+                self.draw_slot_cos_sim(select_id=select_id)
+                self.collect_task_wise_attn_slot_change()
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights()
-                # self.draw_prompt_selection()
+                self.draw_prompt_selection()
+
             except:
                 if self.check_level('DEBUG'):
                     print(f'Error collecting trainer results.')
@@ -161,7 +164,7 @@ class Debugger:
             trainer.current_t_index = task_id
             task = trainer.tasks_logits[task_id]
             trainer.train_dataset.load_dataset(task_id, train=True)
-            trainer.test_dataset.load_dataset(task_id, train=True)
+            trainer.test_dataset.load_dataset(task_id, train=False)
             trainer.add_dim = len(task)
             if task_id > 0:
                 try:
@@ -212,6 +215,8 @@ class Debugger:
         self.single_label_dataloaders = {
             label: DataLoader(self.single_label_datasets[label], batch_size=32, shuffle=False, drop_last=False,
                               num_workers=int(self.trainer.workers)) for label in self.label_set}
+        if self.check_level('DEBUG'):
+            print(f'label_set: {self.label_set}.')
 
     def load_samples(self, num_samples_per_class=2, reset_seed=True, draw=False):
         """load samples and store to storage['samples']"""
@@ -436,6 +441,35 @@ class Debugger:
             fig.suptitle(f'{self.name}: {label}, {ori_y_str}', fontsize=16)
             self.savefig(fig, f'{label}-{ori_y_str}-slot-cos-sim.png')
 
+    def collect_task_wise_attn_slot_change(self):
+        """After Hungarian match, attn differences and slot differences"""
+        fst_task_attns = self.storage['attns'][0]    # [bs, n, k]
+        fst_task_slots = self.storage['slots'][0]    # [bs, k, h]
+        attn_maes = []
+        slot_maes = []
+        for task_id in range(1, len(self.storage['attns'])):
+            task_attns = self.storage['attns'][task_id]
+            attn_maes.append(torch.nn.functional.l1_loss(fst_task_attns, task_attns, reduction='none'))
+            task_slots = self.storage['slots'][task_id]
+            slot_maes.append(torch.nn.functional.l1_loss(fst_task_slots, task_slots, reduction='none'))
+
+        if len(attn_maes) > 0:
+            attn_maes = torch.stack(attn_maes)      # [n_task-1, bs, n, k]
+            attn_maes = attn_maes.cpu().detach().numpy()
+            self.storage['results']['samples/task_wise/attn_mae'] = {
+                'Details': attn_maes, 'Mean': attn_maes.mean(), 'Std': attn_maes.std(),
+                'CI95': 1.96 * (attn_maes.std() / np.sqrt(np.prod(attn_maes.shape)))}
+
+            slot_maes = torch.stack(slot_maes)      # [n_task-1, bs, k, h]
+            slot_maes = slot_maes.cpu().detach().numpy()
+            self.storage['results']['samples/task_wise/slot_mae'] = {
+                'Details': slot_maes, 'Mean': slot_maes.mean(), 'Std': slot_maes.std(),
+                'CI95': 1.96 * (slot_maes.std() / np.sqrt(np.prod(slot_maes.shape)))}
+
+            # extend columns
+            self.columns.extend(['samples/task_wise/attn_mae', 'samples/task_wise/slot_mae'])
+
+
     def collect_samples_weighted_slot_sim_per_class(self):
         """refer to intra-class-consistency-reg"""
         slots = self.storage['slots']       # n_tasks * [bs, k, h]
@@ -485,8 +519,46 @@ class Debugger:
             fig.suptitle(f'{self.name}', fontsize=16)
             self.savefig(fig, f'slot-selection.png')
 
-    def draw_prompt_selection(self):
-        pass
+    def draw_prompt_selection(self, select_id=None, ax=None):
+        """n_column=n_layer, n_row=1. each ax contains """
+        bs, kk, e, pp = self.storage['seles'][-1].shape       # n_task*[bs, kk1, e5, pp100?]
+        # pp is max_selection_dim
+        n_row = 1
+        n_column = e
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+
+        for task_id in range(len(self.storage['seles'])):
+            if select_id is not None:
+                selections = self.storage['seles'][task_id][select_id]  # [kk1, e5, pp100?]
+            else:
+                selections = self.storage['seles'][task_id].reshape(bs*kk, e, pp)
+
+            for layer_id in range(e):
+                yi = layer_id
+                _selection = selections[:, layer_id]    # [kk, pp]
+
+                if n_row == 1:
+                    draw_heatmap(_selection.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".3f")
+                    ax[yi].set_title(f'l{yi}', fontsize=16)
+                    # axes[xi, yi].tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
+                    # axes[xi, yi].set_xticks([])
+                    # axes[xi, yi].set_yticks([])
+                    ax[yi].set_ylabel(f'task', fontsize=16)
+
+        # save
+        if save:
+            if select_id is not None:
+                label = self.storage['samples'][1][select_id].item()
+                ori_y_str = self.get_label_str(label)
+                fig.suptitle(f'{self.name}: {label}, {ori_y_str}', fontsize=16)
+                self.savefig(fig, f'{label}-{ori_y_str}-prompt-selection.png')
+            else:
+                fig.suptitle(f'{self.name}', fontsize=16)
+                self.savefig(fig, f'prompt-selection.png')
 
     def get_label_str(self, related_label):
         try:
