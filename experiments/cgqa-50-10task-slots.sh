@@ -81,8 +81,14 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
     --batch_size 256 \
-    --slot_lr ${slot_lr1} ${slot_lr2} \
     --only_learn_slot \
+    --slot_lr ${slot_lr1} ${slot_lr2} \
+    --use_intra_consistency_reg \
+    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+    --use_slot_ortho_reg \
+    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
+    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
     --max_task 3 \
     --log_dir ${OUTDIR}/${SLOT_LOGNAME}
 
