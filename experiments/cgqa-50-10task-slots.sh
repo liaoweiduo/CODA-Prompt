@@ -80,7 +80,7 @@ SLOT_LOGNAME=slot_attn-pos-k10-nt5-recon_noLN-icr${intra_consistency_reg_coeff}_
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
-    --batch_size 256 \
+    --batch_size 128 \
     --only_learn_slot \
     --slot_lr ${slot_lr1} ${slot_lr2} \
     --use_intra_consistency_reg \
@@ -98,7 +98,7 @@ LOGNAME=14-slot_prompt-icr${intra_consistency_reg_coeff}_m${intra_consistency_re
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
-    --batch_size 128 \
+    --batch_size 32 \
     --lr ${lr} ${lr} \
     --slot_pre_learn_model ${SLOT_LOGNAME} \
     --use_old_samples_for_reg \
