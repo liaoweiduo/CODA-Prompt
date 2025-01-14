@@ -642,16 +642,17 @@ class SLOTPrompt(Prompt):
             # loss = loss + 1/alpha[2]**2 * self.slot_vsI_coeff * slot_sim_mse
             # loss = loss + torch.sum(torch.log(alpha+1))
 
-        if 'prompt' in optimizer_target or 'head' in optimizer_target:
-            masked_out = out[:, :self.valid_out_dim]       # [bs, 30]
-            bs, n_cls = masked_out.shape
+        masked_out = out[:, :self.valid_out_dim]       # [bs, 30]
+        bs, n_cls = masked_out.shape
 
-            # ce with heuristic
-            logits = masked_out.clone()
-            logits[:, :self.last_valid_out_dim] = -float('inf')
-            # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
-            # dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
-            # objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
+        # ce with heuristic
+        logits = masked_out.clone()
+        logits[:, :self.last_valid_out_dim] = -float('inf')
+        # logits[:, :self.last_valid_out_dim] = logits[:, :self.last_valid_out_dim].detach().clone()
+        # dw_cls = self.dw_k[-1 * torch.ones(cat_labels.size()).long()]
+        # objs = (self.criterion_fn(logits, cat_labels.long()) * dw_cls).view(bs, pop)  # [bs, n_prompt]
+
+        if 'prompt' in optimizer_target or 'head' in optimizer_target:
             ce_loss = self.criterion_fn(logits, targets.long()).mean()
             loss = loss + ce_loss
 
