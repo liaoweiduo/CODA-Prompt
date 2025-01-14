@@ -2,8 +2,8 @@ dataset: CGQA
 first_split_size: 50
 other_split_size: 10
 schedule:
-- [[100], [0], [30]]
-- [[100], [0], [30]]   # T * [[epochs for slots], [enhance reuse], [learn new prompt]]
+- [[0], [0], [30]]
+- [[0], [0], [30]]   # T * [[epochs for slots], [enhance reuse], [learn new prompt]]
 schedule_type: cosine
 slot_schedule_type: cosine
 #batch_size: 32
