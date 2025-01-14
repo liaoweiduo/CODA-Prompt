@@ -511,7 +511,7 @@ class Debugger:
         for task_id in range(n_column):
             ws = self.storage['weigs'][task_id]  # [bs, k10]
             yi = task_id
-            draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax[yi], fmt=".3f")
+            draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax[yi], fmt=".2f")
             ax[yi].set_ylabel(f't{task_id}', fontsize=16)
 
         # save
