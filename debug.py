@@ -154,7 +154,7 @@ class Debugger:
 
         self.seed = seed
         self.reset_seed(seed)
-        trainer = Trainer(argparse.Namespace(**self.args), seed, metric_keys, save_keys)  # new trainer
+        trainer = Trainer(argparse.Namespace(**copy.deepcopy(self.args)), seed, metric_keys, save_keys)  # new trainer
         self.trainer = trainer
         self.learners = []
         for task_id in range(self.max_task):

@@ -28,17 +28,17 @@ mkdir -p $OUTDIR
 #    --oracle_flag --upper_bound_flag \
 #    --debug_mode 1 \
 
-## $1
-
 # co-learn slot and prompt
+# $1
+slot_ortho_reg_temp=$1
+for slot_ortho_reg_coeff in 0.1 0.5 1.0; do
 lr=1e-3
 slot_lr=1e-4
-intra_consistency_reg_coeff=$1
-for slot_ortho_reg_coeff in 1.0; do
+intra_consistency_reg_coeff=0.01
+intra_consistency_reg_mode=cross+l1
 concept_similar_reg_coeff=1.0
-# $1
 concept_similar_reg_temp=0.01
-LOGNAME=12-slot-icr${intra_consistency_reg_coeff}-sor${slot_ortho_reg_coeff}-slr${slot_lr}-cheating-csrc${concept_similar_reg_coeff}_old_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+LOGNAME=13-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_t${slot_ortho_reg_temp}-slr${slot_lr}-cheating-csrc${concept_similar_reg_coeff}_old_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -47,8 +47,10 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_lr ${slot_lr} ${slot_lr} \
     --use_intra_consistency_reg \
     --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
     --use_slot_ortho_reg \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
+    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
     --use_old_samples_for_reg \
     --concept_weight \
     --concept_similar_reg_coeff ${concept_similar_reg_coeff} \

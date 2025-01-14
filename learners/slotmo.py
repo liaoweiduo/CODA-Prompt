@@ -615,8 +615,9 @@ class SLOTPrompt(Prompt):
                     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
                     slot_ortho_loss = torch.nn.functional.mse_loss(sim, eye)
                 elif slot_ortho_reg_mode == 'ce':
-                    sim = torch.einsum('bkh,bnh->bkn', img_slots, img_slots) / 0.8     # [bs, k, k]
-                    # sim = torch.matmul(M, M.t()) / 0.8
+                    sim = torch.einsum('bkh,bnh->bkn', img_slots, img_slots) * (
+                            self.config['args'].slot_ortho_reg_temp * (h ** -0.5))
+                    # [bs, k, k]
                     sim = sim.reshape(bs*k, k)
                     sim_label = torch.arange(k).repeat(bs).long().to(sim.device)  # [0,1,...,k-1,0,1,...,k-1,...]
                     slot_ortho_loss = torch.nn.functional.cross_entropy(sim, sim_label)
@@ -1176,7 +1177,7 @@ class SLOTPrompt(Prompt):
         weights = torch.sum(q.unsqueeze(2) * q.reshape(1, 1, bs * k, h), dim=-1)
         # [bs, k, bs*k] cosine sim matrix
         weights = torch.mean(weights, dim=-1)  # [bs, k]
-        weights = weights * self.config['args'].slot_cross_attn_temp  # cross_attn_temp: 0.1
+        weights = weights * self.config['args'].slot_cross_attn_temp  # cross_attn_temp
         weights = torch.softmax(weights, dim=-1)  # [b, k]; sum over k == 1
         return weights
 
