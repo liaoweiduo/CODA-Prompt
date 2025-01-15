@@ -65,7 +65,7 @@ class Debugger:
         self.single_label_datasets = {}
         self.single_label_dataloaders = {}
 
-    def collect_results(self, max_task=-1, draw=False, use_dataset=False):
+    def collect_results(self, max_task=-1, draw=False, use_dataset=False, label_range=range(0,10), select_id = 0):
         # collect results
         self.storage['results'] = {}
         self.storage['loss_df'] = {}
@@ -75,9 +75,8 @@ class Debugger:
 
         if use_dataset:
             try:
-                select_id = 0
                 self.prepare_trainer(seed=select_id)
-                self.load_samples(num_samples_per_class=2)
+                self.load_samples(num_samples_per_class=2, label_range=label_range)
                 self.collect_sample_results()       # obtain slots, prompts, attns,...
                 self.collect_samples_attns_sim_per_img()
                 self.draw_attns(select_id=select_id)
@@ -98,7 +97,7 @@ class Debugger:
     def _default_output_args(self):
         # default params
         self.output_args = [
-            'max_task', 'lr', 'prompt_param', 'larger_prompt_lr', 'batch_size']
+            'max_task', 'lr', 'slot_lr', 'prompt_param', 'larger_prompt_lr', 'batch_size']
         if self.args['lr_decreace_ratio'] != 1.0:
             self.output_args.append('lr_decrease_ratio')
 
@@ -218,14 +217,17 @@ class Debugger:
         if self.check_level('DEBUG'):
             print(f'label_set: {self.label_set}.')
 
-    def load_samples(self, num_samples_per_class=2, reset_seed=True, draw=False):
+    def load_samples(self, num_samples_per_class, label_range=None, reset_seed=True, draw=False):
         """load samples and store to storage['samples']"""
         if reset_seed:
             self.reset_seed(self.seed)
 
         xs, ys, cs = [], [], []
         num_samples = num_samples_per_class
-        for label in self.label_set:
+
+        if label_range is None:
+            label_range = self.label_set
+        for label in label_range:
             iterator = iter(self.single_label_dataloaders[label])
             sample = next(iterator)
             if len(sample) == 3:
