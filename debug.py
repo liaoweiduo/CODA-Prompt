@@ -65,7 +65,7 @@ class Debugger:
         self.single_label_datasets = {}
         self.single_label_dataloaders = {}
 
-    def collect_results(self, max_task=-1, draw=False, use_dataset=False, label_range=range(0,10), select_id = 0):
+    def collect_results(self, max_task=-1, draw=False, use_dataset=False, label_range=range(0,10), select_id=0):
         # collect results
         self.storage['results'] = {}
         self.storage['loss_df'] = {}
