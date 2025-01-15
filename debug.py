@@ -7,6 +7,7 @@ import os
 import pickle
 from collections import OrderedDict
 import argparse
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -86,7 +87,10 @@ class Debugger:
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights()
                 self.draw_prompt_selection()
-            except:
+            except Exception as e:
+                # Print the error traceback
+                traceback.print_exc()
+
                 if self.check_level('DEBUG'):
                     print(f'Error collecting trainer results.')
 
