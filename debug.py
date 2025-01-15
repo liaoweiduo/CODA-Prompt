@@ -85,11 +85,11 @@ class Debugger:
                 self.collect_task_wise_attn_slot_change()
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights()
-                self.draw_prompt_selection()
-
             except:
                 if self.check_level('DEBUG'):
                     print(f'Error collecting trainer results.')
+
+            self.draw_prompt_selection()
 
     def loss_df(self):
         return self.storage['loss_df']
