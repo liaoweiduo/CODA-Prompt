@@ -30,40 +30,49 @@ mkdir -p $OUTDIR
 
 # co-learn slot and prompt
 # $1
-slot_ortho_reg_temp=0.01
-for slot_ortho_reg_coeff in 0.1 0.5 1.0; do
 lr=1e-3
-slot_lr1=$1
+slot_lr1=5e-4
 slot_lr2=1e-4
-#intra_consistency_reg_coeff=0.01
-#intra_consistency_reg_mode=cross+l1
-concept_similar_reg_coeff=1.0
-concept_similar_reg_temp=0.01
-#LOGNAME=13-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_t${slot_ortho_reg_temp}-slr${slot_lr}-cheating-csrc${concept_similar_reg_coeff}_old_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
-LOGNAME=14-slot-sor${slot_ortho_reg_coeff}_t${slot_ortho_reg_temp}-slr${slot_lr1}_${slot_lr2}-cheating-csrc${concept_similar_reg_coeff}_old_t${concept_similar_reg_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+intra_consistency_reg_coeff=$1
+#for intra_consistency_reg_coeff in 0.01 0.1 0.5; do
+intra_consistency_reg_mode=learn+l2
+
+slot_ortho_reg_coeff=0.5
+slot_ortho_reg_temp=0.1
+
+#slot_logit_similar_reg_coeff=0.01
+#slot_logit_similar_reg_temp=0.01
+#slot_logit_similar_reg_slot_temp=0.1
+
+#LOGNAME=15-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-cheating-slsrc${slot_logit_similar_reg_coeff}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+LOGNAME=15-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
-    --batch_size 128 \
+    --batch_size 32 \
     --lr ${lr} ${lr} \
     --slot_lr ${slot_lr1} ${slot_lr2} \
+    --use_intra_consistency_reg \
+    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
     --use_slot_ortho_reg \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
     --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
-    --use_old_samples_for_reg \
-    --concept_weight \
-    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
-    --concept_similar_reg_temp ${concept_similar_reg_temp} \
     --max_task 3 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
-done
-#    --use_intra_consistency_reg \
-#    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
-#    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+#done
 #    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
 #    --larger_prompt_lr \
+#    --concept_weight \
+#    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+#    --concept_similar_reg_temp ${concept_similar_reg_temp} \
 #    --use_old_samples_for_reg_no_grad \
+#    --use_old_samples_for_reg \
+#    --use_slot_logit_similar_reg \
+#    --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
+#    --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
+#    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
 #    --eval_class_wise \
 
 ## separate learn slot and prompt

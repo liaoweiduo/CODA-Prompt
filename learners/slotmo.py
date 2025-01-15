@@ -328,7 +328,7 @@ class SLOTPrompt(Prompt):
                 schedule = schedule[self.t]   # [[epochs for slots], [enhance reuse], [learn new prompt]]
 
             if type(schedule) is not list:      # for CFST: 20
-                schedule = [schedule, 0, schedule]  # for CFST: [20, 0, 20]
+                schedule = [[schedule], [0], [schedule]]  # for CFST: [[20], [0], [20]]
 
             # determine train_phases for this task
             if self.config['only_learn_slot']:      # only learn slot
@@ -344,6 +344,9 @@ class SLOTPrompt(Prompt):
                 else:
                     optimizer_targets = ['slot+prompt+reuse+last', 'slot+prompt+new+last']
                     schedule_phases = [1, 2]
+            elif self.config['slot_pre_learn_model'] != 'none':     # specify slot attn model, only learn prompt
+                optimizer_targets = ['prompt+reuse+last', 'prompt+new+last']
+                schedule_phases = [1, 2]
             else:
                 raise Exception(f"Incorrect condition - "
                                 f"only_learn_slot: {self.config['only_learn_slot']}, "
@@ -1137,9 +1140,6 @@ class SLOTPrompt(Prompt):
             loss = F.mse_loss(torch.sigmoid(logit_sim), concept_sim)
         elif 'l1' in self.config['args'].concept_similar_reg_mode:
             loss = F.l1_loss(torch.sigmoid(logit_sim), concept_sim)
-        # elif 'ce' in self.config['args'].slot_logit_similar_reg_mode:
-        #     distances = F.l1_loss(logit_sim, slot_sim, reduction='none')    # [bs, bs]
-        #     F.cross_entropy(distances, torch.range(0, distances.shape[0] - 1).long().to(distances.device))
         else:       # kl
             loss = cross_entropy_with_soft_labels(logit_sim, concept_sim)
 
@@ -1160,12 +1160,12 @@ class SLOTPrompt(Prompt):
 
         if 'cos' in self.config['args'].slot_logit_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            temp = 10
             slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
         else:
             slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (0.1 * weighted_slot.shape[-1] ** -0.5)
-            logit_sim = torch.matmul(logits, logits.t()) * (0.1 * logits.shape[-1] ** -0.5)
+            logit_sim = torch.matmul(logits, logits.t()) * (
+                    self.config['args'].slot_logit_similar_reg_temp * (logits.shape[-1] ** -0.5))
 
         if 'l2' in self.config['args'].slot_logit_similar_reg_mode:
             loss = F.mse_loss(logit_sim, slot_sim)

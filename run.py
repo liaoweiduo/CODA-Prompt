@@ -76,7 +76,7 @@ def create_args():
     parser.add_argument('--use_intra_consistency_reg', action='store_true')
     parser.add_argument('--intra_consistency_reg_coeff', type=float, default=0.0,
                         help="coeff of reg on maintaining intra-consistency of slots")
-    parser.add_argument('--intra_consistency_reg_mode', type=str, default='learn+l1',
+    parser.add_argument('--intra_consistency_reg_mode', type=str, default='cross+l1',
                         help="learn(cross)+l1(l2, ce)")
 
     parser.add_argument('--use_slot_ortho_reg', action='store_true')
@@ -84,7 +84,7 @@ def create_args():
                         help="l1, l2, ce")
     parser.add_argument('--slot_ortho_reg_temp', type=float, default=0.01,
                         help="temp on slot ortho reg for each img.")
-    parser.add_argument('--slot_ortho_reg_coeff', type=float, default=0.0,
+    parser.add_argument('--slot_ortho_reg_coeff', type=float, default=0.5,
                         help="coeff of reg on slot ortho.")
 
     # Prompt learn Args
@@ -115,6 +115,8 @@ def create_args():
     parser.add_argument('--prompt_concept_alignment_reg_coeff', type=float, default=0.0,
                         help="coeff of reg on feature similarity of masked img with concept and use prompt.")
 
+    parser.add_argument('--use_old_samples_for_reg', action='store_true')
+    parser.add_argument('--use_old_samples_for_reg_no_grad', action='store_true')
     parser.add_argument('--concept_weight', default=False, action='store_true',
                         help='True to use concept weighting on data.')
     parser.add_argument('--target_concept_id', type=int, default=-1, help="specify specific concept to weight")
@@ -127,15 +129,17 @@ def create_args():
     parser.add_argument('--concept_similar_reg_mode', type=str, default='dot+kl')
     parser.add_argument('--dynamic_concept_similar_reg_coeff', default=False, action='store_true',
                         help='coeff from 0 for the first epoch.')
-    parser.add_argument('--use_old_samples_for_reg', action='store_true')
-    parser.add_argument('--use_old_samples_for_reg_no_grad', action='store_true')
 
     parser.add_argument('--use_slot_logit_similar_reg', action='store_true')
     parser.add_argument('--slot_logit_similar_reg_coeff', type=float, default=0.,
                         help="coeff for concept similar reg.")
     parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=0.,
                         help="sensitivity for reg on n_cls.")
-    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='cos+l2')
+    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='dot+kl')
+    parser.add_argument('--slot_logit_similar_reg_temp', type=float, default=0.01,
+                        help="temp on logit similarity.")
+    parser.add_argument('--slot_logit_similar_reg_slot_temp', type=float, default=0.1,
+                        help="temp on logit similarity.")
 
     # CFST Args
     parser.add_argument('--compositional_testing', action='store_true')
