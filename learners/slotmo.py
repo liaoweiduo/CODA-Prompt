@@ -603,7 +603,7 @@ class SLOTPrompt(Prompt):
 
             collections['slot_recon_loss'] = recon_loss.detach()
 
-            # supercon on positive samples to enhance intra-class consistency
+            # positive samples to enhance intra-class consistency
             if self.config['args'].use_intra_consistency_reg:
                 intra_consistency_loss = self._intra_consistency_reg(slots, slot_weights, targets)
                 loss = loss + self.config['args'].intra_consistency_reg_coeff * intra_consistency_loss
