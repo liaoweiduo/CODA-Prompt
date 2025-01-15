@@ -85,11 +85,11 @@ class Debugger:
                 self.collect_task_wise_attn_slot_change()
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights()
+                self.draw_prompt_selection()
             except:
                 if self.check_level('DEBUG'):
                     print(f'Error collecting trainer results.')
 
-            self.draw_prompt_selection()
 
     def loss_df(self):
         return self.storage['loss_df']
@@ -525,7 +525,7 @@ class Debugger:
         """n_column=n_layer, n_row=1. each ax contains """
         bs, kk, e, pp = self.storage['seles'][-1].shape       # n_task*[bs, kk1, e5, pp100?]
         # pp is max_selection_dim
-        n_row = 1
+        n_row = len(self.storage['seles'])
         n_column = e
         save = False
         fig = None
@@ -541,16 +541,18 @@ class Debugger:
                 selections = self.storage['seles'][task_id].reshape(bs*kk, e, pp)
 
             for layer_id in range(e):
+                xi = task_id
                 yi = layer_id
                 _selection = selections[:, layer_id]    # [kk, pp]
 
-                if n_row == 1:
-                    draw_heatmap(_selection.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".3f")
-                    ax[yi].set_title(f'l{yi}', fontsize=16)
+                draw_heatmap(_selection.cpu().numpy(), verbose=False, ax=ax[xi, yi], fmt=".3f")
+                if xi == 0:
+                    ax[xi, yi].set_title(f'l{yi}', fontsize=16)
                     # axes[xi, yi].tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
                     # axes[xi, yi].set_xticks([])
                     # axes[xi, yi].set_yticks([])
-                    ax[yi].set_ylabel(f'task', fontsize=16)
+                if yi == 0:
+                    ax[xi, yi].set_ylabel(f't{xi}', fontsize=16)
 
         # save
         if save:
