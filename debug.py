@@ -481,13 +481,13 @@ class Debugger:
         slots = self.storage['slots']       # n_tasks * [bs, k, h]
         slot_weights = self.storage['weigs']    # n_tasks * [bs, k]
         ys = self.storage['samples'][1]     # [bs]
+        unique_ys = torch.unique(ys)
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         task_sims = []
         for task_id in range(len(self.storage['slots'])):
             cls_sims = []
             weighted_slots = torch.einsum('bkh,bk->bh', slots[task_id], slot_weights[task_id])
-            label_set = self.label_set
-            for label in label_set:
+            for label in unique_ys:
                 selected_idxs = torch.where(ys == label)[0]
                 selected_w_slots = weighted_slots[selected_idxs]    # [2, h]
                 sim = cos(selected_w_slots.unsqueeze(0), selected_w_slots.unsqueeze(1))  # [2, 2]
