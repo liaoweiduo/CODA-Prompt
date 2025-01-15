@@ -36,14 +36,14 @@ slot_lr2=1e-4
 intra_consistency_reg_coeff=$1
 intra_consistency_reg_mode=learn+l2
 
-slot_ortho_reg_coeff=0.5
+slot_ortho_reg_coeff=1.0
 slot_ortho_reg_temp=0.1
 
 for slot_logit_similar_reg_coeff in 0 0.01; do
 slot_logit_similar_reg_temp=0.01
 slot_logit_similar_reg_slot_temp=0.1
 
-LOGNAME=16-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-cheating-slsrc${slot_logit_similar_reg_coeff}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
+LOGNAME=16-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_t${slot_ortho_reg_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
 #LOGNAME=15-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-lr${lr}-p100-l8-k10-nt5-sig1_FPS
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
