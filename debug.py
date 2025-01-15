@@ -534,6 +534,7 @@ class Debugger:
             save = True
 
         for task_id in range(len(self.storage['seles'])):
+            bs, kk, e, pp = self.storage['seles'][task_id].shape       # update pp since different task different.
             if select_id is not None:
                 selections = self.storage['seles'][task_id][select_id]  # [kk1, e5, pp100?]
             else:
