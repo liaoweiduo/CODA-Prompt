@@ -475,7 +475,6 @@ class Debugger:
             # extend columns
             self.columns.extend(['samples/task_wise/attn_mae', 'samples/task_wise/slot_mae'])
 
-
     def collect_samples_weighted_slot_sim_per_class(self):
         """refer to intra-class-consistency-reg"""
         slots = self.storage['slots']       # n_tasks * [bs, k, h]
