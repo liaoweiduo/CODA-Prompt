@@ -1177,7 +1177,8 @@ class SLOTPrompt(Prompt):
             slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
         else:
-            slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (0.1 * weighted_slot.shape[-1] ** -0.5)
+            slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
+                    self.config['args'].slot_logit_similar_reg_slot_temp * weighted_slot.shape[-1] ** -0.5)
             logit_sim = torch.matmul(logits, logits.t()) * (
                     self.config['args'].slot_logit_similar_reg_temp * (logits.shape[-1] ** -0.5))
 
