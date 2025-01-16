@@ -1091,15 +1091,6 @@ class SLOTPrompt(Prompt):
         else:
             raise Exception(f'Un-implemented intra_consistency_reg_mode: {mode}')
 
-        # find a positive sample for each sample (if only has one sample in this batch, use itself)
-        posi_slots = []
-        for sid in range(bs):
-            target = targets[sid]
-            selected_idxs = torch.where(targets == target)[0]
-            selected_idx = selected_idxs[torch.randperm(selected_idxs.size(0))][0]
-            posi_slot = weighted_slots[selected_idx]
-            posi_slots.append(posi_slot)
-        posi_slots = torch.stack(posi_slots)  # [bs, h]
         if 'l1' in mode:
             dist = nn.PairwiseDistance(p=1)  # l1-distance
         elif 'l2' in mode:
@@ -1107,7 +1098,30 @@ class SLOTPrompt(Prompt):
         else:
             raise Exception(f'Un-implemented intra_consistency_reg_mode: {mode}')
 
-        intra_consistency_loss = dist(weighted_slots, posi_slots).mean()
+        # group by labels
+        intra_consistency_loss = []
+        labels = torch.unique(targets)
+        for label in labels:
+            selected_slots = weighted_slots[targets == label]
+            intra_consistency_loss.append(dist(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1)).flatten())
+        intra_consistency_loss = torch.concat(intra_consistency_loss)
+        if intra_consistency_loss.shape[0] == bs:       # all samples are different labels, loss is all 0
+            intra_consistency_loss = intra_consistency_loss.sum()
+        else:
+            intra_consistency_loss = intra_consistency_loss.sum() / (intra_consistency_loss.shape[0] - bs)
+        # all values include bs self-dist cal (which is 0)
+
+        # # # find a positive sample for each sample (if only has one sample in this batch, use itself)
+        # # posi_slots = []
+        # # for sid in range(bs):
+        # #     target = targets[sid]
+        # #     selected_idxs = torch.where(targets == target)[0]
+        # #     selected_idx = selected_idxs[torch.randperm(selected_idxs.size(0))][0]
+        # #     posi_slot = weighted_slots[selected_idx]
+        # #     posi_slots.append(posi_slot)
+        # # posi_slots = torch.stack(posi_slots)  # [bs, h]
+        #
+        # intra_consistency_loss = dist(weighted_slots, posi_slots).mean()
 
         return intra_consistency_loss
 

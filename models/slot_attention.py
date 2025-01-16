@@ -182,21 +182,6 @@ class Slot2Prompt(nn.Module):
         else:
             raise Exception(f'Un-implemented {mode}.')
 
-        # if mode in [-1, 1, 2]:
-        #     self.cond_mode = mode
-        #     # -1 -> slot-avg;
-        #     # 1 or 2 -> learn to select slot to avg: 1: sigmoid(); 2: cosine
-        #
-        #     self.selector_mode = 'attn'     # [gate, mlp, attn]
-        # elif mode == 3:
-        #     self.cond_mode = None
-        #     self.selector_mode = 'mlp'     # [gate, mlp, attn]
-        #     self.FPS = True
-        # else:
-        #     self.cond_mode = None
-        #     self.selector_mode = 'gate'     # [gate, mlp, attn]
-        #     self.FPS = True
-
         print(f'Initial s2p in mode {self.selector_mode} with cond {self.cond_mode}, FPS {self.FPS}.')
 
         if self.selector_mode == 'gate' or self.selector_mode == 'mlp':
