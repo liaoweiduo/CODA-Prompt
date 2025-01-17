@@ -409,7 +409,7 @@ class Slot2Prompt(nn.Module):
                 if 'avg' in self.cond_mode:
                     # use average slots as inputs to select prompt
                     slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
-                elif 'cos' in self.cond_mode or 'sig' in self.cond_mode:
+                elif self.cond_mode in ['sig', 'soft', 'cos']:
                     slots_ = torch.einsum('bh,kh->bkh', w_slots, A)      # attended slots
                 else:
                     raise Exception(f'Un-implemented {self.cond_mode}.')
