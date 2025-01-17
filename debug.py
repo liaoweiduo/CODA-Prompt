@@ -573,7 +573,7 @@ class Debugger:
         for task_id in range(n_column):
             ws = self.storage['weigs'][task_id]  # [bs, k10]
             slots = self.storage['slots'][task_id]      # [bs, k10, d128]
-            weighted_slot = torch.einsum('bkd,bk->bd', ws, slots)       # [bs, d128]
+            weighted_slot = torch.einsum('bkd,bk->bd', slots, ws)       # [bs, d128]
 
             if 'cos' in self.args['slot_logit_similar_reg_mode']:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
