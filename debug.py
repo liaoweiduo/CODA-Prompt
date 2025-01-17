@@ -113,7 +113,7 @@ class Debugger:
 
         if self.args['learner_name'] == 'SLOTPrompt':
             # slot params
-            self.output_args.extend(['n_slots', 'n_iters', 'slot_temp', 's2p_mode'])
+            self.output_args.extend(['n_slots', 'n_iters', 'slot_temp', 's2p_mode', 's2p_temp'])
 
     def default_columns(self):
         return self.output_args, self.columns
