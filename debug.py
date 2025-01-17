@@ -548,7 +548,7 @@ class Debugger:
             ws = self.storage['weigs'][task_id]  # [bs, k10]
             yi = task_id
             draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax[yi], fmt=".2f")
-            ax[yi].set_ylabel(f't{task_id}', fontsize=16)
+            ax[yi].set_title(f't{task_id}', fontsize=16)
 
         # save
         if save:
@@ -561,7 +561,7 @@ class Debugger:
         if not redraw and self.existfig(name):
             return
 
-        n_row = 1
+        n_row = 2
         n_column = len(self.storage['weigs'])  # n_tasks
 
         save = False
@@ -581,10 +581,15 @@ class Debugger:
             else:
                 slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
+            slot_sim_softmax = F.softmax(slot_sim, dim=-1)
 
             yi = task_id
-            draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".2f")
-            ax[yi].set_ylabel(f't{task_id}', fontsize=16)
+            draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+            draw_heatmap(slot_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+            ax[0, yi].set_title(f't{task_id}', fontsize=16)
+            if yi == 0:
+                ax[0, yi].set_ylabel('sim')
+                ax[1, yi].set_ylabel('softmax')
 
         if save:
             fig.suptitle(f'{self.name}-weighted-slot-sim', fontsize=16)
@@ -596,7 +601,7 @@ class Debugger:
         if not redraw and self.existfig(name):
             return
 
-        n_row = 1
+        n_row = 2
         n_column = len(self.storage['weigs'])  # n_tasks
 
         save = False
@@ -619,10 +624,15 @@ class Debugger:
             else:
                 logit_sim = torch.matmul(logits, logits.t()) * (
                         self.args['slot_logit_similar_reg_temp'] * (logits.shape[-1] ** -0.5))
+            logit_sim_softmax = F.softmax(logit_sim, dim=-1)
 
             yi = task_id
-            draw_heatmap(logit_sim.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".2f")
-            ax[yi].set_ylabel(f't{task_id}', fontsize=16)
+            draw_heatmap(logit_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+            draw_heatmap(logit_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+            ax[0, yi].set_title(f't{task_id}', fontsize=16)
+            if yi == 0:
+                ax[0, yi].set_ylabel('sim')
+                ax[1, yi].set_ylabel('softmax')
 
         if save:
             fig.suptitle(f'{self.name}-logit-sim', fontsize=16)
