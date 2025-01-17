@@ -175,6 +175,8 @@ class Slot2Prompt(nn.Module):
         self.cond_mode = None
         if 'sig' in mode:
             self.cond_mode = 'sig'
+        elif 'soft' in mode:
+            self.cond_mode = 'soft'
         elif 'cos' in mode:
             self.cond_mode = 'cos'
         elif 'avg' in mode:
@@ -289,7 +291,7 @@ class Slot2Prompt(nn.Module):
             # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
             # slots = slots.reshape(bs, n, h)
 
-            if 'sig' in self.cond_mode or 'cos' in self.cond_mode:
+            if self.cond_mode in ['sig', 'soft', 'cos']:
                 # learn to weights slots as inputs to select prompt
                 slot_selection_w = self.slot_selection_w  # [128, 128] or [self.n_tasks, 128, 128]
                 slot_selection_b = self.slot_selection_b  # [128] or [self.n_tasks, 128]
@@ -298,12 +300,17 @@ class Slot2Prompt(nn.Module):
                 mapped_slots = mapped_slots + slot_selection_b
                 mapped_slots = torch.tanh(mapped_slots)
                 task_key = self.task_key  # [128] or [self.n_tasks, 128]
-                if 'sig' in self.cond_mode:     # sig(1/sqrt(D) S_m@K_t)
+                if self.cond_mode == 'sig':     # sig(1/sqrt(D) S_m@K_t)
                     w = torch.einsum('bnd,d->bn', mapped_slots, task_key)
                     w = w * (task_key.shape[-1] ** -0.5)
                     w = w * self.select_slot_temp
                     w = torch.sigmoid(w)
-                elif 'cos' in self.cond_mode:   # cos(S_m, K_t)
+                elif self.cond_mode == 'soft':      # softmax(1/sqrt(D) S_m@K_t)
+                    w = torch.einsum('bnd,d->bn', mapped_slots, task_key)
+                    w = w * (task_key.shape[-1] ** -0.5)
+                    w = w * self.select_slot_temp
+                    w = F.softmax(w, dim=-1)
+                elif self.cond_mode == 'cos':   # cos(S_m, K_t)
                     n_m_s = nn.functional.normalize(mapped_slots, dim=-1)
                     n_k_t = nn.functional.normalize(task_key, dim=-1)
                     w = torch.einsum('bnd,d->bn', n_m_s, n_k_t)
