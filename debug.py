@@ -56,7 +56,7 @@ class Debugger:
         self.output_args = []
         self.columns = []
         self._default_output_args()
-        self.storage = {}
+        self.storage = {'samples': []}
 
         # if use dataset
         self.trainer = None
@@ -89,14 +89,14 @@ class Debugger:
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights()
                 self.draw_weighted_slot_similarity()
+                self.draw_concept_similarity()
                 self.draw_logit_similarity()
                 self.draw_prompt_selection()
             except Exception as e:
                 # Print the error traceback
                 traceback.print_exc()
-
-                if self.check_level('DEBUG'):
-                    print(f'Error collecting trainer results.')
+                # if self.check_level('DEBUG'):
+                print(f'Error collecting trainer results.')
 
     def loss_df(self):
         if 'loss_df' in self.storage:
@@ -236,8 +236,11 @@ class Debugger:
         if self.check_level('DEBUG'):
             print(f'label_set: {self.label_set}.')
 
-    def load_samples(self, num_samples_per_class, label_range=None, reset_seed=True, draw=False):
+    def load_samples(self, num_samples_per_class=2, label_range=None, reset_seed=True, draw=False):
         """load samples and store to storage['samples']"""
+        if len(self.storage['samples']) > 0:        # already has samples
+            return
+
         if reset_seed:
             self.reset_seed(self.seed)
 
@@ -269,6 +272,9 @@ class Debugger:
 
         self.storage['samples'] = [x, y, c]
 
+        if self.check_level('DEBUG'):
+            print(f'load_samples => {y}.')
+
         if draw:
             fig, axes = plt.subplots(len(self.label_set), num_samples, figsize=(num_samples*5,len(self.label_set)*5))
             for x_id in range(len(x)):
@@ -283,6 +289,8 @@ class Debugger:
                 axes[xi, yi].set_title(f'{x_id} {label} {ori_y_str}')
 
             self.savefig(fig, 'samples.png')
+
+        return
 
     def collect_sample_results(self, reset_seed=True):
         """把attn,slot,prompts等等放到self.storage['attn']等里面, 要放到table里的放到'results'里用标准格式
@@ -636,6 +644,45 @@ class Debugger:
 
         if save:
             fig.suptitle(f'{self.name}-logit-sim', fontsize=16)
+            self.savefig(fig, name)
+
+    def draw_concept_similarity(self, ax=None, redraw=False):
+        name = f'concept-sim.png'
+        if not redraw and self.existfig(name):
+            return
+
+        n_row = 2
+        n_column = len(self.storage['weigs'])  # n_tasks
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+
+        for task_id in range(n_column):
+            concepts = self.storage['samples'][2][:, 0]  # [bs, 21]
+            if self.check_level('DEBUG'):
+                print(f'draw_concept_similarity => concepts: {concepts.shape}.')
+
+            cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+            if 'cos' in self.args['concept_similar_reg_mode']:
+                concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+            else:
+                concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
+                concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
+            concept_sim_softmax = F.softmax(concept_sim, dim=-1)
+
+            yi = task_id
+            draw_heatmap(concept_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+            draw_heatmap(concept_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+            ax[0, yi].set_title(f't{task_id}', fontsize=16)
+            if yi == 0:
+                ax[0, yi].set_ylabel('sim')
+                ax[1, yi].set_ylabel('softmax')
+
+        if save:
+            fig.suptitle(f'{self.name}-concept-sim', fontsize=16)
             self.savefig(fig, name)
 
     def draw_prompt_selection(self, select_id=None, ax=None, redraw=False):
