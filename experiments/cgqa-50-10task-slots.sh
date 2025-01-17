@@ -43,13 +43,14 @@ s2p_mode=attn+sig
 s2p_temp=10
 for slot_logit_similar_reg_coeff in 0.1; do
 slot_logit_similar_reg_temp=0.01
-slot_logit_similar_reg_slot_temp=0.1
+slot_logit_similar_reg_slot_temp=0.1    # 0.1, 1
 
 LOGNAME=20-detach_w-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k10-nt5
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
     --batch_size 128 \
+    --s2p_mode ${s2p_mode} \
     --s2p_temp ${s2p_temp} \
     --lr ${lr} ${lr} \
     --slot_lr ${slot_lr1} ${slot_lr2} \
