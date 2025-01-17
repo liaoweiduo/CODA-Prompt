@@ -25,6 +25,7 @@ from torch.utils.tensorboard import SummaryWriter
 from learners.pmo_utils import Pool, draw_heatmap, draw_objs, cal_hv, cal_min_crowding_distance
 from learners.slotmo import hungarian_algorithm
 
+
 class Debugger:
     def __init__(self, level='DEBUG', args=None, exp_path=None, name=''):
         """args need to be dict"""
@@ -63,6 +64,7 @@ class Debugger:
         self.learners = []
         self.tasks = None
         self.label_set = []      # [0,...,99]
+        self.label_range = []
         self.single_label_datasets = {}
         self.single_label_dataloaders = {}
 
@@ -86,6 +88,8 @@ class Debugger:
                 self.collect_task_wise_attn_slot_change()
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights()
+                self.draw_weighted_slot_similarity()
+                self.draw_logit_similarity()
                 self.draw_prompt_selection()
             except Exception as e:
                 # Print the error traceback
@@ -94,9 +98,11 @@ class Debugger:
                 if self.check_level('DEBUG'):
                     print(f'Error collecting trainer results.')
 
-
     def loss_df(self):
-        return self.storage['loss_df']
+        if 'loss_df' in self.storage:
+            return self.storage['loss_df']
+        else:
+            return None
 
     def _default_output_args(self):
         # default params
@@ -111,6 +117,15 @@ class Debugger:
 
     def default_columns(self):
         return self.output_args, self.columns
+
+    def load_csv(self):
+        csv_path = os.path.join(self.save_path, 'data.csv')
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            df.name = self.name
+            return df
+        else:
+            return False
 
     def generate_df(self, column_info=None):
         """args and storage to value"""
@@ -231,6 +246,7 @@ class Debugger:
 
         if label_range is None:
             label_range = self.label_set
+        self.label_range = list(label_range)
         for label in label_range:
             iterator = iter(self.single_label_dataloaders[label])
             sample = next(iterator)
@@ -279,6 +295,8 @@ class Debugger:
         self.storage['proms'] = []  # n_task*[bs, k, e, p, d]
         self.storage['weigs'] = []  # n_task*[bs, k]
         self.storage['seles'] = []  # n_task*[bs, k, e, pp]
+        self.storage['logis'] = []  # n_task*[bs, 100]
+        self.storage['feats'] = []  # n_task*[bs, 768]
 
         x, y, c = self.storage['samples']
         num_tasks = len(self.learners)
@@ -300,8 +318,8 @@ class Debugger:
                 slots = res['slots']
                 attn = res['attn']
                 recon_loss = res['recon_loss']
-                out = res['logits']
-                features = res['features']
+                out = res['logits']     # [bs, 100]
+                features = res['features']      # [bs, 768]
 
                 bs, t, kk, e, p, d = prompts.shape      # [bs, t1, kk1, e5, p8, d768]
                 bs, t, kk, e, pp = selections.shape  # [bs, t1, kk1, e5, pp50]   kk=1 use w-slot to select
@@ -321,6 +339,8 @@ class Debugger:
                 self.storage['proms'].append(prompts)
                 self.storage['weigs'].append(slot_weights)
                 self.storage['seles'].append(selections)
+                self.storage['logis'].append(out)
+                self.storage['feats'].append(features)
 
         # align on pure slots
         anchor = self.storage['slots'][0].unsqueeze(2)  # [b, k, 1, h]
@@ -354,11 +374,15 @@ class Debugger:
         # extend columns
         self.columns.extend(['samples/per_img/attn_sim_mae'])
 
-    def draw_attns(self, select_id, ax=None):
+    def draw_attns(self, select_id, ax=None, redraw=False):
         ori_x = unnormalize(self.storage['samples'][0][select_id])
 
         label = self.storage['samples'][1][select_id].item()
         ori_y_str = self.get_label_str(label)
+
+        name = f'{label}-{ori_y_str}-slot-attn.png'
+        if not redraw and self.existfig(name):
+            return
 
         # draw attn
         k = self.storage['attns'][0].shape[-1]      # 10
@@ -394,8 +418,8 @@ class Debugger:
                         ax[xi, yi].set_ylabel(f't{xi}', fontsize=50)
 
         if save:
-            fig.suptitle(f'{self.name}: {label}, {ori_y_str}', fontsize=16)
-            self.savefig(fig, f'{label}-{ori_y_str}-slot-attn.png')
+            fig.suptitle(f'{self.name}-slot-attn: {label}, {ori_y_str}', fontsize=16)
+            self.savefig(fig, name)
 
     def collect_samples_slots_sim_per_img(self):
         # for every img, cal MAE(slot sim, I) to store in results
@@ -413,9 +437,15 @@ class Debugger:
         # extend columns
         self.columns.extend(['samples/per_img/slot_sim_mae'])
 
-    def draw_slot_cos_sim(self, select_id=0, ax=None):
+    def draw_slot_cos_sim(self, select_id=0, ax=None, redraw=False):
         # global map of slot cossim
         k = self.storage['slots'][0].shape[1]      # 10
+
+        label = self.storage['samples'][1][select_id].item()
+        ori_y_str = self.get_label_str(label)
+        name = f'{label}-{ori_y_str}-slot-cos-sim.png'
+        if not redraw and self.existfig(name):
+            return
 
         save = False
         fig = None
@@ -441,11 +471,8 @@ class Debugger:
 
         # save
         if save:
-            label = self.storage['samples'][1][select_id].item()
-            ori_y_str = self.get_label_str(label)
-
-            fig.suptitle(f'{self.name}: {label}, {ori_y_str}', fontsize=16)
-            self.savefig(fig, f'{label}-{ori_y_str}-slot-cos-sim.png')
+            fig.suptitle(f'{self.name}-slot-cos-sim: {label}, {ori_y_str}', fontsize=16)
+            self.savefig(fig, name)
 
     def collect_task_wise_attn_slot_change(self):
         """After Hungarian match, attn differences and slot differences"""
@@ -502,8 +529,12 @@ class Debugger:
         # extend columns
         self.columns.extend(['samples/per_cls/w_slot_sim'])
 
-    def draw_slot_weights(self, ax=None):
+    def draw_slot_weights(self, ax=None, redraw=False):
         # draw ws
+        name = f'slot-selection.png'
+        if not redraw and self.existfig(name):
+            return
+
         n_row = 1
         n_column = len(self.storage['weigs'])  # n_tasks
 
@@ -521,11 +552,93 @@ class Debugger:
 
         # save
         if save:
-            fig.suptitle(f'{self.name}', fontsize=16)
-            self.savefig(fig, f'slot-selection.png')
+            fig.suptitle(f'{self.name}-slot-selection', fontsize=16)
+            self.savefig(fig, name)
 
-    def draw_prompt_selection(self, select_id=None, ax=None):
+    def draw_weighted_slot_similarity(self, ax=None, redraw=False):
+        """obtain w_slots -> according to slot-logit-sim-reg-mode obtain sim"""
+        name = f'weighted-slot-sim.png'
+        if not redraw and self.existfig(name):
+            return
+
+        n_row = 1
+        n_column = len(self.storage['weigs'])  # n_tasks
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+
+        for task_id in range(n_column):
+            ws = self.storage['weigs'][task_id]  # [bs, k10]
+            slots = self.storage['slots'][task_id]      # [bs, k10, d128]
+            weighted_slot = torch.einsum('bkd,bk->bd', ws, slots)       # [bs, d128]
+
+            if 'cos' in self.args['slot_logit_similar_reg_mode']:
+                cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
+            else:
+                slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
+                        self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
+
+            yi = task_id
+            draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".2f")
+            ax[yi].set_ylabel(f't{task_id}', fontsize=16)
+
+        if save:
+            fig.suptitle(f'{self.name}-weighted-slot-sim', fontsize=16)
+            self.savefig(fig, name)
+
+    def draw_logit_similarity(self, ax=None, redraw=False):
+        """obtain logits -> according to slot-logit-sim-reg-mode obtain sim"""
+        name = f'logit-sim.png'
+        if not redraw and self.existfig(name):
+            return
+
+        n_row = 1
+        n_column = len(self.storage['weigs'])  # n_tasks
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+
+        for task_id in range(n_column):
+            logits = self.storage['logis'][task_id]     # [bs, 100]
+            task_mask = self.label_range
+            masked_logits = logits[:, task_mask]        # [bs, 10]
+            if self.check_level('DEBUG'):
+                print(f'draw_logit_similarity => task_mask: {task_mask}.')
+                print(f'draw_logit_similarity => masked_logits[0]: {masked_logits[0]}.')
+
+            if 'cos' in self.args['slot_logit_similar_reg_mode']:
+                cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
+            else:
+                logit_sim = torch.matmul(logits, logits.t()) * (
+                        self.args['slot_logit_similar_reg_temp'] * (logits.shape[-1] ** -0.5))
+
+            yi = task_id
+            draw_heatmap(logit_sim.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".2f")
+            ax[yi].set_ylabel(f't{task_id}', fontsize=16)
+
+        if save:
+            fig.suptitle(f'{self.name}-logit-sim', fontsize=16)
+            self.savefig(fig, name)
+
+    def draw_prompt_selection(self, select_id=None, ax=None, redraw=False):
         """n_column=n_layer, n_row=1. each ax contains """
+        if select_id is not None:
+            label = self.storage['samples'][1][select_id].item()
+            ori_y_str = self.get_label_str(label)
+            name = f'{label}-{ori_y_str}-prompt-selection.png'
+        else:
+            name = f'prompt-selection.png'
+        if not redraw and self.existfig(name):
+            return
+
         bs, kk, e, pp = self.storage['seles'][-1].shape       # n_task*[bs, kk1, e5, pp100?]
         # pp is max_selection_dim
         n_row = len(self.storage['seles'])
@@ -562,11 +675,11 @@ class Debugger:
             if select_id is not None:
                 label = self.storage['samples'][1][select_id].item()
                 ori_y_str = self.get_label_str(label)
-                fig.suptitle(f'{self.name}: {label}, {ori_y_str}', fontsize=16)
-                self.savefig(fig, f'{label}-{ori_y_str}-prompt-selection.png')
+                fig.suptitle(f'{self.name}-prompt-selection: {label}, {ori_y_str}', fontsize=16)
+                self.savefig(fig, name)
             else:
-                fig.suptitle(f'{self.name}', fontsize=16)
-                self.savefig(fig, f'prompt-selection.png')
+                fig.suptitle(f'{self.name}-prompt-selection', fontsize=16)
+                self.savefig(fig, name)
 
     def get_label_str(self, related_label):
         try:
@@ -827,6 +940,10 @@ class Debugger:
     def savefig(self, fig, file_name):
         file_name = '-'.join(file_name.split('/'))
         fig.savefig(os.path.join(self.save_path, file_name), bbox_inches='tight', dpi=100)
+
+    def existfig(self, file_name):
+        file_name = '-'.join(file_name.split('/'))
+        return os.path.exists(os.path.join(self.save_path, file_name))
 
     def draw_scaler(self, key, seed, task, ax=None, title=False):
         if 'log' not in self.storage:
