@@ -1082,7 +1082,7 @@ class SLOTPrompt(Prompt):
         if 'learn' in mode:
             # learned slot selection
             bs, t, k = slot_weights.shape
-            img_weights = slot_weights.reshape(bs, t * k)
+            img_weights = slot_weights.reshape(bs, t * k).detach()
             weighted_slots = torch.einsum('bkh,bk->bh', img_slots, img_weights)
         elif 'cross' in mode:
             # cross attn
