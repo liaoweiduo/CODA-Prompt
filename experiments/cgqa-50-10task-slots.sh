@@ -109,8 +109,8 @@ s2p_temp=10     #
 slot_logit_similar_reg_temp=$1      #0.01
 slot_logit_similar_reg_slot_temp=$2     # 30
 for slot_logit_similar_reg_coeff in 0.01 0.1; do
-LOGNAME=19-slot_prompt-s2p_t${s2p_temp}-p100-l8-k10-nt5
-#LOGNAME=17-slot_prompt-s2p_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
+#LOGNAME=19-slot_prompt-s2p_t${s2p_temp}-p100-l8-k10-nt5
+LOGNAME=21-slot_prompt-s2p_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
