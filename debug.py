@@ -127,7 +127,7 @@ class Debugger:
         else:
             return False
 
-    def generate_df(self, column_info=None):
+    def generate_df(self, column_info=None, save=False):
         """args and storage to value"""
         # form dict
         if column_info is None:
@@ -148,7 +148,8 @@ class Debugger:
                 row[f'{res}(str)'] = F"{target['Mean']:.2f}$\pm${target['CI95']:.2f}({target['Std']:.2f})"
 
         df = pd.Series(data=row).to_frame().T
-        df.to_csv(os.path.join(self.save_path, 'data.csv'))
+        if save:
+            df.to_csv(os.path.join(self.save_path, 'data.csv'))
 
         return df
 

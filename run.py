@@ -56,7 +56,7 @@ def create_args():
     parser.add_argument('--n_iters', type=int, default=5, help="num of iter to extract slots")
     parser.add_argument('--slot_temp', type=float, default=1.0,
                         help="temperature to control how sharp are slot attns")
-    parser.add_argument('--s2p_temp', type=float, default=1.0,
+    parser.add_argument('--s2p_temp', type=float, default=10,
                         help="temperature to control how sharp are the selection of slots")
     parser.add_argument('--s2p_mode', type=str, default='attn+sig',
                         help="some options: [attn{mlp,gate}+{FPS}+sig{soft,cos,avg}]")
@@ -322,4 +322,4 @@ if __name__ == '__main__':
     args.debug_mode = 1
     debugger = Debugger(level='INFO', args=vars(args))
     res = debugger.collect_results(max_task=args.max_task, draw=True, use_dataset=True)
-    df_res = debugger.generate_df()
+    df_res = debugger.generate_df(save=True)

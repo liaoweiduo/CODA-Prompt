@@ -104,6 +104,7 @@ done
 ##    --log_dir ${OUTDIR}/${SLOT_LOGNAME}
 ###    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
 #
+#s2p_mode=attn+soft
 #s2p_temp=$1     #
 ##slot_logit_similar_reg_temp=$1      #0.01
 ##slot_logit_similar_reg_slot_temp=$2     #0.1
@@ -114,6 +115,7 @@ done
 #    --learner_type slotmo --learner_name SLOTPrompt \
 #    --prompt_param 100 8 \
 #    --batch_size 128 \
+#    --s2p_mode ${s2p_mode} \
 #    --s2p_temp ${s2p_temp} \
 #    --lr ${lr} ${lr} \
 #    --slot_pre_learn_model ${SLOT_LOGNAME} \
