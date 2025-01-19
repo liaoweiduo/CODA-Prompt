@@ -228,7 +228,7 @@ class Slot2Prompt(nn.Module):
             self.task_key = init_tensor(self.key_d)       # [128] or [self.n_tasks, 128]
             self.slot_selection_w = init_tensor(self.key_d, self.key_d)   # [128, 128] or [self.n_tasks, 128, 128]
             self.slot_selection_b = init_tensor(self.key_d)   # [128] or [self.n_tasks, 128]
-
+            # self.slot_ln2 = nn.LayerNorm(key_dim)
         else:
             raise NotImplementedError
 
@@ -298,6 +298,7 @@ class Slot2Prompt(nn.Module):
                 # [bs, n10, h128] @ [h128, d128] -> [bs, n10, d128]
                 mapped_slots = torch.einsum('bnh,hd->bnd', slots, slot_selection_w)
                 mapped_slots = mapped_slots + slot_selection_b
+                # mapped_slots = self.slot_ln2(mapped_slots)
                 mapped_slots = torch.tanh(mapped_slots)
                 task_key = self.task_key  # [128] or [self.n_tasks, 128]
                 if self.cond_mode == 'sig':     # sig(1/sqrt(D) S_m@K_t)

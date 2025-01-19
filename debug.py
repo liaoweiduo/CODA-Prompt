@@ -78,20 +78,20 @@ class Debugger:
 
         if use_dataset:
             try:
-                self.prepare_trainer(seed=select_id)
+                self.prepare_trainer(seed=0)
                 self.load_samples(num_samples_per_class=2, label_range=label_range)
                 self.collect_sample_results()       # obtain slots, prompts, attns,...
                 self.collect_samples_attns_sim_per_img()
-                self.draw_attns(select_id=select_id)
+                self.draw_attns(select_id=select_id, redraw=draw)
                 self.collect_samples_slots_sim_per_img()
-                self.draw_slot_cos_sim(select_id=select_id)
+                self.draw_slot_cos_sim(select_id=select_id, redraw=draw)
                 self.collect_task_wise_attn_slot_change()
                 self.collect_samples_weighted_slot_sim_per_class()
-                self.draw_slot_weights()
-                self.draw_weighted_slot_similarity()
-                self.draw_concept_similarity()
-                self.draw_logit_similarity()
-                self.draw_prompt_selection()
+                self.draw_slot_weights(redraw=draw)
+                self.draw_weighted_slot_similarity(redraw=draw)
+                self.draw_concept_similarity(redraw=draw)
+                self.draw_logit_similarity(redraw=draw)
+                self.draw_prompt_selection(redraw=draw)
             except Exception as e:
                 # Print the error traceback
                 traceback.print_exc()

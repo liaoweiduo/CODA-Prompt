@@ -548,6 +548,7 @@ class SLOTPrompt(Prompt):
 
     def update_model(self, inputs, targets, optimizer_target='slot+prompt+new+head', match_pool=False,
                      p=30, tau=3):
+        collections = dict()        # collection for output
         self.optimizer.zero_grad()
         try:
             model = self.model.module
@@ -567,6 +568,8 @@ class SLOTPrompt(Prompt):
         recon_loss = res['recon_loss']
         out = res['logits']     # [bs, 100]
         features = res['features']
+
+        collections['max_slot_weights'] = torch.max(slot_weights).item()
 
         if self.debug_mode:
             print('samples:', inputs.shape, 'prompts:', prompts.shape)
@@ -588,7 +591,6 @@ class SLOTPrompt(Prompt):
         # self.epoch_log['scaler']['Idx'].append(self.epoch)
         # self.epoch_log['scaler']['Value'].append(mk_loss.item())
 
-        collections = dict()        # collection for output
         loss = torch.zeros(1).mean().to(out.device)
 
         if 'slot' in optimizer_target:
@@ -604,7 +606,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(recon_loss.item())
 
-            collections['slot_recon_loss'] = recon_loss.detach()
+            collections['slot_recon_loss'] = recon_loss.item()
 
             # positive samples to enhance intra-class consistency
             if self.config['args'].use_intra_consistency_reg:
@@ -615,7 +617,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(intra_consistency_loss.item())
 
-                collections['intra_consistency_loss'] = intra_consistency_loss.detach()
+                collections['intra_consistency_loss'] = intra_consistency_loss.item()
 
             # image-wise mse for slot cosine sim vs I
             if self.config['args'].use_slot_ortho_reg:
@@ -643,7 +645,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_ortho_loss.item())
 
-                collections['slot_ortho_loss'] = slot_ortho_loss.detach()
+                collections['slot_ortho_loss'] = slot_ortho_loss.item()
 
             # alpha = model.prompt.slot_attn_alpha    # [3]
             # for alpha_idx in range(len(alpha)):
@@ -676,7 +678,7 @@ class SLOTPrompt(Prompt):
             self.epoch_log['scaler']['Idx'].append(self.epoch)
             self.epoch_log['scaler']['Value'].append(ce_loss.item())
 
-            collections['ce_loss'] = ce_loss.detach()
+            collections['ce_loss'] = ce_loss.item()
 
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             # selection_ortho_loss
@@ -702,7 +704,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(selection_ortho_loss.item())
 
-                collections['selection_ortho_loss'] = selection_ortho_loss.detach()
+                collections['selection_ortho_loss'] = selection_ortho_loss.item()
 
             # prompt-concept alignment loss
             if self.config['args'].use_prompt_concept_alignment_reg:
@@ -822,7 +824,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(prompt_concept_alignment_loss.item())
 
-                collections['prompt_concept_alignment_loss'] = prompt_concept_alignment_loss.detach()
+                collections['prompt_concept_alignment_loss'] = prompt_concept_alignment_loss.item()
 
             # onehot loss
             if self.config['args'].use_selection_onehot_reg:       # and self.epoch >= 5:
@@ -844,7 +846,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(onehot_loss.item())
 
-                collections['selection_onehot_loss'] = onehot_loss.detach()
+                collections['selection_onehot_loss'] = onehot_loss.item()
 
             # if self.epoch >= self.epochs - 10:       # left 10 epochs for reg
             if self.config['args'].use_weight_reg:
@@ -985,7 +987,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(s2p_loss.item())
 
-                collections['s2p_loss'] = s2p_loss.detach()
+                collections['s2p_loss'] = s2p_loss.item()
 
                 # if self.debug_mode:
                 #     print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
@@ -1028,7 +1030,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(concept_similar_reg.item())
 
-                collections['concept_similar_reg'] = concept_similar_reg.detach()
+                collections['concept_similar_reg'] = concept_similar_reg.item()
 
                 # cal current_coeff
                 coeff = self.config['concept_similar_reg_coeff']
@@ -1062,7 +1064,7 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_logit_similar_reg.item())
 
-                collections['slot_logit_similar_reg'] = slot_logit_similar_reg.detach()
+                collections['slot_logit_similar_reg'] = slot_logit_similar_reg.item()
 
                 loss = loss + current_coeff * slot_logit_similar_reg
 
