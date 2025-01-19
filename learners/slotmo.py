@@ -1060,7 +1060,8 @@ class SLOTPrompt(Prompt):
                 #     slot_logit_similar_reg = self._slot_logit_similar_reg(ext_slots, ext_slot_weights, ext_logits)
                 # else:
                 slot_logit_similar_reg = self._slot_logit_similar_reg(
-                    ext_slots.detach(), ext_slot_weights.detach(), ext_logits)  # detach slots and weights
+                    ext_slots.detach(), ext_slot_weights.detach(), w_slots.detach(), ext_logits)
+                # detach slots and weights
                 self.epoch_log['scaler']['Tag'].append('loss/slot_logit_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
                 self.epoch_log['scaler']['Value'].append(slot_logit_similar_reg.item())
@@ -1165,26 +1166,29 @@ class SLOTPrompt(Prompt):
 
         return loss
 
-    def _slot_logit_similar_reg(self, slots, weights, logits):
+    def _slot_logit_similar_reg(self, slots, weights, w_slots, logits):
         """contrastive on weighted slots and logits
         """
-        bs, t, k, d = slots.shape
-        batched_slots = slots.reshape(bs, t * k, d)
-        bs, t, k = weights.shape
-        batched_weights = weights.reshape(bs, t * k)
-
-        weighted_slot = torch.einsum('bkd,bk->bd', batched_slots, batched_weights)
+        if 'map' in self.config['args'].slot_logit_similar_reg_mode:
+            bs, t, h = w_slots.shape
+            weighted_slots = w_slots.reshape(bs, t*h)
+        else:
+            bs, t, k, d = slots.shape
+            batched_slots = slots.reshape(bs, t * k, d)
+            bs, t, k = weights.shape
+            batched_weights = weights.reshape(bs, t * k)
+            weighted_slots = torch.einsum('bkd,bk->bd', batched_slots, batched_weights)
 
         # preprocess logits
         logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
 
         if 'cos' in self.config['args'].slot_logit_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
+            slot_sim = cos(weighted_slots.unsqueeze(1), weighted_slots.unsqueeze(0)) * 1  # [bs, bs]
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
         else:
-            slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
-                    self.config['args'].slot_logit_similar_reg_slot_temp * weighted_slot.shape[-1] ** -0.5)
+            slot_sim = torch.matmul(weighted_slots, weighted_slots.t()) * (
+                    self.config['args'].slot_logit_similar_reg_slot_temp * weighted_slots.shape[-1] ** -0.5)
             logit_sim = torch.matmul(logits, logits.t()) * (
                     self.config['args'].slot_logit_similar_reg_temp * (logits.shape[-1] ** -0.5))
 

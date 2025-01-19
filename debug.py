@@ -116,8 +116,11 @@ class Debugger:
             # slot params
             self.output_args.extend(['n_slots', 'n_iters', 'slot_temp', 's2p_mode', 's2p_temp'])
 
-    def default_columns(self):
-        return self.output_args, self.columns
+    def default_columns(self, all_args=True):
+        if all_args:
+            return list(self.args.keys()), self.columns
+        else:
+            return self.output_args, self.columns
 
     def load_csv(self):
         csv_path = os.path.join(self.save_path, 'data.csv')
@@ -976,7 +979,8 @@ class Debugger:
         if self.args.get('use_old_samples_for_reg', False):
             self.output_args.extend(['use_old_samples_for_reg'])
         if self.args.get('use_slot_logit_similar_reg', False):
-            self.output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff'])
+            self.output_args.extend(['slot_logit_similar_reg_mode', 'slot_logit_similar_reg_coeff',
+                                     'slot_logit_similar_reg_temp', 'slot_logit_similar_reg_slot_temp'])
             keys.extend(['loss/slot_logit_similar_reg'])
 
         # extend columns
