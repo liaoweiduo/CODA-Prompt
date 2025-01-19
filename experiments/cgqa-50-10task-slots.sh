@@ -41,7 +41,7 @@ slot_ortho_reg_coeff=0.5
 slot_ortho_reg_temp=0.1
 
 s2p_mode=attn+soft
-s2p_temp=10
+s2p_temp=$2
 
 slot_logit_similar_reg_mode=cos+kl
 slot_logit_similar_reg_coeff=0
