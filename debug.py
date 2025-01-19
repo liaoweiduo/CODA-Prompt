@@ -89,6 +89,7 @@ class Debugger:
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights(redraw=draw)
                 self.draw_weighted_slot_similarity(redraw=draw)
+                self.draw_weighted_mapped_slot_similarity(redraw=draw)
                 self.draw_concept_similarity(redraw=draw)
                 self.draw_logit_similarity(redraw=draw)
                 self.draw_prompt_selection(redraw=draw)
@@ -303,6 +304,7 @@ class Debugger:
         self.storage['slots'] = []  # n_task*[bs, k, h]
         self.storage['proms'] = []  # n_task*[bs, k, e, p, d]
         self.storage['weigs'] = []  # n_task*[bs, k]
+        self.storage['wslos'] = []  # n_task*[bs, h]        # mapped slots @ weights
         self.storage['seles'] = []  # n_task*[bs, k, e, pp]
         self.storage['logis'] = []  # n_task*[bs, 100]
         self.storage['feats'] = []  # n_task*[bs, 768]
@@ -324,6 +326,7 @@ class Debugger:
                 prompts = res['prompts']
                 selections = res['selections']
                 slot_weights = res['slot_weights']
+                w_slots = res['w_slots']
                 slots = res['slots']
                 attn = res['attn']
                 recon_loss = res['recon_loss']
@@ -332,6 +335,7 @@ class Debugger:
 
                 bs, t, kk, e, p, d = prompts.shape      # [bs, t1, kk1, e5, p8, d768]
                 bs, t, kk, e, pp = selections.shape  # [bs, t1, kk1, e5, pp50]   kk=1 use w-slot to select
+                bs, t, h = w_slots.shape    # [bs, t1, h128]
                 bs, t, k, h = slots.shape  # [bs, t1, k10, h128]
                 bs, t, n, k = attn.shape  # [bs, t1, n196, k10]
                 bs, t, k = slot_weights.shape   # [bs, t1, k10]
@@ -340,6 +344,7 @@ class Debugger:
                 prompts = prompts.reshape(bs, kk, e, p, d)
                 attn = attn.reshape(bs, n, k)
                 slots = slots.reshape(bs, k, h)
+                w_slots = w_slots.reshape(bs, h)
                 slot_weights = slot_weights.reshape(bs, k)
                 selections = selections.reshape(bs, kk, e, pp)
 
@@ -347,6 +352,7 @@ class Debugger:
                 self.storage['slots'].append(slots)
                 self.storage['proms'].append(prompts)
                 self.storage['weigs'].append(slot_weights)
+                self.storage['wslos'].append(w_slots)
                 self.storage['seles'].append(selections)
                 self.storage['logis'].append(out)
                 self.storage['feats'].append(features)
@@ -602,6 +608,44 @@ class Debugger:
 
         if save:
             fig.suptitle(f'{self.name}-weighted-slot-sim', fontsize=16)
+            self.savefig(fig, name)
+
+    def draw_weighted_mapped_slot_similarity(self, ax=None, redraw=False):
+        """obtain w_slots -> according to slot-logit-sim-reg-mode obtain sim"""
+        name = f'weighted-mapped-slot-sim.png'
+        if not redraw and self.existfig(name):
+            return
+
+        n_row = 2
+        n_column = len(self.storage['wslos'])  # n_tasks
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+
+        for task_id in range(n_column):
+            weighted_slot = self.storage['wslos'][task_id]  # [bs, d128]
+
+            if 'cos' in self.args['slot_logit_similar_reg_mode']:
+                cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
+            else:
+                slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
+                        self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
+            slot_sim_softmax = F.softmax(slot_sim, dim=-1)
+
+            yi = task_id
+            draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+            draw_heatmap(slot_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+            ax[0, yi].set_title(f't{task_id}', fontsize=16)
+            if yi == 0:
+                ax[0, yi].set_ylabel('sim')
+                ax[1, yi].set_ylabel('softmax')
+
+        if save:
+            fig.suptitle(f'{self.name}-weighted-mapped-slot-sim', fontsize=16)
             self.savefig(fig, name)
 
     def draw_logit_similarity(self, ax=None, redraw=False):

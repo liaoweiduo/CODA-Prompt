@@ -563,6 +563,7 @@ class SLOTPrompt(Prompt):
         prompts = res['prompts']
         selections = res['selections']
         slot_weights = res['slot_weights']
+        w_slots = res['w_slots']
         slots = res['slots']
         attn = res['attn']
         recon_loss = res['recon_loss']
@@ -610,7 +611,7 @@ class SLOTPrompt(Prompt):
 
             # positive samples to enhance intra-class consistency
             if self.config['args'].use_intra_consistency_reg:
-                intra_consistency_loss = self._intra_consistency_reg(slots, slot_weights, targets)
+                intra_consistency_loss = self._intra_consistency_reg(slots, slot_weights, w_slots, targets)
                 loss = loss + self.config['args'].intra_consistency_reg_coeff * intra_consistency_loss
 
                 self.epoch_log['scaler']['Tag'].append('loss/intra_consistency_loss')
@@ -1076,7 +1077,7 @@ class SLOTPrompt(Prompt):
         # logits is used to cal train acc, so use masked out (-inf for old) to show local acc
         return loss.detach(), logits, collections
 
-    def _intra_consistency_reg(self, slots, slot_weights, targets):
+    def _intra_consistency_reg(self, slots, slot_weights, w_slots, targets):
         bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
         img_slots = slots.reshape(bs, t * k, h)
 
@@ -1086,6 +1087,9 @@ class SLOTPrompt(Prompt):
             bs, t, k = slot_weights.shape
             img_weights = slot_weights.reshape(bs, t * k)           # .detach()
             weighted_slots = torch.einsum('bkh,bk->bh', img_slots, img_weights)
+        elif 'map' in mode:
+            bs, t, h = w_slots.shape
+            weighted_slots = w_slots.reshape(bs, t*h)
         elif 'cross' in mode:
             # cross attn
             weights = self.cross_attn(img_slots)        # [bs, k]

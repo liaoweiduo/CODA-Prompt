@@ -34,7 +34,7 @@ lr=1e-3
 slot_lr1=5e-4
 slot_lr2=1e-4
 for intra_consistency_reg_coeff in 0.01 0.05; do
-intra_consistency_reg_mode=learn+l2
+intra_consistency_reg_mode=map+l2   # [learn map]
 
 slot_ortho_reg_coeff=0.5
 slot_ortho_reg_temp=0.1
