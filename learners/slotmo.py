@@ -1107,10 +1107,15 @@ class SLOTPrompt(Prompt):
 
         # group by labels
         intra_consistency_loss = []
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         labels = torch.unique(targets)
         for label in labels:
             selected_slots = weighted_slots[targets == label]
-            intra_consistency_loss.append(dist(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1)).flatten())
+            if 'cos' in mode:
+                sim = cos(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1))     # [b,b]
+                intra_consistency_loss.append(dist(sim, torch.ones_like(sim)).flatten())
+            else:
+                intra_consistency_loss.append(dist(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1)).flatten())
         intra_consistency_loss = torch.concat(intra_consistency_loss)
         if intra_consistency_loss.shape[0] == bs:       # all samples are different labels, loss is all 0
             intra_consistency_loss = intra_consistency_loss.sum()
@@ -1150,6 +1155,7 @@ class SLOTPrompt(Prompt):
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         if 'cos' in self.config['args'].concept_similar_reg_mode:
             concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+            concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
         else:       # dot
             concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
@@ -1185,10 +1191,14 @@ class SLOTPrompt(Prompt):
         if 'cos' in self.config['args'].slot_logit_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             slot_sim = cos(weighted_slots.unsqueeze(1), weighted_slots.unsqueeze(0)) * 1  # [bs, bs]
-            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
+            normed_slot_sim = slot_sim / (slot_sim.sum(dim=-1, keepdim=True) + 1e-10)    # l1-norm
+            # logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
+            logit_sim = torch.matmul(logits, logits.t()) * (
+                    self.config['args'].slot_logit_similar_reg_temp * (logits.shape[-1] ** -0.5))
         else:
             slot_sim = torch.matmul(weighted_slots, weighted_slots.t()) * (
                     self.config['args'].slot_logit_similar_reg_slot_temp * weighted_slots.shape[-1] ** -0.5)
+            normed_slot_sim = F.softmax(slot_sim, dim=-1)
             logit_sim = torch.matmul(logits, logits.t()) * (
                     self.config['args'].slot_logit_similar_reg_temp * (logits.shape[-1] ** -0.5))
 
@@ -1200,7 +1210,7 @@ class SLOTPrompt(Prompt):
         #     distances = F.l1_loss(logit_sim, slot_sim, reduction='none')    # [bs, bs]
         #     F.cross_entropy(distances, torch.range(0, distances.shape[0] - 1).long().to(distances.device))
         else:
-            loss = cross_entropy_with_soft_labels(logit_sim, F.softmax(slot_sim, dim=-1))
+            loss = cross_entropy_with_soft_labels(logit_sim, normed_slot_sim)
 
         return loss
 
