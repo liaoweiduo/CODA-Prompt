@@ -637,10 +637,10 @@ class SLOTPrompt(Prompt):
 
                 collections['min_slot_sim'] = torch.min(sim).item()
 
-                if slot_ortho_reg_mode == 'l2':
+                if 'l2' in slot_ortho_reg_mode:
                     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
                     slot_ortho_loss = torch.nn.functional.mse_loss(sim, eye)
-                elif slot_ortho_reg_mode == 'ce':
+                elif 'ce' in slot_ortho_reg_mode:
                     sim = sim.reshape(bs*k, k)
                     sim_label = torch.arange(k).repeat(bs).long().to(sim.device)  # [0,1,...,k-1,0,1,...,k-1,...]
                     slot_ortho_loss = torch.nn.functional.cross_entropy(sim, sim_label)

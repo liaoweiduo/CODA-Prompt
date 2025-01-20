@@ -80,7 +80,7 @@ def create_args():
 
     parser.add_argument('--use_slot_ortho_reg', action='store_true')
     parser.add_argument('--slot_ortho_reg_mode', type=str, default='cos+ce',
-                        help="dot{cos}+l1{l2, ce}")
+                        help="dot{cos}+l2{ce}")
     parser.add_argument('--slot_ortho_reg_temp', type=float, default=0.01,
                         help="temp on slot ortho reg for each img.")
     parser.add_argument('--slot_ortho_reg_coeff', type=float, default=0.5,
