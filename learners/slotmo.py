@@ -625,15 +625,22 @@ class SLOTPrompt(Prompt):
                 bs, t, k, h = slots.shape  # [bs, t1, k30, h128]
                 img_slots = slots.reshape(bs, t*k, h)
                 slot_ortho_reg_mode = self.config['args'].slot_ortho_reg_mode
-                if slot_ortho_reg_mode == 'l2':
-                    cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-                    sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2))  # [bs, k, k]
-                    eye = torch.eye(t*k).expand_as(sim).to(sim.device)
-                    slot_ortho_loss = torch.nn.functional.mse_loss(sim, eye)
-                elif slot_ortho_reg_mode == 'ce':
+
+                if 'dot' in slot_ortho_reg_mode:
                     sim = torch.einsum('bkh,bnh->bkn', img_slots, img_slots) * (
                             self.config['args'].slot_ortho_reg_temp * (h ** -0.5))
                     # [bs, k, k]
+                else:
+                    cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+                    sim = cos(img_slots.unsqueeze(1), img_slots.unsqueeze(2)
+                              ) * self.config['args'].slot_ortho_reg_temp  # [bs, k, k]
+
+                collections['min_slot_sim'] = torch.min(sim).item()
+
+                if slot_ortho_reg_mode == 'l2':
+                    eye = torch.eye(t*k).expand_as(sim).to(sim.device)
+                    slot_ortho_loss = torch.nn.functional.mse_loss(sim, eye)
+                elif slot_ortho_reg_mode == 'ce':
                     sim = sim.reshape(bs*k, k)
                     sim_label = torch.arange(k).repeat(bs).long().to(sim.device)  # [0,1,...,k-1,0,1,...,k-1,...]
                     slot_ortho_loss = torch.nn.functional.cross_entropy(sim, sim_label)
@@ -1190,7 +1197,8 @@ class SLOTPrompt(Prompt):
 
         if 'cos' in self.config['args'].slot_logit_similar_reg_mode:
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            slot_sim = cos(weighted_slots.unsqueeze(1), weighted_slots.unsqueeze(0)) * 1  # [bs, bs]
+            slot_sim = cos(weighted_slots.unsqueeze(1), weighted_slots.unsqueeze(0)
+                           ) * self.config['args'].slot_logit_similar_reg_slot_temp  # [bs, bs]
             normed_slot_sim = slot_sim / (slot_sim.sum(dim=-1, keepdim=True) + 1e-10)    # l1-norm
             # logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
             logit_sim = torch.matmul(logits, logits.t()) * (

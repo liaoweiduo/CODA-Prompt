@@ -35,20 +35,21 @@ slot_lr1=1e-3
 slot_lr2=1e-4
 #for intra_consistency_reg_coeff in 0 0.1 1; do
 intra_consistency_reg_coeff=$1
-intra_consistency_reg_mode=learn+cos+l2
+intra_consistency_reg_mode=learn+cos+l1
 
-slot_ortho_reg_coeff=0.5
-slot_ortho_reg_temp=0.1
+slot_ortho_reg_mode=cos+ce
+slot_ortho_reg_coeff=$2
+slot_ortho_reg_temp=1   # dot用0.1
 
 s2p_mode=attn+soft
-s2p_temp=$2
+s2p_temp=$3
 
 slot_logit_similar_reg_mode=cos+kl
 slot_logit_similar_reg_coeff=0
 slot_logit_similar_reg_temp=0.001
 slot_logit_similar_reg_slot_temp=1
 
-LOGNAME=25-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k10-nt5
+LOGNAME=26-slot-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k10-nt5
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -61,6 +62,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
     --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
     --use_slot_ortho_reg \
+    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
     --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
     --use_old_samples_for_reg \

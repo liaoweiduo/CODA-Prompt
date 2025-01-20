@@ -595,19 +595,21 @@ class Debugger:
 
             if 'cos' in self.args['slot_logit_similar_reg_mode']:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-                slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
+                slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)
+                               ) * self.args['slot_logit_similar_reg_slot_temp']  # [bs, bs]
+                normed_slot_sim = slot_sim / (slot_sim.sum(dim=-1, keepdim=True) + 1e-10)  # l1-norm
             else:
                 slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
-            slot_sim_softmax = F.softmax(slot_sim, dim=-1)
+                normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
             yi = task_id
             draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
-            draw_heatmap(slot_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+            draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
             ax[0, yi].set_title(f't{task_id}', fontsize=16)
             if yi == 0:
                 ax[0, yi].set_ylabel('sim')
-                ax[1, yi].set_ylabel('softmax')
+                ax[1, yi].set_ylabel('norm')
 
         if save:
             fig.suptitle(f'{self.name}-weighted-slot-sim', fontsize=16)
@@ -633,19 +635,21 @@ class Debugger:
 
             if 'cos' in self.args['slot_logit_similar_reg_mode']:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-                slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)) * 1  # [bs, bs]
+                slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)
+                               ) * self.args['slot_logit_similar_reg_slot_temp']  # [bs, bs]
+                normed_slot_sim = slot_sim / (slot_sim.sum(dim=-1, keepdim=True) + 1e-10)  # l1-norm
             else:
                 slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
-            slot_sim_softmax = F.softmax(slot_sim, dim=-1)
+                normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
             yi = task_id
             draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
-            draw_heatmap(slot_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+            draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
             ax[0, yi].set_title(f't{task_id}', fontsize=16)
             if yi == 0:
                 ax[0, yi].set_ylabel('sim')
-                ax[1, yi].set_ylabel('softmax')
+                ax[1, yi].set_ylabel('norm')
 
         if save:
             fig.suptitle(f'{self.name}-weighted-mapped-slot-sim', fontsize=16)
@@ -795,7 +799,7 @@ class Debugger:
 
         return ori_y_str
 
-    def collect_AA_CA_FF(self, max_task=-1):
+    def collect_AA_CA_FF(self, max_task=-1, weighting=True):
         # pt
         file = os.path.join(self.exp_path, 'results-acc', 'pt.yaml')
         try:
@@ -822,14 +826,22 @@ class Debugger:
             max_task = data.shape[1]
         self.args['max_task'] = max_task        # visually change the number of finished tasks
 
-        if max_task > data.shape[1]:    # haven't finish yet
+        if max_task > data.shape[1]:    # haven't finished yet
             return
 
-        AA = data[:max_task, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
-        data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [n_tsk, n_run]
-        CA = data_cu.mean(axis=0)
-        data_ff = np.array([data[i, i] - data[i, -1] for i in range(max_task - 1)])  # [n_tsk, n_run]
-        FF = data_ff.mean(axis=0)
+        if weighting and max_task > 1:
+            '''weighting according to first_split_size and other_split_size'''
+            weighting = np.array(
+                [self.args['first_split_size'], *[self.args['other_split_size'] for _ in range(max_task - 1)]])
+        else:
+            weighting = np.array([1 for _ in range(max_task)])
+
+        data_aa = data[:max_task, max_task - 1]    # [n_tsk, n_run]
+        AA = np.average(data_aa, weights=weighting, axis=0)     # [n_run]
+        data_cu = np.array([data[i, i:max_task].mean(axis=0) for i in range(max_task)])  # [n_tsk, n_run]
+        CA = np.average(data_cu, weights=weighting, axis=0)     # [n_run]
+        data_ff = np.array([data[i, i] - data[i, max_task-1] for i in range(max_task - 1)])  # [n_tsk-1, n_run]
+        FF = np.average(data_ff, weights=weighting, axis=0)     # [n_run]
         self.storage['results']['AA'] = {
             'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
         self.storage['results']['CA'] = {
@@ -847,11 +859,13 @@ class Debugger:
                 print(f'File not find: {file}.')
             return
             # data = np.zeros((2,2,2))
-        AA = data[:, max_task - 1].mean(axis=0)    # [n_tsk, n_run]
-        data_cu = np.array([data[:, i].sum(axis=0) / (i + 1) for i in range(max_task)])  # [10, n_run]
-        CA = data_cu.mean(axis=0)
-        data_ff = np.array([data[i, i] - data[i, -1] for i in range(max_task - 1)])  # [10, n_run]
-        FF = data_ff.mean(axis=0)
+
+        data_aa = data[:max_task, max_task - 1]    # [n_tsk, n_run]
+        AA = np.average(data_aa, weights=weighting, axis=0)     # [n_run]
+        data_cu = np.array([data[i, i:max_task].mean(axis=0) for i in range(max_task)])  # [n_tsk, n_run]
+        CA = np.average(data_cu, weights=weighting, axis=0)     # [n_run]
+        data_ff = np.array([data[i, i] - data[i, max_task-1] for i in range(max_task - 1)])  # [n_tsk-1, n_run]
+        FF = np.average(data_ff, weights=weighting, axis=0)     # [n_run]
         self.storage['results']['l-AA'] = {
             'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
         self.storage['results']['l-CA'] = {
