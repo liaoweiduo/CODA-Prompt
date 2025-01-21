@@ -1108,7 +1108,7 @@ class SLOTPrompt(Prompt):
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         if 'kl' in mode:
             targets_1hot = F.one_hot(targets).float()
-            label_sim =cos(targets_1hot.unsqueeze(1), targets_1hot.unsqueeze(0))      # [bs, bs]
+            label_sim = cos(targets_1hot.unsqueeze(1), targets_1hot.unsqueeze(0))      # [bs, bs]
             label_sim = label_sim / label_sim.sum(dim=-1, keepdim=True)    # l1-norm
             if 'cos' in mode:
                 sim = cos(weighted_slots.unsqueeze(0), weighted_slots.unsqueeze(1))     # [b,b]
