@@ -597,7 +597,10 @@ class Debugger:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
                 slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)
                                ) * self.args['slot_logit_similar_reg_slot_temp']  # [bs, bs]
-                normed_slot_sim = slot_sim / (slot_sim.sum(dim=-1, keepdim=True) + 1e-10)  # l1-norm
+                normed_slot_sim = (slot_sim - slot_sim.min(dim=-1, keepdim=True)[0]) / (
+                        slot_sim.max(dim=-1, keepdim=True)[0] - slot_sim.min(dim=-1, keepdim=True)[0] + 1e-10)
+                # minmax over row to make them positive
+                normed_slot_sim = normed_slot_sim / normed_slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
             else:
                 slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
@@ -637,7 +640,7 @@ class Debugger:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
                 slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)
                                ) * self.args['slot_logit_similar_reg_slot_temp']  # [bs, bs]
-                normed_slot_sim = slot_sim / (slot_sim.sum(dim=-1, keepdim=True) + 1e-10)  # l1-norm
+                normed_slot_sim = slot_sim / slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
             else:
                 slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
