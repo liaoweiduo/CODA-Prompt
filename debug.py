@@ -681,12 +681,8 @@ class Debugger:
                 print(f'draw_logit_similarity => task_mask: {task_mask}.')
                 print(f'draw_logit_similarity => masked_logits[0]: {masked_logits[0]}.')
 
-            if 'cos' in self.args['slot_logit_similar_reg_mode']:
-                cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-                logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
-            else:
-                logit_sim = torch.matmul(logits, logits.t()) * (
-                        self.args['slot_logit_similar_reg_temp'] * (logits.shape[-1] ** -0.5))
+            logit_sim = torch.matmul(logits, logits.t()) * (
+                    self.args['slot_logit_similar_reg_temp'] * (logits.shape[-1] ** -0.5))
             logit_sim_softmax = F.softmax(logit_sim, dim=-1)
 
             yi = task_id
