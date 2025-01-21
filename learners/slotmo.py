@@ -1105,30 +1105,42 @@ class SLOTPrompt(Prompt):
         else:
             raise Exception(f'Un-implemented intra_consistency_reg_mode: {mode}')
 
-        if 'l1' in mode:
-            dist = nn.PairwiseDistance(p=1)  # l1-distance
-        elif 'l2' in mode:
-            dist = nn.PairwiseDistance(p=2)
-        else:
-            raise Exception(f'Un-implemented intra_consistency_reg_mode: {mode}')
-
-        # group by labels
-        intra_consistency_loss = []
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-        labels = torch.unique(targets)
-        for label in labels:
-            selected_slots = weighted_slots[targets == label]
+        if 'kl' in mode:
+            targets_1hot = F.one_hot(targets).float()
+            label_sim =cos(targets_1hot.unsqueeze(1), targets_1hot.unsqueeze(0))      # [bs, bs]
+            label_sim = label_sim / label_sim.sum(dim=-1, keepdim=True)    # l1-norm
             if 'cos' in mode:
-                sim = cos(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1))     # [b,b]
-                intra_consistency_loss.append(dist(sim, torch.ones_like(sim)).flatten())
+                sim = cos(weighted_slots.unsqueeze(0), weighted_slots.unsqueeze(1))     # [b,b]
             else:
-                intra_consistency_loss.append(dist(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1)).flatten())
-        intra_consistency_loss = torch.concat(intra_consistency_loss)
-        if intra_consistency_loss.shape[0] == bs:       # all samples are different labels, loss is all 0
-            intra_consistency_loss = intra_consistency_loss.sum()
+                sim = weighted_slots @ weighted_slots.t()     # [b,b]
+
+            intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim)
+
         else:
-            intra_consistency_loss = intra_consistency_loss.sum() / (intra_consistency_loss.shape[0] - bs)
-        # all values include bs self-dist cal (which is 0)
+            if 'l1' in mode:
+                dist = nn.PairwiseDistance(p=1)  # l1-distance
+            elif 'l2' in mode:
+                dist = nn.PairwiseDistance(p=2)
+            else:
+                raise Exception(f'Un-implemented intra_consistency_reg_mode: {mode}')
+
+            # group by labels
+            intra_consistency_loss = []
+            labels = torch.unique(targets)
+            for label in labels:
+                selected_slots = weighted_slots[targets == label]
+                if 'cos' in mode:
+                    sim = cos(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1))     # [b,b]
+                    intra_consistency_loss.append(dist(sim, torch.ones_like(sim)).flatten())
+                else:
+                    intra_consistency_loss.append(dist(selected_slots.unsqueeze(0), selected_slots.unsqueeze(1)).flatten())
+            intra_consistency_loss = torch.concat(intra_consistency_loss)
+            if intra_consistency_loss.shape[0] == bs:       # all samples are different labels, loss is all 0
+                intra_consistency_loss = intra_consistency_loss.sum()
+            else:
+                intra_consistency_loss = intra_consistency_loss.sum() / (intra_consistency_loss.shape[0] - bs)
+            # all values include bs self-dist cal (which is 0)
 
         # # # find a positive sample for each sample (if only has one sample in this batch, use itself)
         # # posi_slots = []
@@ -1160,13 +1172,11 @@ class SLOTPrompt(Prompt):
         # [bs, n_concepts]
 
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+        concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
         if 'cos' in self.config['args'].concept_similar_reg_mode:
-            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
-            concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
             logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
         else:       # dot
-            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
-            concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
             logit_sim = torch.matmul(logits, logits.t()) * (
                     self.config['args'].concept_similar_reg_temp * (logits.shape[-1] ** -0.5))
 

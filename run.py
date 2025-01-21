@@ -76,7 +76,7 @@ def create_args():
     parser.add_argument('--intra_consistency_reg_coeff', type=float, default=0.0,
                         help="coeff of reg on maintaining intra-consistency of slots")
     parser.add_argument('--intra_consistency_reg_mode', type=str, default='cross+l1',
-                        help="learn(cross)+l1(l2, ce)")
+                        help="learn(cross)+cos(dot)+l1(l2, kl)")
 
     parser.add_argument('--use_slot_ortho_reg', action='store_true')
     parser.add_argument('--slot_ortho_reg_mode', type=str, default='cos+ce',
