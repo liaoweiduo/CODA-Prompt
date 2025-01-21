@@ -841,7 +841,7 @@ class Debugger:
         data_cu = np.array([data[i, i:max_task].mean(axis=0) for i in range(max_task)])  # [n_tsk, n_run]
         CA = np.average(data_cu, weights=weighting, axis=0)     # [n_run]
         data_ff = np.array([data[i, i] - data[i, max_task-1] for i in range(max_task - 1)])  # [n_tsk-1, n_run]
-        FF = np.average(data_ff, weights=weighting, axis=0)     # [n_run]
+        FF = np.average(data_ff, weights=weighting[:-1], axis=0)     # [n_run]
         self.storage['results']['AA'] = {
             'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
         self.storage['results']['CA'] = {
@@ -865,7 +865,7 @@ class Debugger:
         data_cu = np.array([data[i, i:max_task].mean(axis=0) for i in range(max_task)])  # [n_tsk, n_run]
         CA = np.average(data_cu, weights=weighting, axis=0)     # [n_run]
         data_ff = np.array([data[i, i] - data[i, max_task-1] for i in range(max_task - 1)])  # [n_tsk-1, n_run]
-        FF = np.average(data_ff, weights=weighting, axis=0)     # [n_run]
+        FF = np.average(data_ff, weights=weighting[:-1], axis=0)     # [n_run]
         self.storage['results']['l-AA'] = {
             'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
         self.storage['results']['l-CA'] = {
