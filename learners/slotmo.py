@@ -1064,10 +1064,11 @@ class SLOTPrompt(Prompt):
                 self.epoch_log['scaler']['Value'].append(current_coeff)
 
                 # if 'slot' in optimizer_target:
-                #     slot_logit_similar_reg = self._slot_logit_similar_reg(ext_slots, ext_slot_weights, ext_logits)
-                # else:
                 slot_logit_similar_reg = self._slot_logit_similar_reg(
-                    ext_slots.detach(), ext_slot_weights.detach(), w_slots.detach(), ext_logits)
+                    ext_slots, ext_slot_weights, w_slots, ext_logits)
+                # else:
+                # slot_logit_similar_reg = self._slot_logit_similar_reg(
+                #     ext_slots.detach(), ext_slot_weights.detach(), w_slots.detach(), ext_logits)
                 # detach slots and weights
                 self.epoch_log['scaler']['Tag'].append('loss/slot_logit_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
