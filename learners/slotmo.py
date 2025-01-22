@@ -1117,10 +1117,18 @@ class SLOTPrompt(Prompt):
             label_sim = label_sim / label_sim.sum(dim=-1, keepdim=True)    # l1-norm
             if 'dot' in mode:
                 sim = weighted_slots @ weighted_slots.t()     # [b,b]
+                intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim)
             else:
                 sim = cos(weighted_slots.unsqueeze(0), weighted_slots.unsqueeze(1))     # [b,b]
-
-            intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim)
+                intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim)
+                # sim = cos(weighted_slots.unsqueeze(1), weighted_slots.unsqueeze(0)
+                #           ) * self.config['args'].slot_logit_similar_reg_slot_temp  # [bs, bs]
+                # sim = (sim - sim.min(dim=-1, keepdim=True)[0]) / (
+                #         sim.max(dim=-1, keepdim=True)[0] - sim.min(dim=-1, keepdim=True)[0] + 1e-10)
+                # # minmax over row to make them positive
+                # sim = sim / sim.sum(dim=-1, keepdim=True)  # l1-norm
+                #
+                # intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim, normalized=True)
 
         else:
             if 'l1' in mode:
@@ -2668,7 +2676,7 @@ def hungarian_algorithm(cost_matrix: Tensor):
     return smallest_cost_matrix.to(device), indices.to(device)
 
 
-def cross_entropy_with_soft_labels(logits, soft_targets):
+def cross_entropy_with_soft_labels(logits, soft_targets, normalized=False):
     """
     Calculate the cross-entropy loss for soft labels.
 
@@ -2679,8 +2687,11 @@ def cross_entropy_with_soft_labels(logits, soft_targets):
     Returns:
         The mean cross-entropy loss with soft labels.
     """
-    # Apply log softmax to logits to get the log probabilities
-    log_probs = F.log_softmax(logits, dim=-1)
+    if not normalized:
+        # Apply log softmax to logits to get the log probabilities
+        log_probs = F.log_softmax(logits, dim=-1)
+    else:
+        log_probs = torch.log(logits)
     # log_soft_targets = torch.log(soft_targets)
 
     # Calculate the KL divergence loss
