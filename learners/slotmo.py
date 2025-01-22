@@ -1115,10 +1115,10 @@ class SLOTPrompt(Prompt):
             targets_1hot = F.one_hot(targets).float()
             label_sim = cos(targets_1hot.unsqueeze(1), targets_1hot.unsqueeze(0))      # [bs, bs]
             label_sim = label_sim / label_sim.sum(dim=-1, keepdim=True)    # l1-norm
-            if 'cos' in mode:
-                sim = cos(weighted_slots.unsqueeze(0), weighted_slots.unsqueeze(1))     # [b,b]
-            else:
+            if 'dot' in mode:
                 sim = weighted_slots @ weighted_slots.t()     # [b,b]
+            else:
+                sim = cos(weighted_slots.unsqueeze(0), weighted_slots.unsqueeze(1))     # [b,b]
 
             intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim)
 

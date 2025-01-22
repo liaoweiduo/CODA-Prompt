@@ -81,7 +81,7 @@ def create_args():
     parser.add_argument('--use_slot_ortho_reg', action='store_true')
     parser.add_argument('--slot_ortho_reg_mode', type=str, default='cos+ce',
                         help="dot{cos}+l2{ce}")
-    parser.add_argument('--slot_ortho_reg_temp', type=float, default=0.01,
+    parser.add_argument('--slot_ortho_reg_temp', type=float, default=1,
                         help="temp on slot ortho reg for each img.")
     parser.add_argument('--slot_ortho_reg_coeff', type=float, default=0.5,
                         help="coeff of reg on slot ortho.")
@@ -134,7 +134,7 @@ def create_args():
                         help="coeff for concept similar reg.")
     parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=0.,
                         help="sensitivity for reg on n_cls.")
-    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='dot+kl')
+    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='cos+kl')
     parser.add_argument('--slot_logit_similar_reg_temp', type=float, default=0.01,
                         help="temp on logit similarity.")
     parser.add_argument('--slot_logit_similar_reg_slot_temp', type=float, default=0.1,
