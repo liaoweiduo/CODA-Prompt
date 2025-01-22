@@ -338,12 +338,12 @@ class SLOTPrompt(Prompt):
                 optimizer_targets = ['last']
                 schedule_phases = [0]
             elif self.config['slot_pre_learn_model'] == 'none':    # learn slot and prompt
-                if schedule[0][-1] > 0:         # if learn slot separately.
-                    optimizer_targets = ['slot', 'prompt+reuse+last', 'prompt+new+last']
-                    schedule_phases = [0, 1, 2]
-                else:
-                    optimizer_targets = ['slot+prompt+reuse+last', 'slot+prompt+new+last']
-                    schedule_phases = [1, 2]
+                # if schedule[0][-1] > 0:         # if learn slot separately.
+                #     optimizer_targets = ['slot', 'prompt+reuse+last', 'prompt+new+last']
+                #     schedule_phases = [0, 1, 2]
+                # else:
+                optimizer_targets = ['slot+prompt+reuse+last', 'slot+prompt+new+last']
+                schedule_phases = [1, 2]
             elif self.config['slot_pre_learn_model'] != 'none':     # specify slot attn model, only learn prompt
                 optimizer_targets = ['prompt+reuse+last', 'prompt+new+last']
                 schedule_phases = [1, 2]
@@ -1001,7 +1001,7 @@ class SLOTPrompt(Prompt):
                 #     print(f'grad after: {next(model.prompt.s2p[0].parameters()).grad[0,0]}')
 
             ext_logits, ext_targets = [], []
-            ext_slots, ext_slot_weights = [], []
+            ext_slots, ext_slot_weights, ext_w_slots = [], [], []
             if self.config['args'].use_old_samples_for_reg and self.t > 0:
                 # append some old samples
                 old_inputs, old_targets = self.aux.sampling()
@@ -1016,20 +1016,24 @@ class SLOTPrompt(Prompt):
                                        train=True, learn_slots=False, prompt_phase=prompt_phase)
                 old_slots = res['slots']
                 old_slot_weights = res['slot_weights']
+                old_w_slots = res['w_slots']
                 old_logits = res['logits'][:,:self.valid_out_dim]
                 ext_logits.append(old_logits)
                 ext_targets.append(old_targets)
                 ext_slots.append(old_slots)
                 ext_slot_weights.append(old_slot_weights)
+                ext_w_slots.append(old_w_slots)
 
             ext_logits.append(logits)
             ext_targets.append(targets)
             ext_slots.append(slots)
+            ext_w_slots.append(w_slots)
             ext_slot_weights.append(slot_weights)
             ext_logits = torch.cat(ext_logits, dim=0)
             ext_targets = torch.cat(ext_targets, dim=0)
             ext_slots = torch.cat(ext_slots, dim=0)
             ext_slot_weights = torch.cat(ext_slot_weights, dim=0)
+            ext_w_slots = torch.cat(ext_w_slots, dim=0)
 
             # cheating reg on logits
             if self.concept_weight:
@@ -1065,10 +1069,10 @@ class SLOTPrompt(Prompt):
 
                 # if 'slot' in optimizer_target:
                 # slot_logit_similar_reg = self._slot_logit_similar_reg(
-                #     ext_slots, ext_slot_weights, w_slots, ext_logits)
+                #     ext_slots, ext_slot_weights, ext_w_slots, ext_logits)
                 # else:
                 slot_logit_similar_reg = self._slot_logit_similar_reg(
-                    ext_slots.detach(), ext_slot_weights.detach(), w_slots.detach(), ext_logits)
+                    ext_slots.detach(), ext_slot_weights.detach(), ext_w_slots.detach(), ext_logits)
                 # detach slots and weights
                 self.epoch_log['scaler']['Tag'].append('loss/slot_logit_similar_reg')
                 self.epoch_log['scaler']['Idx'].append(self.epoch)
