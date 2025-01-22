@@ -95,21 +95,21 @@ slot_ortho_reg_mode=cos+ce
 slot_ortho_reg_coeff=$2
 
 SLOT_LOGNAME=29-slot_attn-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-pos-k10-nt5-recon_noLN
-#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type slotmo --learner_name SLOTPrompt \
-#    --prompt_param 100 8 \
-#    --batch_size 256 \
-#    --only_learn_slot \
-#    --slot_lr ${slot_lr1} ${slot_lr2} \
-#    --use_intra_consistency_reg \
-#    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
-#    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
-#    --use_slot_ortho_reg \
-#    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff} \
-#    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
-#    --max_task 3 \
-#    --log_dir ${OUTDIR}/${SLOT_LOGNAME}
-##    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 \
+    --batch_size 256 \
+    --only_learn_slot \
+    --slot_lr ${slot_lr1} ${slot_lr2} \
+    --use_intra_consistency_reg \
+    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+    --use_slot_ortho_reg \
+    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff} \
+    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
+    --max_task 3 \
+    --log_dir ${OUTDIR}/${SLOT_LOGNAME}
+#    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
 
 #s2p_mode=attn+soft
 #s2p_temp=10
