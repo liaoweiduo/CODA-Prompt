@@ -88,11 +88,11 @@ lr=1e-3
 slot_lr1=1e-3
 slot_lr2=1e-4
 
-intra_consistency_reg_coeff=0.5
+intra_consistency_reg_coeff=$1
 intra_consistency_reg_mode=cross+cos+kl
 
 slot_ortho_reg_mode=cos+ce
-slot_ortho_reg_coeff=$1
+slot_ortho_reg_coeff=$2
 
 SLOT_LOGNAME=29-slot_attn-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-pos-k10-nt5-recon_noLN
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
