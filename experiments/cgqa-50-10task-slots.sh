@@ -111,8 +111,8 @@ SLOT_LOGNAME=29-slot_attn-icr${intra_consistency_reg_coeff}_m${intra_consistency
 #    --log_dir ${OUTDIR}/${SLOT_LOGNAME}
 ##    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
 
-s2p_mode=attn+soft
-s2p_temp=10
+s2p_mode=attn+sig    # attn+sig   + soft
+s2p_temp=1       # soft=10, sig=1
 
 slot_logit_similar_reg_coeff=$1
 #for slot_logit_similar_reg_coeff in 0 1; do
@@ -120,7 +120,7 @@ slot_logit_similar_reg_mode=cos+kl
 slot_logit_similar_reg_temp=$2    # 0.001
 slot_logit_similar_reg_slot_temp=1
 
-LOGNAME=30-slot_prompt-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-p100-l8-k10-nt5
+LOGNAME=31-slot_prompt-MT-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-p100-l8-k10-nt5
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -139,7 +139,9 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 #done
-##    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
+#    --slot_pre_learn_model ${SLOT_LOGNAME} \
+#    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+#    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
 
 ## collect class statistics
 #lr=1e-3
