@@ -120,7 +120,8 @@ slot_logit_similar_reg_mode=cos+kl
 slot_logit_similar_reg_temp=$2    # 0.001
 slot_logit_similar_reg_slot_temp=1
 
-LOGNAME=31-slot_prompt-MT-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-p100-l8-k10-nt5
+#LOGNAME=31-slot_prompt-MT-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-p100-l8-k10-nt5
+LOGNAME=32-slot_prompt-MT-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -128,7 +129,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --s2p_mode ${s2p_mode} \
     --s2p_temp ${s2p_temp} \
     --lr ${lr} ${lr} \
-    --slot_pre_learn_model ${SLOT_LOGNAME} \
+    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
     --use_old_samples_for_reg \
     --use_slot_logit_similar_reg \
     --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
