@@ -798,7 +798,7 @@ class Debugger:
 
         return ori_y_str
 
-    def collect_AA_CA_FF(self, max_task=-1, weighting=True):
+    def collect_AA_CA_FF(self, max_task=-1, weighting=False):
         # pt
         file = os.path.join(self.exp_path, 'results-acc', 'pt.yaml')
         try:
