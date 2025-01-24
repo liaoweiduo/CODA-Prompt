@@ -85,7 +85,7 @@ mkdir -p $OUTDIR
 
 # separate learn slot and prompt
 lr=1e-3
-slot_lr1=1e-3
+slot_lr1=1e-4
 slot_lr2=1e-4
 
 intra_consistency_reg_coeff=0.5
@@ -94,34 +94,35 @@ intra_consistency_reg_mode=cross+cos+kl
 slot_ortho_reg_mode=cos+ce
 slot_ortho_reg_coeff=0.5
 
-SLOT_LOGNAME=29-slot_attn-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-pos-k10-nt5-recon_noLN
-#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type slotmo --learner_name SLOTPrompt \
-#    --prompt_param 100 8 \
-#    --batch_size 256 \
-#    --only_learn_slot \
-#    --slot_lr ${slot_lr1} ${slot_lr2} \
-#    --use_intra_consistency_reg \
-#    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
-#    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
-#    --use_slot_ortho_reg \
-#    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff} \
-#    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
-#    --max_task 3 \
-#    --log_dir ${OUTDIR}/${SLOT_LOGNAME}
-##    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
+# 29-slot_attn-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-pos-k10-nt5-recon_noLN
+SLOT_LOGNAME=33-slot_attn-e100-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-pos-k10-nt5-recon_noLN
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 \
+    --batch_size 512 \
+    --only_learn_slot \
+    --slot_lr ${slot_lr1} ${slot_lr2} \
+    --use_intra_consistency_reg \
+    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+    --use_slot_ortho_reg \
+    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff} \
+    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
+    --max_task 3 \
+    --log_dir ${OUTDIR}/${SLOT_LOGNAME}
+#    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
 
 s2p_mode=attn+sig    # attn+sig   + soft
 s2p_temp=1       # soft=10, sig=1
 
-slot_logit_similar_reg_coeff=$1
+slot_logit_similar_reg_coeff=0
 #for slot_logit_similar_reg_coeff in 0 1; do
 slot_logit_similar_reg_mode=cos+kl
-slot_logit_similar_reg_temp=$2    # 0.001
+slot_logit_similar_reg_temp=0.001    # 0.001
 slot_logit_similar_reg_slot_temp=1
 
 #LOGNAME=31-slot_prompt-MT-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-p100-l8-k10-nt5
-LOGNAME=32-slot_prompt-MT-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}
+LOGNAME=33-slot_prompt-e50-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
