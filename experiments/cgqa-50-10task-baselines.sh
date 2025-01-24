@@ -80,32 +80,32 @@ mkdir -p $OUTDIR
 ##   --concept_weight \
 ##   --concept_similar_reg_coeff 0.01 \
 
-# larger prompt size
-lr=1e-3
-LOGNAME=coda-l8-p100-lpl-lr${lr}
-docker run -d --rm --runtime=nvidia --gpus device=0 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 0 \
-   --lr ${lr} \
-   --larger_prompt_lr \
-   --compositional_testing \
-   --log_dir ${OUTDIR}/${LOGNAME}
-
-LOGNAME=coda-l8-p100
-docker run -d --rm --runtime=nvidia --gpus device=1 \
-  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-  -v ~/.cache:/workspace/.cache \
-  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 0 \
-   --lr ${lr} \
-   --compositional_testing \
-   --log_dir ${OUTDIR}/${LOGNAME}
+## larger prompt size
+#lr=1e-3
+#LOGNAME=coda-l8-p100-lpl-lr${lr}
+#docker run -d --rm --runtime=nvidia --gpus device=0 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 100 8 0.0 0 \
+#   --lr ${lr} \
+#   --larger_prompt_lr \
+#   --compositional_testing \
+#   --log_dir ${OUTDIR}/${LOGNAME}
+#
+#LOGNAME=coda-l8-p100
+#docker run -d --rm --runtime=nvidia --gpus device=1 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 100 8 0.0 0 \
+#   --lr ${lr} \
+#   --compositional_testing \
+#   --log_dir ${OUTDIR}/${LOGNAME}
 
 ## cfst
 #for mode in sys pro sub non noc
@@ -150,6 +150,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name DualPrompt \
     --prompt_param 10 8 8 \
     --lr 0.001 \
+    --compositional_testing \
     --log_dir ${OUTDIR}/dual-prompt-imagenet-p10-e8-g8
 
 
@@ -167,6 +168,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name L2P \
     --prompt_param 10 8 -1 \
     --lr 0.001 \
+    --compositional_testing \
     --log_dir ${OUTDIR}/l2p++-imagenet-p10-l8
 
 
