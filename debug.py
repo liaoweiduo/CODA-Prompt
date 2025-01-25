@@ -68,7 +68,7 @@ class Debugger:
         self.single_label_datasets = {}
         self.single_label_dataloaders = {}
 
-    def collect_results(self, max_task=-1, draw=False, use_dataset=False, label_range=range(0,10), select_id=0):
+    def collect_results(self, max_task=-1, draw=False, use_dataset=False, label_range=range(0,10), select_ids='default'):
         # collect results
         self.storage['results'] = {}
         self.storage['loss_df'] = {}
@@ -76,15 +76,19 @@ class Debugger:
         self.collect_CFST()
         self.collect_losses(draw=draw)
 
+        if select_ids == 'default':
+            select_ids = [0, 2, 4]     # 3 samples
+
         if use_dataset:
             try:
                 self.prepare_trainer(seed=0)
                 self.load_samples(num_samples_per_class=2, label_range=label_range)
                 self.collect_sample_results()       # obtain slots, prompts, attns,...
                 self.collect_samples_attns_sim_per_img()
-                self.draw_attns(select_id=select_id, redraw=draw)
+                for select_id in select_ids:
+                    self.draw_attns(select_id=select_id, redraw=draw)
+                    self.draw_slot_cos_sim(select_id=select_id, redraw=draw)
                 self.collect_samples_slots_sim_per_img()
-                self.draw_slot_cos_sim(select_id=select_id, redraw=draw)
                 self.collect_task_wise_attn_slot_change()
                 self.collect_samples_weighted_slot_sim_per_class()
                 self.draw_slot_weights(redraw=draw)

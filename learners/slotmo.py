@@ -570,6 +570,7 @@ class SLOTPrompt(Prompt):
         out = res['logits']     # [bs, 100]
         features = res['features']
 
+        collections['min_slot_weights'] = torch.min(slot_weights).item()
         collections['max_slot_weights'] = torch.max(slot_weights).item()
 
         if self.debug_mode:

@@ -86,7 +86,7 @@ mkdir -p $OUTDIR
 # separate learn slot and prompt
 lr=1e-3
 slot_lr1=1e-4
-slot_lr2=1e-4
+slot_lr2=1e-5
 
 intra_consistency_reg_coeff=$1   # learn 0.1， cross 0.5
 intra_consistency_reg_mode=map+cos+kl
