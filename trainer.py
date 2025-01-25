@@ -384,6 +384,8 @@ class Trainer:
                 if not os.path.exists(temp_dir + f'train_log_seed{self.seed}_t{i}' + '.pkl'):
                     debugger.save_log(epoch_log, temp_dir + f'train_log_seed{self.seed}_t{i}' + '.pkl')
 
+                debugger.collect_losses(draw=True)
+
                 # pop_labels = [
                 #     f"p{idx}" if idx < self.learner_config['n_obj'] else f"m{idx - self.learner_config['n_obj']}"
                 #     for idx in range(self.learner_config['n_mix'] + self.learner_config['n_obj'])

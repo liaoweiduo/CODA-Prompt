@@ -57,6 +57,8 @@ class Debugger:
         self.columns = []
         self._default_output_args()
         self.storage = {'samples': []}
+        self.storage['results'] = {}
+        self.storage['loss_df'] = {}
 
         # if use dataset
         self.trainer = None
@@ -949,12 +951,9 @@ class Debugger:
 
         max_seed = self.args['repeat']
         max_task = self.args['max_task']
-        try:
-            candidate_keys = list(set(self.storage['log'][max_seed-1][max_task-1]['scaler'].Tag))
-        except:
-            if self.check_level('DEBUG'):
-                print(f'Exp is not finished.')
-            return None
+        finished_seed = len(self.storage['log'])
+        finished_task = len(self.storage['log'][finished_seed-1])
+        candidate_keys = list(set(self.storage['log'][finished_seed-1][finished_task-1]['scaler'].Tag))
 
         # keys and put coeff to output_args
         keys = []
@@ -1015,9 +1014,9 @@ class Debugger:
             fig, axes = None, None
         for key_idx, key in enumerate(keys):
             dfs = []
-            for seed in range(max_seed):
+            for seed in range(finished_seed):
                 task_offset = 0
-                for task in range(max_task):
+                for task in range(finished_task):
                     df = self.storage['log'][seed][task]['scaler']
                     t_df = copy.deepcopy(df[df.Tag == key])
                     # shift Idx with task

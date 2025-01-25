@@ -59,7 +59,7 @@ def create_args():
     parser.add_argument('--s2p_temp', type=float, default=10,
                         help="temperature to control how sharp are the selection of slots")
     parser.add_argument('--s2p_mode', type=str, default='attn+sig',
-                        help="some options: [attn{mlp,gate}+{FPS}+sig{soft,cos,avg}]")
+                        help="some options: [attn{mlp,gate}+{FPS}+sig{soft,hard,cos,avg}]")
     parser.add_argument('--slot_cross_attn_temp', type=float, default=10.,
                         help="temperature to measure how popular of the slots across the batch imgs.")
 

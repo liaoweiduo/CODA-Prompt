@@ -181,6 +181,8 @@ class Slot2Prompt(nn.Module):
             self.cond_mode = 'cos'
         elif 'avg' in mode:
             self.cond_mode = 'avg'
+        elif 'hard' in mode:
+            self.cond_mode = 'hard'
         else:
             raise Exception(f'Un-implemented {mode}.')
 
@@ -291,7 +293,7 @@ class Slot2Prompt(nn.Module):
             # slots = slots * (1 - -1) + -1   # from [0, 1] to [-1, 1]
             # slots = slots.reshape(bs, n, h)
 
-            if self.cond_mode in ['sig', 'soft', 'cos']:
+            if self.cond_mode in ['sig', 'soft', 'cos', 'hard']:
                 # learn to weights slots as inputs to select prompt
                 slot_selection_w = self.slot_attn_slot_selection_w  # [128, 128] or [self.n_tasks, 128, 128]
                 slot_selection_b = self.slot_attn_slot_selection_b  # [128] or [self.n_tasks, 128]
@@ -306,6 +308,11 @@ class Slot2Prompt(nn.Module):
                     w = w * (task_key.shape[-1] ** -0.5)
                     w = w * self.select_slot_temp
                     w = torch.sigmoid(w)
+                elif self.cond_mode == 'hard':
+                    w = torch.einsum('bnd,d->bn', mapped_slots, task_key)
+                    w = w * (task_key.shape[-1] ** -0.5)
+                    w = w * self.select_slot_temp
+                    torch.sign(w) + w - w.detach()      # re-param
                 elif self.cond_mode == 'soft':      # softmax(1/sqrt(D) S_m@K_t)
                     w = torch.einsum('bnd,d->bn', mapped_slots, task_key)
                     w = w * (task_key.shape[-1] ** -0.5)
