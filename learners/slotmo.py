@@ -642,6 +642,9 @@ class SLOTPrompt(Prompt):
                 if 'l2' in slot_ortho_reg_mode:
                     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
                     slot_ortho_loss = torch.nn.functional.mse_loss(sim, eye)
+                elif 'l1' in slot_ortho_reg_mode:
+                    eye = torch.eye(t*k).expand_as(sim).to(sim.device)
+                    slot_ortho_loss = torch.nn.functional.l1_loss(sim, eye)
                 elif 'ce' in slot_ortho_reg_mode:
                     sim = sim.reshape(bs*k, k)
                     sim_label = torch.arange(k).repeat(bs).long().to(sim.device)  # [0,1,...,k-1,0,1,...,k-1,...]
