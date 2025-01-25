@@ -94,7 +94,7 @@ intra_consistency_reg_mode=map+cos+kl
 slot_ortho_reg_coeff=$2     # 0.5 or 1
 slot_ortho_reg_mode=cos+ce
 
-s2p_mode=attn+hard    # attn+sig   + soft
+s2p_mode=attn+sig    # attn+sig   + soft
 s2p_temp=1       # soft=10, sig=1
 
 # 29-slot_attn-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-slr${slot_lr1}_${slot_lr2}-pos-k10-nt5-recon_noLN
