@@ -637,6 +637,7 @@ class SLOTPrompt(Prompt):
                               ) * self.config['args'].slot_ortho_reg_temp  # [bs, k, k]
 
                 collections['min_slot_sim'] = torch.min(sim).item()
+                collections['avg_slot_sim'] = torch.mean(sim).item()
 
                 if 'l2' in slot_ortho_reg_mode:
                     eye = torch.eye(t*k).expand_as(sim).to(sim.device)
