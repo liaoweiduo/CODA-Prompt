@@ -647,7 +647,7 @@ class SLOTPrompt(Prompt):
                     slot_ortho_loss = torch.nn.functional.l1_loss(sim, eye)
                 elif 'ce' in slot_ortho_reg_mode:
                     sim = sim.reshape(bs*k, k)
-                    sim = torch.abs(sim)
+                    # sim = torch.abs(sim)
                     sim_label = torch.arange(k).repeat(bs).long().to(sim.device)  # [0,1,...,k-1,0,1,...,k-1,...]
                     slot_ortho_loss = torch.nn.functional.cross_entropy(sim, sim_label)
                 else:
