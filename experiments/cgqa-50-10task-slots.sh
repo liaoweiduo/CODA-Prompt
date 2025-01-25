@@ -92,7 +92,7 @@ intra_consistency_reg_coeff=$1   # learn 0.1， cross 0.5
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_coeff=$2     # 0.5 or 1
-slot_ortho_reg_mode=cos+ce
+slot_ortho_reg_mode=cos+l1
 
 s2p_mode=attn+sig    # attn+sig   + soft
 s2p_temp=1       # soft=10, sig=1
