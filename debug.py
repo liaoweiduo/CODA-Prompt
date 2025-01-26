@@ -943,8 +943,12 @@ class Debugger:
                     # df_mo = data['mo']
                     self.storage['log'][seed][task] = data
         except:
-            if self.check_level('DEBUG'):
+            if self.check_level('INFO'):
                 print(f'File not find: {file}.')
+        if self.check_level('INFO'):
+            current_seed = len(self.storage["log"]) - 1
+            current_task = len(self.storage["log"][current_seed]) - 1
+            print(f'Load seed {current_seed}, task {current_task}.')
 
     def collect_losses(self, draw=False):
         if 'loss_df' not in self.storage.keys():
