@@ -933,8 +933,8 @@ class Debugger:
             print(f'Load log data.')
 
         self.storage['log'] = {}
-        for seed in range(self.max_seed):
-            try:
+        try:
+            for seed in range(self.max_seed):
                 self.storage['log'][seed] = {}
                 for task in range(self.max_task):
                     file = os.path.join(self.exp_path, 'temp', f'train_log_seed{seed}_t{task}.pkl')
@@ -942,9 +942,9 @@ class Debugger:
                     # df = data['scaler']
                     # df_mo = data['mo']
                     self.storage['log'][seed][task] = data
-            except:
-                if self.check_level('DEBUG'):
-                    print(f'File not find: {file}.')
+        except:
+            if self.check_level('DEBUG'):
+                print(f'File not find: {file}.')
 
     def collect_losses(self, draw=False):
         if 'loss_df' not in self.storage.keys():
