@@ -113,8 +113,8 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --use_slot_ortho_reg \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff} \
     --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
+    --max_task 6 \
     --log_dir ${OUTDIR}/${SLOT_LOGNAME}
-#    --max_task 3 \
 #    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
 
 
@@ -140,7 +140,7 @@ LOGNAME=36-slot_prompt-e50-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot
 #    --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
 #    --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
 #    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
-#    --max_task 3 \
+#    --max_task 6 \
 #    --compositional_testing \
 #    --log_dir ${OUTDIR}/${LOGNAME}
 ##done
