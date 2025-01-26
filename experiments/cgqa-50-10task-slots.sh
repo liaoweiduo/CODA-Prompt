@@ -124,6 +124,8 @@ slot_logit_similar_reg_mode=map+cos+kl
 slot_logit_similar_reg_temp=0.001    # 0.001
 slot_logit_similar_reg_slot_temp=1
 
+# concept_similar_reg_mode=dot+kl
+
 LOGNAME=36-slot_prompt-e50-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-icr${intra_consistency_reg_coeff}_m${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_m${slot_ortho_reg_mode}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-p100-l8-k10-nt5
 #LOGNAME=33-slot_prompt-e50-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
@@ -146,6 +148,10 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 #done
 #    --slot_pre_learn_model ${SLOT_LOGNAME} \
 #    --slot_pre_learn_model MT-slot_attn-pos-k10-nt5-recon_noLN-intra0.01-crosssim10-slot_vsI0.5-slot_lr1e-4 \
+#    --concept_weight \
+#    --concept_similar_reg_mode ${concept_similar_reg_mode}\
+#    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+#    --concept_similar_reg_temp ${concept_similar_reg_temp} \
 #    --t0_model_from 8-slot_prompt-p100-l40-k10-nt5-ln-wA-sigmoid-old5-only_fix_P-cossim10-l1-sol1-dilate1-pcac0.5-lr1e-3 \
 
 ## collect class statistics

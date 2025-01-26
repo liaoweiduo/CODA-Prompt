@@ -120,6 +120,14 @@ class SLOTPrompt(Prompt):
                     del state_dict[f'{key}']
             self.model.load_state_dict(state_dict, strict=False)
             self.log(f'=> Load Done with params {list(state_dict.keys())}')
+
+            names = []
+            for k, p in self.model.named_parameters():
+                if 'slot_attn' in k:
+                    p.requires_grad = False
+                    names.append(k)
+            self.log(f'=> Freeze slot model: {names}')
+
         else:
             ## from_outside to enable load pretrained model for the 1-st task.
             # # random init pool

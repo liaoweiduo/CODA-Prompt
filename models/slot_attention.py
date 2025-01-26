@@ -205,7 +205,7 @@ class Slot2Prompt(nn.Module):
             #     if 'bias' in k:
             #         nn.init.constant_(p, 0)
         elif self.selector_mode == 'attn':
-            self.slot_ln = nn.LayerNorm(key_dim)
+            self.slot_attn_slot_ln = nn.LayerNorm(key_dim)
             # e prompt init
             for e in self.e_layers:
                 # for model saving/loading simplicity, we init the full paramaters here
@@ -284,7 +284,7 @@ class Slot2Prompt(nn.Module):
             prompts = prompt_map(weighted_slots).reshape(bs, 1, len(self.e_layers), self.e_p_length, self.emb_d)
             # [bs, 1, e, l, d]
         else:
-            slots = self.slot_ln(slots)  # apply layernorm to alleviate shifting in slots
+            slots = self.slot_attn_slot_ln(slots)  # apply layernorm to alleviate shifting in slots
             avg_slots = slots.mean(dim=1)       # [b, n10]
             # # or min max scale to [-1, 1]
             # slots = slots.reshape(bs*n, h)
