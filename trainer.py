@@ -288,7 +288,7 @@ class Trainer:
 
             # learn
             # test_loader does not use for training
-            self.test_dataset.load_dataset(i, train=False)
+            self.test_dataset.load_dataset(i, train=True)
             # self.test_dataset.load_dataset(0, train=True)
             test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
 

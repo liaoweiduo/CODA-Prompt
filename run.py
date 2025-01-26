@@ -56,7 +56,7 @@ def create_args():
     parser.add_argument('--n_iters', type=int, default=5, help="num of iter to extract slots")
     parser.add_argument('--slot_temp', type=float, default=1.0,
                         help="temperature to control how sharp are slot attns")
-    parser.add_argument('--s2p_temp', type=float, default=10,
+    parser.add_argument('--s2p_temp', type=float, default=1,
                         help="temperature to control how sharp are the selection of slots")
     parser.add_argument('--s2p_mode', type=str, default='attn+sig',
                         help="some options: [attn{mlp,gate}+{FPS}+sig{soft,hard,cos,avg}]")
@@ -135,9 +135,9 @@ def create_args():
     parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=0.,
                         help="sensitivity for reg on n_cls.")
     parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='cos+kl')
-    parser.add_argument('--slot_logit_similar_reg_temp', type=float, default=0.01,
+    parser.add_argument('--slot_logit_similar_reg_temp', type=float, default=0.001,
                         help="temp on logit similarity.")
-    parser.add_argument('--slot_logit_similar_reg_slot_temp', type=float, default=0.1,
+    parser.add_argument('--slot_logit_similar_reg_slot_temp', type=float, default=1,
                         help="temp on logit similarity.")
 
     # CFST Args
