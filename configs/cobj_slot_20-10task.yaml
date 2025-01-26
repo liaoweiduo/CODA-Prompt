@@ -1,12 +1,12 @@
 dataset: COBJ
-first_split_size: 10
+first_split_size: 20
 other_split_size: 10
 schedule:
-- [100, 50]
-- [10, 50]
-schedule_type: cosann
+- [[50], [0], [50]]
+- [[50], [0], [50]]   # T * [[epochs for slots], [enhance reuse], [learn new prompt]]
+schedule_type: cosine
 slot_schedule_type: cosine
-batch_size: 32
+#batch_size: 32
 optimizer: Adam
 #lr:
 #- 0.0005
@@ -15,13 +15,10 @@ momentum: 0.9
 weight_decay: 0
 model_type: zoo
 model_name: vit_pt_imnet
-max_task: -1
+#max_task: -1     # -1 for all
 #dataroot: ../datasets
 workers: 4
 validation: False
 train_aug: True
 rand_split: True
 logit_task_mask_top_k: 0
-## slot param
-#n_iter: 5
-#temp: 1.2
