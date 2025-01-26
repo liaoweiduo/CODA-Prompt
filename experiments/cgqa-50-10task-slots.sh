@@ -53,7 +53,7 @@ LOGNAME=40-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
-    --batch_size 1024 \
+    --batch_size 512 \
     --s2p_mode ${s2p_mode} \
     --s2p_temp ${s2p_temp} \
     --lr ${lr} ${lr} \
