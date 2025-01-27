@@ -33,6 +33,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 100 8 0.0 0 \
     --lr 0.001 \
+    --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 
@@ -47,6 +48,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --prompt_param 100 8 0.0 0 \
    --lr 1e-3 \
    --larger_prompt_lr \
+   --max_task 2 \
    --compositional_testing \
    --log_dir ${OUTDIR}/${LOGNAME}
 
@@ -66,6 +68,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name ${LEARNERNAME} \
     --prompt_param 10 8 8 \
     --lr 0.001 \
+    --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 
@@ -85,5 +88,6 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name ${LEARNERNAME} \
     --prompt_param 10 8 -1 \
     --lr 0.001 \
+    --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
