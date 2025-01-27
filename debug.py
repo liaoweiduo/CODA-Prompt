@@ -944,7 +944,7 @@ class Debugger:
                         self.storage['log'][seed] = {}
                     self.storage['log'][seed][task] = data
         except:
-            if self.check_level('DEBUG'):
+            if self.check_level('INFO'):
                 print(f'File not find: {file}.')
         if self.check_level('INFO'):
             current_seed = len(self.storage["log"]) - 1
