@@ -471,8 +471,7 @@ def _get_obj365_datasets(
     def preprocess_concept_to_integer(img_info, mapping_tuple_label_to_int_concepts):
         for item in img_info:
             item['concepts'] = [mapping_tuple_label_to_int_concepts[concept] for concept in (
-                item['label'] if isinstance(item['label'], list) else [item['label']],
-            )]
+                item['label'] if isinstance(item['label'], list) else [item['label']])]
 
     def preprocess_label_to_integer(img_info, mapping_tuple_label_to_int, prefix=''):
         for item in img_info:
@@ -613,6 +612,7 @@ def _get_obj365_datasets(
         preprocess_label_to_integer(img_info, map_tuple_label_to_int, prefix=f'fewshot/{mode}/')
         concept_set = sorted(list(set([concept for item in img_info for concept in (
             item['label'] if isinstance(item['label'], list) else [item['label']])])))
+        print(f'concept_set: {concept_set}')
         mapping_tuple_label_to_int_concepts = dict((item, idx) for idx, item in enumerate(concept_set))
         map_int_concepts_label_to_str = dict((idx, item) for idx, item in enumerate(concept_set))
         preprocess_concept_to_integer(img_info, mapping_tuple_label_to_int_concepts)
