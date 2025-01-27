@@ -312,13 +312,14 @@ if __name__ == '__main__':
         '''nvidia-smi'''
         os.system('nvidia-smi')     # vir sys.out and not write to log file
 
+    args.gpuid = [0]        # prevent using multi-gpu
+
     # do compositional testing on all available mode
     if args.compositional_testing:
         comp_test(args)
 
     from debug import Debugger
 
-    args.gpuid = [0]        # prevent using multi-gpu
     args.debug_mode = 1
     debugger = Debugger(level='INFO', args=vars(args))
     res = debugger.collect_results(max_task=args.max_task, draw=True, use_dataset=True)
