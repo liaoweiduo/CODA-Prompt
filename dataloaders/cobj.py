@@ -609,7 +609,8 @@ def _get_obj365_datasets(
         map_tuple_label_to_int = dict((item, idx + label_offset) for idx, item in enumerate(label_set))
         map_int_label_to_tuple = dict((idx + label_offset, item) for idx, item in enumerate(label_set))
         preprocess_label_to_integer(img_info, map_tuple_label_to_int, prefix=f'fewshot/{mode}/')
-        concept_set = sorted(list(set([concept for item in img_info for concept in item['label']])))
+        concept_set = sorted(list(set([concept for item in img_info for concept in (
+            item['label'] if isinstance(item['label'], list) else [item['label']])])))
         mapping_tuple_label_to_int_concepts = dict((item, idx) for idx, item in enumerate(concept_set))
         map_int_concepts_label_to_str = dict((idx, item) for idx, item in enumerate(concept_set))
         preprocess_concept_to_integer(img_info, mapping_tuple_label_to_int_concepts)
