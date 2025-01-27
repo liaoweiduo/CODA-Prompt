@@ -92,6 +92,7 @@ mkdir -p $OUTDIR
 #   --prompt_param 100 8 0.0 0 \
 #   --lr ${lr} \
 #   --larger_prompt_lr \
+#   --max_task 2 \
 #   --compositional_testing \
 #   --log_dir ${OUTDIR}/${LOGNAME}
 #
@@ -104,6 +105,7 @@ mkdir -p $OUTDIR
 #   --learner_type prompt --learner_name CODAPrompt \
 #   --prompt_param 100 8 0.0 0 \
 #   --lr ${lr} \
+#   --max_task 2 \
 #   --compositional_testing \
 #   --log_dir ${OUTDIR}/${LOGNAME}
 
@@ -150,6 +152,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name DualPrompt \
     --prompt_param 10 8 8 \
     --lr 0.001 \
+    --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/dual-prompt-imagenet-p10-e8-g8
 
@@ -168,6 +171,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name L2P \
     --prompt_param 10 8 -1 \
     --lr 0.001 \
+    --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/l2p++-imagenet-p10-l8
 
