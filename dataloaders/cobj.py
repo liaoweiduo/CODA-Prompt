@@ -470,7 +470,9 @@ def _get_obj365_datasets(
 
     def preprocess_concept_to_integer(img_info, mapping_tuple_label_to_int_concepts):
         for item in img_info:
-            item['concepts'] = [mapping_tuple_label_to_int_concepts[concept] for concept in item['label']]
+            item['concepts'] = [mapping_tuple_label_to_int_concepts[concept] for concept in (
+                item['label'] if isinstance(item['label'], list) else [item['label']],
+            )]
 
     def preprocess_label_to_integer(img_info, mapping_tuple_label_to_int, prefix=''):
         for item in img_info:
