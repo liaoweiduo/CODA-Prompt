@@ -1760,7 +1760,10 @@ class ViTZoo(nn.Module):
 
     # pen: get penultimate features    
     def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False,
-                cond_x=None, return_aqk=False, q=None, forward_last=True, **kwargs):
+                cond_x=None, return_aqk=False, q=None, forward_last=True, obtain_q=False, **kwargs):
+        if obtain_q:
+            return self.obtain_q(x, train=train, **kwargs)
+
         # kwargs for prompt
         if task_id is None:
             task_id = self.task_id

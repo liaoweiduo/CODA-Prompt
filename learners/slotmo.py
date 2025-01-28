@@ -504,12 +504,12 @@ class SLOTPrompt(Prompt):
         res = dict()
         if model is None:
             model = self.model
-        try:
-            model = model.module
-        except:
-            model = model
-
-        q = model.obtain_q(inputs, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
+        # try:
+        #     model = model.module
+        # except:
+        #     model = model
+        q = model(inputs, obtain_q=True, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
+        # q = model.obtain_q(inputs, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
         prompts, selections, slot_weights, w_slots, slots, attn, recon_loss = q
         # bs, t, k, e, p, d = prompts.shape    # [bs, t1, k1, e5, p8, d768]
         # bs, t, k, e, pp = selections.shape   # [bs, t1, k1, e5, pp100?]
