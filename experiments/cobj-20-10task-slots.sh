@@ -7,7 +7,7 @@ N_CLASS=30
 OUTDIR=outputs/${DATASET}/20-10-task
 
 # hard coded inputs
-GPUID='0'   # '0 1 2 3'
+GPUID='0 1'   # '0 1 2 3'
 CONFIG_SLOT=configs/cobj_slot_20-10task.yaml
 CONFIG=configs/cobj_prompt_20-10task.yaml
 REPEAT=1
