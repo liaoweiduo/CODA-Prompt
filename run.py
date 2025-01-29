@@ -56,7 +56,7 @@ def create_args():
     parser.add_argument('--n_iters', type=int, default=5, help="num of iter to extract slots")
     parser.add_argument('--slot_temp', type=float, default=1.0,
                         help="temperature to control how sharp are slot attns")
-    parser.add_argument('--s2p_temp', type=float, default=10,
+    parser.add_argument('--s2p_temp', type=float, default=1,
                         help="temperature to control how sharp are the selection of slots")
     parser.add_argument('--s2p_mode', type=str, default='attn+sig',
                         help="some options: [attn{mlp,gate}+{FPS}+sig{soft,hard,cos,avg}]")
@@ -73,9 +73,9 @@ def create_args():
     parser.add_argument('--logit_task_mask_top_k', type=int, default=10, help="no use")
 
     parser.add_argument('--use_intra_consistency_reg', action='store_true')
-    parser.add_argument('--intra_consistency_reg_coeff', type=float, default=0.0,
+    parser.add_argument('--intra_consistency_reg_coeff', type=float, default=1,
                         help="coeff of reg on maintaining intra-consistency of slots")
-    parser.add_argument('--intra_consistency_reg_mode', type=str, default='learn+cos+kl',
+    parser.add_argument('--intra_consistency_reg_mode', type=str, default='map+cos+kl',
                         help="learn(cross)+cos(dot)+l1(l2, kl)")
 
     parser.add_argument('--use_slot_ortho_reg', action='store_true')
@@ -134,10 +134,10 @@ def create_args():
                         help="coeff for concept similar reg.")
     parser.add_argument('--slot_logit_similar_reg_coeff_sensitivity', type=float, default=0.,
                         help="sensitivity for reg on n_cls.")
-    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='cos+kl')
-    parser.add_argument('--slot_logit_similar_reg_temp', type=float, default=0.01,
+    parser.add_argument('--slot_logit_similar_reg_mode', type=str, default='map+cos+kl')
+    parser.add_argument('--slot_logit_similar_reg_temp', type=float, default=0.001,
                         help="temp on logit similarity.")
-    parser.add_argument('--slot_logit_similar_reg_slot_temp', type=float, default=0.1,
+    parser.add_argument('--slot_logit_similar_reg_slot_temp', type=float, default=1,
                         help="temp on logit similarity.")
 
     # CFST Args
@@ -312,13 +312,14 @@ if __name__ == '__main__':
         '''nvidia-smi'''
         os.system('nvidia-smi')     # vir sys.out and not write to log file
 
+    args.gpuid = [0]        # prevent using multi-gpu
+
     # do compositional testing on all available mode
     if args.compositional_testing:
         comp_test(args)
 
     from debug import Debugger
 
-    args.gpuid = [0]        # prevent using multi-gpu
     args.debug_mode = 1
     debugger = Debugger(level='INFO', args=vars(args))
     res = debugger.collect_results(max_task=args.max_task, draw=True, use_dataset=True)

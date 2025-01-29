@@ -120,6 +120,14 @@ class SLOTPrompt(Prompt):
                     del state_dict[f'{key}']
             self.model.load_state_dict(state_dict, strict=False)
             self.log(f'=> Load Done with params {list(state_dict.keys())}')
+
+            names = []
+            for k, p in self.model.named_parameters():
+                if 'slot_attn' in k:
+                    p.requires_grad = False
+                    names.append(k)
+            self.log(f'=> Freeze slot model: {names}')
+
         else:
             ## from_outside to enable load pretrained model for the 1-st task.
             # # random init pool
@@ -496,12 +504,12 @@ class SLOTPrompt(Prompt):
         res = dict()
         if model is None:
             model = self.model
-        try:
-            model = model.module
-        except:
-            model = model
-
-        q = model.obtain_q(inputs, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
+        # try:
+        #     model = model.module
+        # except:
+        #     model = model
+        q = model(inputs, obtain_q=True, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
+        # q = model.obtain_q(inputs, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
         prompts, selections, slot_weights, w_slots, slots, attn, recon_loss = q
         # bs, t, k, e, p, d = prompts.shape    # [bs, t1, k1, e5, p8, d768]
         # bs, t, k, e, pp = selections.shape   # [bs, t1, k1, e5, pp100?]

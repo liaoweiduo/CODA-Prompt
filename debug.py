@@ -646,7 +646,11 @@ class Debugger:
                 cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
                 slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)
                                ) * self.args['slot_logit_similar_reg_slot_temp']  # [bs, bs]
-                normed_slot_sim = slot_sim / slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
+                # normed_slot_sim = slot_sim / slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
+                normed_slot_sim = (slot_sim - slot_sim.min(dim=-1, keepdim=True)[0]) / (
+                        slot_sim.max(dim=-1, keepdim=True)[0] - slot_sim.min(dim=-1, keepdim=True)[0] + 1e-10)
+                # minmax over row to make them positive
+                normed_slot_sim = normed_slot_sim / normed_slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
             else:
                 slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
@@ -929,18 +933,23 @@ class Debugger:
             print(f'Load log data.')
 
         self.storage['log'] = {}
-        for seed in range(self.max_seed):
-            self.storage['log'][seed] = {}
-            for task in range(self.max_task):
-                file = os.path.join(self.exp_path, 'temp', f'train_log_seed{seed}_t{task}.pkl')
-                try:
+        try:
+            for seed in range(self.max_seed):
+                for task in range(self.max_task):
+                    file = os.path.join(self.exp_path, 'temp', f'train_log_seed{seed}_t{task}.pkl')
                     data = pickle.load(open(file, 'rb'))     # {'scaler': df, 'mo': df}
                     # df = data['scaler']
                     # df_mo = data['mo']
+                    if seed not in self.storage['log'].keys():
+                        self.storage['log'][seed] = {}
                     self.storage['log'][seed][task] = data
-                except:
-                    if self.check_level('DEBUG'):
-                        print(f'File not find: {file}.')
+        except:
+            if self.check_level('INFO'):
+                print(f'File not find: {file}.')
+        if self.check_level('INFO'):
+            current_seed = len(self.storage["log"]) - 1
+            current_task = len(self.storage["log"][current_seed]) - 1
+            print(f'Load seed {current_seed}, task {current_task}.')
 
     def collect_losses(self, draw=False):
         if 'loss_df' not in self.storage.keys():
@@ -953,6 +962,7 @@ class Debugger:
         max_task = self.args['max_task']
         finished_seed = len(self.storage['log'])
         finished_task = len(self.storage['log'][finished_seed-1])
+
         candidate_keys = list(set(self.storage['log'][finished_seed-1][finished_task-1]['scaler'].Tag))
 
         # keys and put coeff to output_args

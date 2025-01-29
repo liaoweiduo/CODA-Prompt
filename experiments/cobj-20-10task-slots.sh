@@ -1,15 +1,15 @@
 # bash experiments/imagenet-r.sh
 # experiment settings
-DATASET=CGQA
-N_CLASS=100
+DATASET=COBJ
+N_CLASS=30
 
 # save directory
-OUTDIR=outputs/${DATASET}/50-10-task
+OUTDIR=outputs/${DATASET}/20-10-task
 
 # hard coded inputs
 GPUID='0 1'   # '0 1 2 3'
-CONFIG_SLOT=configs/cgqa_slot_50-10task.yaml
-CONFIG=configs/cgqa_prompt_50-10task.yaml
+CONFIG_SLOT=configs/cobj_slot_20-10task.yaml
+CONFIG=configs/cobj_prompt_20-10task.yaml
 REPEAT=1
 OVERWRITE=0
 
