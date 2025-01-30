@@ -93,6 +93,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --lr ${lr} \
    --larger_prompt_lr \
    --compositional_testing \
+   --max_task 8 \
    --log_dir ${OUTDIR}/${LOGNAME}
 
 LOGNAME=coda-l8-p100
@@ -105,6 +106,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
    --prompt_param 100 8 0.0 0 \
    --lr ${lr} \
    --compositional_testing \
+   --max_task 8 \
    --log_dir ${OUTDIR}/${LOGNAME}
 
 ## cfst
@@ -151,6 +153,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --prompt_param 10 8 8 \
     --lr 0.001 \
     --compositional_testing \
+    --max_task 8 \
     --log_dir ${OUTDIR}/dual-prompt-imagenet-p10-e8-g8
 
 
@@ -169,6 +172,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --prompt_param 10 8 -1 \
     --lr 0.001 \
     --compositional_testing \
+    --max_task 8 \
     --log_dir ${OUTDIR}/l2p++-imagenet-p10-l8
 
 
