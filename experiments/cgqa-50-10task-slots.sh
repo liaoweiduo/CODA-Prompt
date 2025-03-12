@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/50-10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot_50-10task.yaml
 CONFIG=configs/cgqa_prompt_50-10task.yaml
-REPEAT=3
+REPEAT=1
 OVERWRITE=0
 
 ###############################################################
@@ -49,8 +49,7 @@ s2p_temp=1
 #slot_logit_similar_reg_temp=$4
 #slot_logit_similar_reg_slot_temp=1
 
-run_id=$3
-LOGNAME=41-${run_id}-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
+LOGNAME=42-MT-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
 #LOGNAME=40-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
@@ -67,7 +66,8 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
     --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
-    --max_task 6 \
+    --oracle_flag --upper_bound_flag \
+    --max_task 1 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 #done
@@ -83,6 +83,8 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 #    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
 #    --use_old_samples_for_reg_no_grad \
 #    --eval_class_wise \
+#    --max_task 6 \
+
 
 ## separate learn slot and prompt
 #lr=1e-3
