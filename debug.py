@@ -852,7 +852,7 @@ class Debugger:
         data_ff = np.array([data[i, i] - data[i, max_task-1] for i in range(max_task - 1)])  # [n_tsk-1, n_run]
         try:        # if only 1 task, weighting null error
             FF = np.average(data_ff, weights=weighting[:-1], axis=0)     # [n_run]
-        except ValueError:
+        except Exception as e:
             FF = np.array([np.nan])
         self.storage['results']['AA'] = {
             'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
@@ -879,7 +879,7 @@ class Debugger:
         data_ff = np.array([data[i, i] - data[i, max_task-1] for i in range(max_task - 1)])  # [n_tsk-1, n_run]
         try:
             FF = np.average(data_ff, weights=weighting[:-1], axis=0)     # [n_run]
-        except ValueError:
+        except Exception as e:
             FF = np.array([np.nan])
         self.storage['results']['l-AA'] = {
             'Details': AA, 'Mean': AA.mean(), 'Std': AA.std(), 'CI95': 1.96 * (AA.std() / np.sqrt(len(AA)))}
