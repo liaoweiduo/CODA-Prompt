@@ -571,7 +571,7 @@ class Debugger:
         for task_id in range(n_column):
             ws = self.storage['weigs'][task_id]  # [bs, k10]
             yi = task_id
-            if n_column == 0:
+            if n_column == 1:
                 draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax, fmt=".2f")
                 ax.set_title(f't{task_id}', fontsize=16)
             else:
@@ -617,7 +617,7 @@ class Debugger:
                 normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
             yi = task_id
-            if n_column == 0:
+            if n_column == 1:
                 draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
                 draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
                 ax[0].set_title(f't{task_id}', fontsize=16)
@@ -669,7 +669,7 @@ class Debugger:
                 normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
             yi = task_id
-            if n_column == 0:
+            if n_column == 1:
                 draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
                 draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
                 ax[0].set_title(f't{task_id}', fontsize=16)
@@ -716,7 +716,7 @@ class Debugger:
             logit_sim_softmax = F.softmax(logit_sim, dim=-1)
 
             yi = task_id
-            if n_column == 0:
+            if n_column == 1:
                 draw_heatmap(logit_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
                 draw_heatmap(logit_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
                 ax[0].set_title(f't{task_id}', fontsize=16)
@@ -763,7 +763,7 @@ class Debugger:
             concept_sim_softmax = F.softmax(concept_sim, dim=-1)
 
             yi = task_id
-            if n_column == 0:
+            if n_column == 1:
                 draw_heatmap(concept_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
                 draw_heatmap(concept_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
                 ax[0].set_title(f't{task_id}', fontsize=16)
@@ -815,7 +815,7 @@ class Debugger:
                 yi = layer_id
                 _selection = selections[:, layer_id]    # [kk, pp]
 
-                if len(self.storage['seles']) == 0:
+                if len(self.storage['seles']) == 1:
                     draw_heatmap(_selection.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".3f")
                     if xi == 0:
                         ax[yi].set_title(f'l{yi}', fontsize=16)
