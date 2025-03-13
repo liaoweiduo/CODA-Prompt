@@ -571,8 +571,12 @@ class Debugger:
         for task_id in range(n_column):
             ws = self.storage['weigs'][task_id]  # [bs, k10]
             yi = task_id
-            draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax[yi], fmt=".2f")
-            ax[yi].set_title(f't{task_id}', fontsize=16)
+            if n_column == 0:
+                draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax, fmt=".2f")
+                ax.set_title(f't{task_id}', fontsize=16)
+            else:
+                draw_heatmap(ws.cpu().numpy(), verbose=True, ax=ax[yi], fmt=".2f")
+                ax[yi].set_title(f't{task_id}', fontsize=16)
 
         # save
         if save:
@@ -613,12 +617,20 @@ class Debugger:
                 normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
             yi = task_id
-            draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
-            draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
-            ax[0, yi].set_title(f't{task_id}', fontsize=16)
-            if yi == 0:
-                ax[0, yi].set_ylabel('sim')
-                ax[1, yi].set_ylabel('norm')
+            if n_column == 0:
+                draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
+                draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
+                ax[0].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0].set_ylabel('sim')
+                    ax[1].set_ylabel('norm')
+            else:
+                draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+                draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+                ax[0, yi].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0, yi].set_ylabel('sim')
+                    ax[1, yi].set_ylabel('norm')
 
         if save:
             fig.suptitle(f'{self.name}-weighted-slot-sim', fontsize=16)
@@ -657,12 +669,20 @@ class Debugger:
                 normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
             yi = task_id
-            draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
-            draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
-            ax[0, yi].set_title(f't{task_id}', fontsize=16)
-            if yi == 0:
-                ax[0, yi].set_ylabel('sim')
-                ax[1, yi].set_ylabel('norm')
+            if n_column == 0:
+                draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
+                draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
+                ax[0].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0].set_ylabel('sim')
+                    ax[1].set_ylabel('norm')
+            else:
+                draw_heatmap(slot_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+                draw_heatmap(normed_slot_sim.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+                ax[0, yi].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0, yi].set_ylabel('sim')
+                    ax[1, yi].set_ylabel('norm')
 
         if save:
             fig.suptitle(f'{self.name}-weighted-mapped-slot-sim', fontsize=16)
@@ -696,12 +716,20 @@ class Debugger:
             logit_sim_softmax = F.softmax(logit_sim, dim=-1)
 
             yi = task_id
-            draw_heatmap(logit_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
-            draw_heatmap(logit_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
-            ax[0, yi].set_title(f't{task_id}', fontsize=16)
-            if yi == 0:
-                ax[0, yi].set_ylabel('sim')
-                ax[1, yi].set_ylabel('softmax')
+            if n_column == 0:
+                draw_heatmap(logit_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
+                draw_heatmap(logit_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
+                ax[0].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0].set_ylabel('sim')
+                    ax[1].set_ylabel('softmax')
+            else:
+                draw_heatmap(logit_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+                draw_heatmap(logit_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+                ax[0, yi].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0, yi].set_ylabel('sim')
+                    ax[1, yi].set_ylabel('softmax')
 
         if save:
             fig.suptitle(f'{self.name}-logit-sim', fontsize=16)
@@ -735,12 +763,20 @@ class Debugger:
             concept_sim_softmax = F.softmax(concept_sim, dim=-1)
 
             yi = task_id
-            draw_heatmap(concept_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
-            draw_heatmap(concept_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
-            ax[0, yi].set_title(f't{task_id}', fontsize=16)
-            if yi == 0:
-                ax[0, yi].set_ylabel('sim')
-                ax[1, yi].set_ylabel('softmax')
+            if n_column == 0:
+                draw_heatmap(concept_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
+                draw_heatmap(concept_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
+                ax[0].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0].set_ylabel('sim')
+                    ax[1].set_ylabel('softmax')
+            else:
+                draw_heatmap(concept_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
+                draw_heatmap(concept_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+                ax[0, yi].set_title(f't{task_id}', fontsize=16)
+                if yi == 0:
+                    ax[0, yi].set_ylabel('sim')
+                    ax[1, yi].set_ylabel('softmax')
 
         if save:
             fig.suptitle(f'{self.name}-concept-sim', fontsize=16)
@@ -779,14 +815,18 @@ class Debugger:
                 yi = layer_id
                 _selection = selections[:, layer_id]    # [kk, pp]
 
-                draw_heatmap(_selection.cpu().numpy(), verbose=False, ax=ax[xi, yi], fmt=".3f")
-                if xi == 0:
-                    ax[xi, yi].set_title(f'l{yi}', fontsize=16)
-                    # axes[xi, yi].tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
-                    # axes[xi, yi].set_xticks([])
-                    # axes[xi, yi].set_yticks([])
-                if yi == 0:
-                    ax[xi, yi].set_ylabel(f't{xi}', fontsize=16)
+                if len(self.storage['seles']) == 0:
+                    draw_heatmap(_selection.cpu().numpy(), verbose=False, ax=ax[yi], fmt=".3f")
+                    if xi == 0:
+                        ax[yi].set_title(f'l{yi}', fontsize=16)
+                    if yi == 0:
+                        ax[yi].set_ylabel(f't{xi}', fontsize=16)
+                else:
+                    draw_heatmap(_selection.cpu().numpy(), verbose=False, ax=ax[xi, yi], fmt=".3f")
+                    if xi == 0:
+                        ax[xi, yi].set_title(f'l{yi}', fontsize=16)
+                    if yi == 0:
+                        ax[xi, yi].set_ylabel(f't{xi}', fontsize=16)
 
         # save
         if save:
