@@ -41,8 +41,9 @@ slot_ortho_reg_mode=cos+ce
 slot_ortho_reg_coeff=$2
 slot_ortho_reg_temp=1   # dot用0.1
 
-s2p_mode=attn+sig
-s2p_temp=1
+s2p_mode=attn+soft     # sig or soft
+for s2p_temp in $3 $4; do
+#s2p_temp=1
 
 #slot_logit_similar_reg_mode=map+cos+kl
 #slot_logit_similar_reg_coeff=$3
@@ -70,7 +71,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --max_task 1 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
-#done
+done
 #    --larger_prompt_lr \
 #    --concept_weight \
 #    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
