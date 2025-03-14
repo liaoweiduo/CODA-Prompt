@@ -38,19 +38,20 @@ intra_consistency_reg_coeff=$1
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
-slot_ortho_reg_coeff=$2
+for slot_ortho_reg_coeff in 0.1 0.5 1 2; do
+#slot_ortho_reg_coeff=$2
 slot_ortho_reg_temp=1   # dot用0.1
 
 s2p_mode=attn+soft     # sig or soft
-for s2p_temp in $3 $4; do
-#s2p_temp=1
+#for s2p_temp in $3 $4; do
+s2p_temp=10
 
 #slot_logit_similar_reg_mode=map+cos+kl
 #slot_logit_similar_reg_coeff=$3
 #slot_logit_similar_reg_temp=$4
 #slot_logit_similar_reg_slot_temp=1
 
-LOGNAME=42-MT-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
+LOGNAME=43-MT-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
 #LOGNAME=40-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \

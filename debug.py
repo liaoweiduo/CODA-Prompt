@@ -79,7 +79,7 @@ class Debugger:
         self.collect_losses(draw=draw)
 
         if select_ids == 'default':
-            select_ids = [0, 2, 4]     # 3 samples
+            select_ids = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]     # 3 samples
 
         if use_dataset:
             try:
@@ -526,17 +526,21 @@ class Debugger:
             # extend columns
             self.columns.extend(['samples/task_wise/attn_mae', 'samples/task_wise/slot_mae'])
 
-    def collect_samples_weighted_slot_sim_per_class(self):
+    def collect_samples_weighted_slot_sim_per_class(self, mapped=True):
         """refer to intra-class-consistency-reg"""
         slots = self.storage['slots']       # n_tasks * [bs, k, h]
         slot_weights = self.storage['weigs']    # n_tasks * [bs, k]
+        w_slots = self.storage['wslos']  # n_tasks * [bs, d128]
         ys = self.storage['samples'][1]     # [bs]
         unique_ys = torch.unique(ys)
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         task_sims = []
         for task_id in range(len(self.storage['slots'])):
             cls_sims = []
-            weighted_slots = torch.einsum('bkh,bk->bh', slots[task_id], slot_weights[task_id])
+            if mapped:
+                weighted_slots = w_slots[task_id]
+            else:
+                weighted_slots = torch.einsum('bkh,bk->bh', slots[task_id], slot_weights[task_id])
             for label in unique_ys:
                 selected_idxs = torch.where(ys == label)[0]
                 selected_w_slots = weighted_slots[selected_idxs]    # [2, h]
