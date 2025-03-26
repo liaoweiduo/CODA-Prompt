@@ -8,7 +8,7 @@ OUTDIR=outputs/${DATASET}/5-task
 
 # hard coded inputs
 GPUID='0'   # '0 1 2 3'
-CONFIG_SLOT=configs/domainnet_prompt.yaml
+CONFIG_SLOT=configs/domainnet_slot.yaml
 REPEAT=1
 OVERWRITE=0
 

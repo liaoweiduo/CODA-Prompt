@@ -224,9 +224,9 @@ class SLOTPrompt(Prompt):
         print('******************* init optimizer **********************')
         print(f'optimizer params: {"all" if target is None else target} '
               f'len {[len(params_to_opt_s), len(params_to_opt_p), len(params_to_opt_l)]}')
-        print(f'slots: {names_s}')
-        print(f'prompt: {names_p}')
-        print(f'last: {names_l}')
+        print(f'slots[{sum(p.numel() for p in params_to_opt_s)}]: {names_s}')
+        print(f'prompt[{sum(p.numel() for p in params_to_opt_p)}]: {names_p}')
+        print(f'last[{sum(p.numel() for p in params_to_opt_l)}]: {names_l}')
 
         lr = self.config['lr']          # [1e-3, 1e-3,...]
         slot_lr = self.config['slot_lr']    # [1e-4, 1e-4,...]

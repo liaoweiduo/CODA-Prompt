@@ -107,7 +107,7 @@ class Trainer:
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // 10,
                                      other_split_size=args.other_split_size // 10,
-                                     return_concepts=return_concepts,
+                                     return_concepts=False,
                                      mode=args.mode,
                                      )
         # if args.debug_mode == 1:

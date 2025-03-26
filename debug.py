@@ -74,6 +74,9 @@ class Debugger:
         # collect results
         self.storage['results'] = {}
         self.storage['loss_df'] = {}
+
+        # todo: number of trainable parameters
+
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
         self.collect_losses(draw=draw)
