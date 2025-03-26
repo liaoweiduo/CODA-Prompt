@@ -63,7 +63,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --prompt_param 100 8 \
     --n_slots ${n_slots} \
     --n_iters ${n_iters} \
-    --batch_size 128 \
+    --batch_size 64 \
     --s2p_mode ${s2p_mode} \
     --s2p_temp ${s2p_temp} \
     --lr ${lr} ${lr} \
