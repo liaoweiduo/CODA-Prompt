@@ -4,12 +4,12 @@ DATASET=CGQA
 N_CLASS=100
 
 # save directory
-OUTDIR=outputs/${DATASET}/50-10-task
+OUTDIR=outputs/${DATASET}/50-5-task
 
 # hard coded inputs
 GPUID='0'   # '0 1 2 3'
-CONFIG_SLOT=configs/cgqa_slot_50-10task.yaml
-CONFIG=configs/cgqa_prompt_50-10task.yaml
+CONFIG_SLOT=configs/cgqa_slot_50-5task.yaml
+CONFIG=configs/cgqa_prompt_50-5task.yaml
 REPEAT=1
 OVERWRITE=0
 
@@ -33,11 +33,11 @@ lr=1e-3
 slot_lr1=1e-4
 slot_lr2=1e-5
 
-n_slots=$1
-n_iters=$2
+n_slots=10
+n_iters=5
 
 #for intra_consistency_reg_coeff in 0 0.1 1; do
-intra_consistency_reg_coeff=2    # 0.5
+intra_consistency_reg_coeff=2
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
