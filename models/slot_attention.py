@@ -266,7 +266,7 @@ class Slot2Prompt(nn.Module):
         if s2p is None:
             s2p = self
 
-        w = None
+        w = torch.zeros(bs, n).to(slots.device)
         w_slots = None
         selections = None
         if self.selector_mode == 'gate':
@@ -417,6 +417,7 @@ class Slot2Prompt(nn.Module):
                 if 'avg' in self.cond_mode:
                     # use average slots as inputs to select prompt
                     slots_ = torch.einsum('bh,kh->bkh', avg_slots, A)      # attended slots
+                    w_slots = avg_slots
                 elif self.cond_mode in ['sig', 'soft', 'cos', 'hard']:
                     slots_ = torch.einsum('bh,kh->bkh', w_slots, A)      # attended slots
                 else:
