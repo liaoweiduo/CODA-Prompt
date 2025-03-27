@@ -216,9 +216,9 @@ class Slot2Prompt(nn.Module):
                 # in the original paper, we used ortho init at the start - this modification is more
                 # fair in the spirit of continual learning and has little affect on performance
                 e_l = self.e_p_length
-                p = init_tensor(self.e_pool_size, e_l, emb_d, ortho=True)   # [100, 8, 768]
-                k = init_tensor(self.e_pool_size, self.key_d, ortho=True)   # [100, 128]
-                a = init_tensor(self.e_pool_size, self.key_d, ortho=True)   # [100, 128]
+                p = init_tensor(self.e_pool_size, e_l, emb_d, ortho=False)   # [100, 8, 768]
+                k = init_tensor(self.e_pool_size, self.key_d, ortho=False)   # [100, 128]
+                a = init_tensor(self.e_pool_size, self.key_d, ortho=False)   # [100, 128]
                 # p = self.gram_schmidt(p)
                 # k = self.gram_schmidt(k)
                 # # a = self.gram_schmidt(a)

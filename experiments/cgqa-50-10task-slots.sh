@@ -37,17 +37,17 @@ n_slots=10
 n_iters=5
 
 #for intra_consistency_reg_coeff in 0 0.1 1; do
-intra_consistency_reg_coeff=2    # 0.5
+intra_consistency_reg_coeff=0.5    # 0.5
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
-#for slot_ortho_reg_coeff in 0.1 0.5 1 2; do
+#for slot_ortho_reg_coeff in 0 0.5; do
 slot_ortho_reg_coeff=0.5
 slot_ortho_reg_temp=1   # dot用0.1
 
 s2p_mode=attn+avg     # sig or soft
 #for s2p_temp in $3 $4; do
-s2p_temp=1
+s2p_temp=10
 # soft-temp10, sig-temp1
 
 #slot_logit_similar_reg_mode=map+cos+kl
@@ -55,9 +55,57 @@ s2p_temp=1
 #slot_logit_similar_reg_temp=$4
 #slot_logit_similar_reg_slot_temp=1
 
-# bs 256
-LOGNAME=rebuttal-k${n_slots}-nt${n_iters}-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8
-#LOGNAME=40-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
+## bs 256
+#LOGNAME=rebuttal-raninit-k${n_slots}-nt${n_iters}-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8
+##LOGNAME=40-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type slotmo --learner_name SLOTPrompt \
+#    --prompt_param 100 8 \
+#    --n_slots ${n_slots} \
+#    --n_iters ${n_iters} \
+#    --batch_size 256 \
+#    --s2p_mode ${s2p_mode} \
+#    --s2p_temp ${s2p_temp} \
+#    --lr ${lr} ${lr} \
+#    --slot_lr ${slot_lr1} ${slot_lr2} \
+#    --use_intra_consistency_reg \
+#    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+#    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+#    --use_slot_ortho_reg \
+#    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
+#    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
+#    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
+#    --max_task 6 \
+#    --compositional_testing \
+#    --log_dir ${OUTDIR}/${LOGNAME}
+##done
+##    --larger_prompt_lr \
+##    --concept_weight \
+##    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+##    --concept_similar_reg_temp ${concept_similar_reg_temp} \
+##    --use_old_samples_for_reg \
+##    --use_slot_logit_similar_reg \
+##    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
+##    --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
+##    --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
+##    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
+##    --use_old_samples_for_reg_no_grad \
+##    --eval_class_wise \
+##    --oracle_flag --upper_bound_flag \
+##    --max_task 1 \
+
+# baseline
+LOGNAME=rebuttal-baseline-raninit
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 8 0.0 0 \
+   --lr ${lr} \
+   --max_task 6 \
+   --compositional_testing \
+   --log_dir ${OUTDIR}/${LOGNAME}
+
+# +slot(avg)
+LOGNAME=rebuttal-raninit-slotavg
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -68,9 +116,22 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --s2p_temp ${s2p_temp} \
     --lr ${lr} ${lr} \
     --slot_lr ${slot_lr1} ${slot_lr2} \
-    --use_intra_consistency_reg \
-    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
-    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+    --max_task 6 \
+    --compositional_testing \
+    --log_dir ${OUTDIR}/${LOGNAME}
+
+# +slot(avg)+so
+LOGNAME=rebuttal-raninit-slotavg-so
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 \
+    --n_slots ${n_slots} \
+    --n_iters ${n_iters} \
+    --batch_size 256 \
+    --s2p_mode ${s2p_mode} \
+    --s2p_temp ${s2p_temp} \
+    --lr ${lr} ${lr} \
+    --slot_lr ${slot_lr1} ${slot_lr2} \
     --use_slot_ortho_reg \
     --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
@@ -78,21 +139,54 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --max_task 6 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
-#done
-#    --larger_prompt_lr \
-#    --concept_weight \
-#    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
-#    --concept_similar_reg_temp ${concept_similar_reg_temp} \
-#    --use_old_samples_for_reg \
-#    --use_slot_logit_similar_reg \
-#    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
-#    --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
-#    --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
-#    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
-#    --use_old_samples_for_reg_no_grad \
-#    --eval_class_wise \
-#    --oracle_flag --upper_bound_flag \
-#    --max_task 1 \
+
+# +slot(avg)+so+p
+LOGNAME=rebuttal-raninit-slotavg-so-p
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 \
+    --n_slots ${n_slots} \
+    --n_iters ${n_iters} \
+    --batch_size 256 \
+    --s2p_mode ${s2p_mode} \
+    --s2p_temp ${s2p_temp} \
+    --lr ${lr} ${lr} \
+    --slot_lr ${slot_lr1} ${slot_lr2} \
+    --use_slot_ortho_reg \
+    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
+    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
+    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
+    --use_intra_consistency_reg \
+    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+    --max_task 6 \
+    --compositional_testing \
+    --log_dir ${OUTDIR}/${LOGNAME}
+
+# +slot(soft)+so+p   avg->soft
+s2p_mode=attn+soft
+LOGNAME=rebuttal-raninit-slotsoft-so-p
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 \
+    --n_slots ${n_slots} \
+    --n_iters ${n_iters} \
+    --batch_size 256 \
+    --s2p_mode ${s2p_mode} \
+    --s2p_temp ${s2p_temp} \
+    --lr ${lr} ${lr} \
+    --slot_lr ${slot_lr1} ${slot_lr2} \
+    --use_slot_ortho_reg \
+    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
+    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
+    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
+    --use_intra_consistency_reg \
+    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+    --max_task 6 \
+    --compositional_testing \
+    --log_dir ${OUTDIR}/${LOGNAME}
+
 
 ### learn prompt and classifier  -- student
 #lr=1e-3
