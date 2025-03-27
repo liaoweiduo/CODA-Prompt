@@ -105,8 +105,8 @@ class Trainer:
         self.train_dataset = Dataset(args.dataroot, train=True, lab = True, tasks=self.tasks,
                                      download_flag=True if (args.debug_mode == 0) else False, transform=train_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
-                                     first_split_size=args.first_split_size // 10,
-                                     other_split_size=args.other_split_size // 10,
+                                     first_split_size=args.first_split_size // args.other_split_size,
+                                     other_split_size=args.other_split_size // args.other_split_size,
                                      return_concepts=False,
                                      mode=args.mode,
                                      )
@@ -115,8 +115,9 @@ class Trainer:
         self.test_dataset  = Dataset(args.dataroot, train=False, lab = True, tasks=self.tasks,
                                      download_flag=True if (args.debug_mode == 0) else False, transform=test_transform,
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
-                                     first_split_size=args.first_split_size // 10,
-                                     other_split_size=args.other_split_size // 10,
+                                     first_split_size=args.first_split_size // args.other_split_size,
+                                     other_split_size=args.other_split_size // args.other_split_size,
+                                     num_cls_per_task=args.other_split_size,
                                      return_concepts=return_concepts,
                                      mode=args.mode,
                                      )

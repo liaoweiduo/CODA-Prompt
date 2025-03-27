@@ -15,6 +15,7 @@ class CFSTDataset(data.Dataset):
                  download_flag=False, lab=True, swap_dset = None,
                  tasks=None, seed=-1, rand_split=False, validation=False, kfolds=5,
                  mode='continual', return_concepts=False, first_split_size=1, other_split_size=1,
+                 num_cls_per_task=10,
                  ):
 
         # process rest of args
@@ -29,6 +30,7 @@ class CFSTDataset(data.Dataset):
         self.return_concepts = return_concepts
         self.first_split_size = first_split_size
         self.other_split_size = other_split_size
+        self.num_cls_per_task = num_cls_per_task
 
         # load dataset
         self.benchmark = None
@@ -286,7 +288,7 @@ class CGQA(CFSTDataset):
             load_set = 'train' if self.train else ('val' if self.validation else 'test')
         if self.mode == 'continual':
             self.benchmark = cgqa.continual_training_benchmark(
-                10, image_size=(224, 224), return_task_id=False,
+                100 // self.num_cls_per_task, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
                 train_transform=cgqa._build_default_transform(image_size=(224, 224), is_train=True),
                 eval_transform=cgqa.build_transform_for_vit(is_train=False),
@@ -314,7 +316,7 @@ class COBJ(CFSTDataset):
             load_set = 'train' if self.train else ('val' if self.validation else 'test')
         if self.mode == 'continual':
             self.benchmark = cobj.continual_training_benchmark(
-                3, image_size=(224, 224), return_task_id=False,
+                30 // self.num_cls_per_task, image_size=(224, 224), return_task_id=False,
                 seed=self.seed,
                 train_transform=cobj._build_default_transform(image_size=(224, 224), is_train=True),
                 eval_transform=cobj.build_transform_for_vit(is_train=False),
