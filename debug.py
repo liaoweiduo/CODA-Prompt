@@ -99,9 +99,9 @@ class Debugger:
                 self.draw_slot_weights(redraw=draw)
                 self.draw_weighted_slot_similarity(redraw=draw)
                 self.draw_weighted_mapped_slot_similarity(redraw=draw)
-                self.draw_concept_similarity(redraw=draw)
                 self.draw_logit_similarity(redraw=draw)
                 self.draw_prompt_selection(redraw=draw)
+                self.draw_concept_similarity(redraw=draw)
             except Exception as e:
                 # Print the error traceback
                 traceback.print_exc()
@@ -269,20 +269,26 @@ class Debugger:
             sample = next(iterator)
             if len(sample) == 3:
                 x, y, task = sample
+                # send data to gpu
+                x = x[:num_samples].cuda()
+                y = y[:num_samples].cuda()
             else:
                 x, y, c, task = sample
-            # send data to gpu
-            x = x[:num_samples].cuda()
-            y = y[:num_samples].cuda()
-            c = c[:num_samples].cuda()
+                # send data to gpu
+                x = x[:num_samples].cuda()
+                y = y[:num_samples].cuda()
+                c = c[:num_samples].cuda()
+                cs.append(c)
 
             xs.append(x)
             ys.append(y)
-            cs.append(c)
 
         x = torch.cat(xs)
         y = torch.cat(ys)
-        c = torch.cat(cs)
+        if len(cs) > 0:
+            c = torch.cat(cs)
+        else:
+            c = None
 
         self.storage['samples'] = [x, y, c]
 
@@ -745,6 +751,9 @@ class Debugger:
     def draw_concept_similarity(self, ax=None, redraw=False):
         name = f'concept-sim.png'
         if not redraw and self.existfig(name):
+            return
+
+        if self.storage['samples'][2] is None:      # dataset no concept
             return
 
         n_row = 2

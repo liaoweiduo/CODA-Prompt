@@ -107,6 +107,7 @@ class Trainer:
                                      seed=self.seed, rand_split=args.rand_split, validation=args.validation,
                                      first_split_size=args.first_split_size // args.other_split_size,
                                      other_split_size=args.other_split_size // args.other_split_size,
+                                     num_cls_per_task=args.other_split_size,
                                      return_concepts=False,
                                      mode=args.mode,
                                      )

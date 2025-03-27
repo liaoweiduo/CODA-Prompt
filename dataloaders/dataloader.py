@@ -98,6 +98,22 @@ class iDataset(data.Dataset):
         if self.train:
             self.coreset = (np.zeros(0, dtype=self.data.dtype), np.zeros(0, dtype=self.targets.dtype))
 
+    def get_unique_labels(self):
+        targets = self.targets
+        return np.unique(targets)
+
+    def get_single_class_dataset(self, label, dataset=None):
+        """from dataset load images with given label"""
+        if dataset is None:
+            dataset = self
+
+        if hasattr(dataset, 'targets'):
+            targets = np.array(dataset.targets)
+        else:
+            targets = np.concatenate([dataset.datasets[t].targets for t in dataset.datasets])
+        cls_indices = np.where(targets == label)[0]
+        return torch.utils.data.Subset(self, cls_indices)
+
     def __getitem__(self, index, simple = False):
         """
         Args:
