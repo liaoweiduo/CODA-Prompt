@@ -37,7 +37,7 @@ n_slots=10
 n_iters=5
 
 #for intra_consistency_reg_coeff in 0 0.1 1; do
-intra_consistency_reg_coeff=2
+intra_consistency_reg_coeff=0.5
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
@@ -45,9 +45,9 @@ slot_ortho_reg_mode=cos+ce
 slot_ortho_reg_coeff=0.5
 slot_ortho_reg_temp=1   # dot用0.1
 
-s2p_mode=attn+sig     # sig or soft
+s2p_mode=attn+soft     # sig or soft
 #for s2p_temp in $3 $4; do
-s2p_temp=1
+s2p_temp=10
 # soft-temp10, sig-temp1
 
 #slot_logit_similar_reg_mode=map+cos+kl
