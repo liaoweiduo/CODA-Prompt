@@ -497,7 +497,7 @@ class Debugger:
         # sim = torch.softmax(sim, dim=1)
         sim = sim.cpu().numpy()
 
-        draw_heatmap(sim, verbose=True, ax=ax, fmt=".3f")
+        draw_heatmap(sim, verbose=False, ax=ax, fmt=".3f")
         ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
         # ax.set_xticks([])
         # ax.set_yticks([])

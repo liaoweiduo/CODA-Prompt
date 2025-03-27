@@ -1,8 +1,8 @@
-dataset: ImageNet_R
-first_split_size: 100
-other_split_size: 10
+dataset: DomainNet
+first_split_size: 69
+other_split_size: 23
 schedule:
-- 50
+- 20
 schedule_type: cosine
 batch_size: 128
 optimizer: Adam

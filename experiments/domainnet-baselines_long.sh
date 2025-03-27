@@ -1,14 +1,14 @@
-# bash experiments/imagenet-r.sh
+# bash experiments/domainnet.sh
 # experiment settings
-DATASET=ImageNet_R
-N_CLASS=200
+DATASET=DomainNet
+N_CLASS=345
 
 # save directory
-OUTDIR=outputs/${DATASET}/100-10-task
+OUTDIR=outputs/${DATASET}/69-23-task
 
 # hard coded inputs
 GPUID='0'
-CONFIG=configs/imnet-r_prompt_long.yaml
+CONFIG=configs/domainnet_prompt_long.yaml
 REPEAT=1
 OVERWRITE=0
 
@@ -26,7 +26,7 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 100 8 0.0 \
-    --max_task 11 \
+    --max_task 9 \
     --log_dir ${OUTDIR}/coda-p
 
 # DualPrompt
@@ -37,8 +37,8 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 3 = g-prompt pool length
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name DualPrompt \
-    --prompt_param 11 20 6 \
-    --max_task 11 \
+    --prompt_param 9 20 6 \
+    --max_task 9 \
     --log_dir ${OUTDIR}/dual-prompt
 
 # L2P++
@@ -50,5 +50,5 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name L2P \
     --prompt_param 30 20 -1 \
-    --max_task 11 \
+    --max_task 9 \
     --log_dir ${OUTDIR}/l2p++

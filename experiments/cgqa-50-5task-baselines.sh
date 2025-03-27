@@ -152,9 +152,9 @@ docker run -d --rm --runtime=nvidia --gpus device=2 \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name DualPrompt \
-    --prompt_param 10 8 8 \
+    --prompt_param 11 20 6 \
     --lr 0.001 \
-    --max_task 2 \
+    --max_task 11 \
     --compositional_testing \
     --log_dir ${OUTDIR}/dual-prompt-imagenet-p10-e8-g8
 
@@ -171,7 +171,7 @@ docker run -d --rm --runtime=nvidia --gpus device=3 \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name L2P \
-    --prompt_param 10 8 -1 \
+    --prompt_param 30 20 -1 \
     --lr 0.001 \
     --max_task 2 \
     --compositional_testing \
