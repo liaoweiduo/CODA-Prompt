@@ -407,7 +407,8 @@ class iCGQA(iIMAGENET_R):
             data_config = self.label_info[3]['val_list']
         else:
             data_config = self.label_info[3]['test_list']
-        self.data = [os.path.join(self.root, sample_tuple[0]) for sample_tuple in data_config]
+        img_folder_path = self.label_info[3]['img_folder_path']
+        self.data = [os.path.join(img_folder_path, sample_tuple[0]) for sample_tuple in data_config]
         self.targets = [sample_tuple[1] for sample_tuple in data_config]
         self.concepts = None
         self.positions = None

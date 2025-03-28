@@ -601,7 +601,8 @@ def _get_obj365_datasets(
             "mapping_tuple_label_to_int_concepts": mapping_tuple_label_to_int_concepts,
             "map_int_concepts_label_to_str": map_int_concepts_label_to_str,
             "map_int_label_to_concept": map_int_label_to_concept, 
-            "train_list": train_list, "val_list": val_list, "test_list": test_list}
+            "train_list": train_list, "val_list": val_list, "test_list": test_list,
+            "img_folder_path": img_folder_path,}
         label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
     elif mode in ['sys', 'pro', 'non', 'noc']:   # no sub
@@ -639,7 +640,8 @@ def _get_obj365_datasets(
             "mapping_tuple_label_to_int_concepts": mapping_tuple_label_to_int_concepts,
             "map_int_concepts_label_to_str": map_int_concepts_label_to_str,
             "map_int_label_to_concept": map_int_label_to_concept,
-            "img_list": img_list}
+            "img_list": img_list,
+            "img_folder_path": img_folder_path,}
         label_info = (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info)
 
     else:
