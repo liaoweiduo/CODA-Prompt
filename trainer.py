@@ -51,10 +51,16 @@ class Trainer:
             self.top_k = 1
         elif args.dataset == 'CGQA':
             num_classes = 100
-            Dataset = dataloaders.CGQA
+            if args.mode == 'continual':
+                Dataset = dataloaders.iCGQA     # with CODA's dataloader, else use CGQA
+            else:
+                Dataset = dataloaders.CGQA
         elif args.dataset == 'COBJ':
             num_classes = 30
-            Dataset = dataloaders.COBJ
+            if args.mode == 'continual':
+                Dataset = dataloaders.iCOBJ     # with CODA's dataloader, else use COBJ
+            else:   # few shot use our datasets
+                Dataset = dataloaders.COBJ
         else:
             raise ValueError('Dataset not implemented!')
 

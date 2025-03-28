@@ -438,6 +438,7 @@ def _get_obj365_datasets(
         num_samples_each_label=None,
         label_offset=0,
         load_set=None,
+        return_datasets=True,
 ):
     """
     Create GQA dataset, with given json files,
@@ -569,27 +570,30 @@ def _get_obj365_datasets(
             train_list = [train_list[idx] for idx in order]
 
         '''generate train_set and test_set using PathsDataset'''
-        train_set = PathsDataset(
-            root=img_folder_path,
-            files=train_list,
-            transform=transforms.Compose([transforms.Resize(image_size)]),
-            loaded=load_set == 'train',
-            name='con_train',
-        )
-        val_set = PathsDataset(
-            root=img_folder_path,
-            files=val_list,
-            transform=transforms.Compose([transforms.Resize(image_size)]),
-            loaded=load_set == 'val',
-            name='con_val',
-        )
-        test_set = PathsDataset(
-            root=img_folder_path,
-            files=test_list,
-            transform=transforms.Compose([transforms.Resize(image_size)]),
-            loaded=load_set == 'test',
-            name='con_test',
-        )
+        if return_datasets:
+            train_set = PathsDataset(
+                root=img_folder_path,
+                files=train_list,
+                transform=transforms.Compose([transforms.Resize(image_size)]),
+                loaded=load_set == 'train',
+                name='con_train',
+            )
+            val_set = PathsDataset(
+                root=img_folder_path,
+                files=val_list,
+                transform=transforms.Compose([transforms.Resize(image_size)]),
+                loaded=load_set == 'val',
+                name='con_val',
+            )
+            test_set = PathsDataset(
+                root=img_folder_path,
+                files=test_list,
+                transform=transforms.Compose([transforms.Resize(image_size)]),
+                loaded=load_set == 'test',
+                name='con_test',
+            )
+        else:
+            train_set, val_set, test_set = None, None, None
 
         datasets = {'train': train_set, 'val': val_set, 'test': test_set}
         meta_info = {

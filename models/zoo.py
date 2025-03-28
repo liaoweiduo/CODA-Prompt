@@ -287,9 +287,9 @@ class CodaPrompt(nn.Module):
             # fair in the spirit of continual learning and has little affect on performance
             e_l = self.e_p_length
             if self.beta_version:
-                p = tensor_prompt(self.e_pool_size, e_l, emb_d, ortho=False)  # [100, 8, 768]
-                k = tensor_prompt(self.e_pool_size, self.key_d, ortho=False)  # [100, 768]
-                a = tensor_prompt(self.e_pool_size, self.key_d, ortho=False)
+                p = tensor_prompt(self.e_pool_size, e_l, emb_d, ortho=True)  # [100, 8, 768]
+                k = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)  # [100, 768]
+                a = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)
                 setattr(self, f'e_p_{e}', p)
                 setattr(self, f'e_k_{e}', k)
                 setattr(self, f'e_a_{e}', a)

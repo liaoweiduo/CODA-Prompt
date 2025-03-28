@@ -17,7 +17,9 @@ class iDataset(data.Dataset):
     def __init__(self, root,
                 train=True, transform=None,
                 download_flag=False, lab=True, swap_dset = None, 
-                tasks=None, seed=-1, rand_split=False, validation=False, kfolds=5, **kwargs):
+                tasks=None, seed=-1, rand_split=False, validation=False,
+                mode='continual',
+                kfolds=5, **kwargs):
 
         # process rest of args
         self.root = os.path.expanduser(root)
@@ -28,6 +30,7 @@ class iDataset(data.Dataset):
         self.t = -1
         self.tasks = tasks
         self.download_flag = download_flag
+        self.mode = mode
 
         # load dataset
         self.load()
@@ -380,6 +383,60 @@ class iDOMAIN_NET(iIMAGENET_R):
             data_config = yaml.load(open('dataloaders/splits/domainnet_test.yaml', 'r'), Loader=yaml.Loader)
         self.data = data_config['data']
         self.targets = data_config['targets']
+
+class iCGQA(iIMAGENET_R):
+    base_folder = 'CGQA'
+    im_size=224
+    nch=3
+
+    def load(self):
+        from dataloaders import cgqa
+        _, label_info = cgqa._get_gqa_datasets(
+            os.path.join(self.root, 'CFST'), mode=self.mode,
+            image_size=(224, 224), return_datasets=False)
+        self.label_info = label_info
+
+        self.pre_process()
+
+    def pre_process(self):
+        if self.mode != 'continual':
+            data_config = self.label_info[3]['img_list']
+        elif self.train:
+            data_config = self.label_info[3]['train_list']
+        elif self.validation:
+            data_config = self.label_info[3]['val_list']
+        else:
+            data_config = self.label_info[3]['test_list']
+        self.data = [self.root / sample_tuple[0] for sample_tuple in data_config]
+        self.targets = [sample_tuple[1] for sample_tuple in data_config]
+        self.concepts = None
+        self.positions = None
+        if len(data_config[0]) > 2:
+            self.concepts = [sample_tuple[2] for sample_tuple in data_config]
+        if len(data_config[0]) > 3:
+            self.positions = [sample_tuple[3] for sample_tuple in data_config]
+
+        # collect other things
+        (label_set, map_tuple_label_to_int, map_int_label_to_tuple, meta_info
+         ) = self.label_info
+        self.x_dim = (3, self.im_size, self.im_size)
+
+
+
+class iCOBJ(iCGQA):
+    base_folder = 'COBJ'
+    im_size=224
+    nch=3
+
+    def load(self):
+        from dataloaders import cobj
+        _, label_info = cobj._get_obj365_datasets(
+            os.path.join(self.root, 'CFST'), mode=self.mode,
+            image_size=(224, 224), return_datasets=False)
+        self.label_info = label_info
+
+        self.pre_process()
+
 
 def jpg_image_to_array(image_path):
     """
