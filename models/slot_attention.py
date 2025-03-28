@@ -246,17 +246,17 @@ class Slot2Prompt(nn.Module):
                 self.prompt_map.append(
                     nn.Sequential(nn.Linear(self.key_d, 2*self.key_d), nn.ReLU(inplace=True),
                                   nn.Linear(2*self.key_d, len(self.e_layers) * self.e_p_length * self.emb_d)))
-            else:
-                for e in self.e_layers:
-                    K = getattr(self, f'e_k_{e}')
-                    P = getattr(self, f'e_p_{e}')
-                    A = getattr(self, f'e_a_{e}')
-                    A = self.gram_schmidt(A)
-                    K = self.gram_schmidt(K)
-                    P = self.gram_schmidt(P)
-                    setattr(self, f'e_p_{e}', P)
-                    setattr(self, f'e_k_{e}', K)
-                    setattr(self, f'e_a_{e}', A)
+            # else:
+            #     for e in self.e_layers:
+            #         K = getattr(self, f'e_k_{e}')
+            #         P = getattr(self, f'e_p_{e}')
+            #         A = getattr(self, f'e_a_{e}')
+            #         A = self.gram_schmidt(A)
+            #         K = self.gram_schmidt(K)
+            #         P = self.gram_schmidt(P)
+            #         setattr(self, f'e_p_{e}', P)
+            #         setattr(self, f'e_k_{e}', K)
+            #         setattr(self, f'e_a_{e}', A)
 
     def forward(self, slots, s2p=None, train=False, phase='new', select_mode='coda'):
         """phase reuse: only use detached old prompts; new: use learnable new prompts"""
