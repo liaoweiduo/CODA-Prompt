@@ -455,7 +455,7 @@ class NormalNN(nn.Module):
         if type(lr) is list:
             lr = lr[-1]
         print(f'init_optimizer: lr: {lr}')
-        print(f'num parameters: {sum(p.numel() for p in self.model.parameters())}')
+        print(f'num parameters: {sum(p.numel() for p in self.model.parameters() if p.requires_grad)}')
         # parse optimizer args
         optimizer_arg = {'params':self.model.parameters(),
                          'lr':lr,

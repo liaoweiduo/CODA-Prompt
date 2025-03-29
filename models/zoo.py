@@ -1740,9 +1740,9 @@ class ViTZoo(nn.Module):
         # feature encoder changes if transformer vs resnet
         self.feat = zoo_model
 
-        # freeze feature encoder
-        for param in self.feat.parameters():
-            param.requires_grad = False
+        # # freeze feature encoder
+        # for param in self.feat.parameters():
+        #     param.requires_grad = False
 
     def obtain_q(self, x, cond_x=None, maintain_pool=False, **kwargs):
         with torch.no_grad():
