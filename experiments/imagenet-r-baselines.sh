@@ -27,7 +27,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 100 8 0.0 \
     --max_task 10 \
-    --log_dir ${OUTDIR}/coda-p
+    --log_dir ${OUTDIR}/coda-p-orioptimizer
 
 # DualPrompt
 #
@@ -39,7 +39,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name DualPrompt \
     --prompt_param 10 20 6 \
     --max_task 10 \
-    --log_dir ${OUTDIR}/dual-prompt
+    --log_dir ${OUTDIR}/dual-prompt-orioptimizer
 
 # L2P++
 #
@@ -51,4 +51,4 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name L2P \
     --prompt_param 30 20 -1 \
     --max_task 10 \
-    --log_dir ${OUTDIR}/l2p++
+    --log_dir ${OUTDIR}/l2p++-orioptimizer
