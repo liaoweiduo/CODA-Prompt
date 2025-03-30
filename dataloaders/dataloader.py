@@ -342,7 +342,13 @@ class iIMAGENET_R(iDataset):
             tuple: (image, target) where target is index of the target class
         """
         img_path, target = self.data[index], self.targets[index]
-        img = jpg_image_to_array(img_path)
+        try:
+            img = jpg_image_to_array(img_path)
+        except Exception as e:
+            print(f'WARNING: image path [idx {index}] {img_path} not find, use the privious one. '
+                  f'This is probably an issue of parallel image loading. ')
+            img_path, target = self.data[index-1], self.targets[index-1]
+            img = jpg_image_to_array(img_path)
 
         # doing this so that it is consistent with all other datasets
         # to return a PIL Image
