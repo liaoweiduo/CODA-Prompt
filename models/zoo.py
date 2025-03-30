@@ -304,9 +304,9 @@ class CodaPrompt(nn.Module):
                 setattr(self, f'e_k_{e}', k)
                 setattr(self, f'e_a_{e}', a)
 
-            # debug
-            print(f'debug coda prompt init layer {e}: p {p.shape} {p[0, 0, :10]}, k {k.shape} {k[0, :10]}'
-                  f'a {a.shape} {a[0, :10]}')
+            # # debug
+            # print(f'debug coda prompt init layer {e}: p {p.shape} {p[0, 0, :10]}, k {k.shape} {k[0, :10]}'
+            #       f'a {a.shape} {a[0, :10]}')
 
 
     def process_task_count(self):
@@ -478,11 +478,11 @@ class CodaPrompt(nn.Module):
             else:
                 loss = 0
 
-            # debug
-            print(f'debug coda prompt forward layer {l}: x_querry {x_querry.shape} {x_querry[0, :10]}, '
-                  f'a_querry {a_querry.shape} {a_querry[0, 0, :10]}'
-                  f'aq_k {aq_k.shape} {aq_k[0, :10]}'
-                  f'P_ {P_.shape} {P_[0, 0, :10]}')
+            # # debug
+            # print(f'debug coda prompt forward layer {l}: x_querry {x_querry.shape} {x_querry[0, :10]}, '
+            #       f'a_querry {a_querry.shape} {a_querry[0, 0, :10]}'
+            #       f'aq_k {aq_k.shape} {aq_k[0, :10]}'
+            #       f'P_ {P_.shape} {P_[0, 0, :10]}')
 
         else:
             loss = 0
@@ -1774,10 +1774,10 @@ class ViTZoo(nn.Module):
     def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False,
                 cond_x=None, return_aqk=False, q=None, forward_last=True, obtain_q=False, **kwargs):
 
-        # debug
-        print(f'debug vitzoo forward: x {x.shape} {x[0,0,0,:10]}, register_blk {register_blk}, task_id {task_id}, '
-              f'pen {pen}, train {train}, cond_x {cond_x}, return_aqk {return_aqk}, q {q}, forward_last {forward_last}'
-              f'obtain_q {obtain_q}, kwargs {kwargs}')
+        # # debug
+        # print(f'debug vitzoo forward: x {x.shape} {x[0,0,0,:10]}, register_blk {register_blk}, task_id {task_id}, '
+        #       f'pen {pen}, train {train}, cond_x {cond_x}, return_aqk {return_aqk}, q {q}, forward_last {forward_last}'
+        #       f'obtain_q {obtain_q}, kwargs {kwargs}')
 
         if obtain_q:
             return self.obtain_q(x, train=train, **kwargs)
@@ -1786,8 +1786,8 @@ class ViTZoo(nn.Module):
         if task_id is None:
             task_id = self.task_id
 
-        # debug
-        print(f'debug vitzoo forward: use_vit_emb {self.use_vit_emb}, use_vit_fea {self.use_vit_fea}')
+        # # debug
+        # print(f'debug vitzoo forward: use_vit_emb {self.use_vit_emb}, use_vit_fea {self.use_vit_fea}')
 
         if self.prompt is not None:
             if self.use_vit_emb and q is None:
@@ -1813,10 +1813,9 @@ class ViTZoo(nn.Module):
         else:
             out = None
 
-        # debug
-        print(f'debug vitzoo forward: q {q.shape} {q[0, :10]}, features {features.shape} {features[0, :10]}'
-              f'out {out.shape} {out[0, :10]}')
-
+        # # debug
+        # print(f'debug vitzoo forward: q {q.shape} {q[0, :10]}, features {features.shape} {features[0, :10]}'
+        #       f'out {out.shape} {out[0, :10]}')
 
         if pen:
             return out, features
