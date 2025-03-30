@@ -39,8 +39,8 @@ def get_transform(dataset='cifar100', phase='test', aug=True, resize_imnet=False
     crop_size = dataset_stats[dataset]['size']
 
     # get mean and std
-    dset_mean = dataset_stats[dataset]['mean']   #  (0.0,0.0,0.0)
-    dset_std = dataset_stats[dataset]['std']    #  (1.0,1.0,1.0)
+    dset_mean = (0.0,0.0,0.0) # dataset_stats[dataset]['mean']
+    dset_std = (1.0,1.0,1.0) # dataset_stats[dataset]['std']
 
     if dataset == 'ImageNet32' or dataset == 'ImageNet84':
         transform_list.extend([
