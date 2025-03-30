@@ -1714,8 +1714,8 @@ class ViTZoo(nn.Module):
 
         # classifier
         self.last = nn.Linear(768, num_classes)
-        nn.init.kaiming_uniform_(self.last.weight, nonlinearity='linear')
-        nn.init.constant_(self.last.bias, 0)
+        # nn.init.kaiming_uniform_(self.last.weight, nonlinearity='linear')
+        # nn.init.constant_(self.last.bias, 0)
 
         # create prompting module
         if self.prompt_flag == 'l2p':
@@ -1763,7 +1763,7 @@ class ViTZoo(nn.Module):
                 cond_x=None, return_aqk=False, q=None, forward_last=True, obtain_q=False, **kwargs):
 
         # debug
-        print(f'debug vitzoo forward: x {x.shape} {x[0]}, register_blk {register_blk}, task_id {task_id}, '
+        print(f'debug vitzoo forward: x {x.shape} {x[0,0,0,:10]}, register_blk {register_blk}, task_id {task_id}, '
               f'pen {pen}, train {train}, cond_x {cond_x}, return_aqk {return_aqk}, q {q}, forward_last {forward_last}'
               f'obtain_q {obtain_q}, kwargs {kwargs}')
 
