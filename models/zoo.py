@@ -1693,7 +1693,7 @@ class ViTZoo(nn.Module):
         self.num_classes = num_classes
 
         # get last layer
-        # self.last = nn.Linear(512, num_classes)
+        self.last = nn.Linear(512, num_classes)
         self.prompt_flag = prompt_flag
         self.task_id = None
         self.use_vit_emb = use_vit_emb
