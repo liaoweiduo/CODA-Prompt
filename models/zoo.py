@@ -1761,12 +1761,21 @@ class ViTZoo(nn.Module):
     # pen: get penultimate features    
     def forward(self, x, register_blk=-1, task_id=None, pen=False, train=False,
                 cond_x=None, return_aqk=False, q=None, forward_last=True, obtain_q=False, **kwargs):
+
+        # debug
+        print(f'debug vitzoo forward: x {x.shape} {x[0]}, register_blk {register_blk}, task_id {task_id}, '
+              f'pen {pen}, train {train}, cond_x {cond_x}, return_aqk {return_aqk}, q {q}, forward_last {forward_last}'
+              f'obtain_q {obtain_q}, kwargs {kwargs}')
+
         if obtain_q:
             return self.obtain_q(x, train=train, **kwargs)
 
         # kwargs for prompt
         if task_id is None:
             task_id = self.task_id
+
+        # debug
+        print(f'debug vitzoo forward: use_vit_emb {self.use_vit_emb}, use_vit_fea {self.use_vit_fea}')
 
         if self.prompt is not None:
             if self.use_vit_emb and q is None:
@@ -1791,6 +1800,11 @@ class ViTZoo(nn.Module):
             out = self.last(out)
         else:
             out = None
+
+        # debug
+        print(f'debug vitzoo forward: q {q.shape} {q[0, :10]}, features {features.shape} {features[0, :10]}'
+              f'out {out.shape} {out[0]}')
+
 
         if pen:
             return out, features
