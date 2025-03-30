@@ -995,9 +995,12 @@ class Debugger:
             print(f'Load log data.')
 
         self.storage['log'] = {}
-        try:
-            for seed in range(self.max_seed):
-                for task in range(self.max_task):
+        max_task = self.max_task
+        if max_task == -1:
+            max_task = 10
+        for seed in range(self.max_seed):
+            try:
+                for task in range(max_task):
                     file = os.path.join(self.exp_path, 'temp', f'train_log_seed{seed}_t{task}.pkl')
                     data = pickle.load(open(file, 'rb'))     # {'scaler': df, 'mo': df}
                     # df = data['scaler']
@@ -1005,9 +1008,9 @@ class Debugger:
                     if seed not in self.storage['log'].keys():
                         self.storage['log'][seed] = {}
                     self.storage['log'][seed][task] = data
-        except:
-            if self.check_level('INFO'):
-                print(f'File not find: {file}.')
+            except:
+                if self.check_level('INFO'):
+                    print(f'File not find: {file}.')
         if self.check_level('INFO'):
             current_seed = len(self.storage["log"]) - 1
             current_task = len(self.storage["log"][current_seed]) - 1
@@ -1024,6 +1027,8 @@ class Debugger:
         max_task = self.args['max_task']
         finished_seed = len(self.storage['log'])
         finished_task = len(self.storage['log'][finished_seed-1])
+        if max_task == -1:
+            max_task = finished_task
 
         candidate_keys = list(set(self.storage['log'][finished_seed-1][finished_task-1]['scaler'].Tag))
 

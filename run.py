@@ -321,6 +321,7 @@ if __name__ == '__main__':
     from debug import Debugger
 
     args.debug_mode = 1
+    args.max_task = max_task
     debugger = Debugger(level='INFO', args=vars(args))
     res = debugger.collect_results(max_task=args.max_task, draw=True, use_dataset=True)
     df_res = debugger.generate_df(save=True)

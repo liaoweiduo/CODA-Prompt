@@ -97,6 +97,7 @@ class Trainer:
             self.max_task = min(args.max_task, len(self.task_names))
         else:
             self.max_task = len(self.task_names)
+        args.max_task = self.max_task
 
         # datasets and dataloaders
         k = 1 # number of transforms per image

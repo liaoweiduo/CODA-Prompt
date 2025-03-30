@@ -91,7 +91,7 @@ class Prompt(NormalNN):
         return (total_loss.detach(), logits, loss_dict)
 
     # sets model optimizers
-    def init_optimizer(self):
+    def init_optimizer_origin(self):
 
         # parse optimizer args
         # Multi-GPU
@@ -124,7 +124,7 @@ class Prompt(NormalNN):
             self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=self.schedule, gamma=0.1)
 
     # sets model optimizers
-    def init_optimizer_split(self, target=None, schedule=None):
+    def init_optimizer(self, target=None, schedule=None):
         if schedule is None:
             schedule = self.schedule
 

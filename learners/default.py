@@ -178,6 +178,7 @@ class NormalNN(nn.Module):
             batch_time = AverageMeter()
             batch_timer = Timer()
             self.epochs = self.config['schedule'][-1]
+
             for epoch in range(self.config['schedule'][-1]):
                 self.epoch=epoch
 
@@ -204,6 +205,13 @@ class NormalNN(nn.Module):
 
                     # # debug
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
+
+                    # debug:
+                    fake_img = torch.ones_like(x)       # bs, 3, 224, 224
+                    fake_y = torch.ones_like(y).long()
+                    # model update
+                    loss, output, loss_dict = self.update_model(fake_img, fake_y)
+                    print(f'debug: loss: {loss.item():.4f}; output {output.shape}: {output[0]}')
 
                     # model update
                     loss, output, loss_dict = self.update_model(x, y)
