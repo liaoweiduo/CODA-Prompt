@@ -207,11 +207,12 @@ class NormalNN(nn.Module):
                     # print(f'x shape: {x.shape}, y: {y}, task: {task}')
 
                     # debug:
+                    # if self.debug_mode:
                     fake_img = torch.ones_like(x)       # bs, 3, 224, 224
                     fake_y = torch.ones_like(y).long()
                     # model update
                     loss, output, loss_dict = self.update_model(fake_img, fake_y)
-                    print(f'debug: loss: {loss.item():.4f}; output {output.shape}: {output[0].detach().cpu().numpy()}')
+                    print(f'debug: NormalNN, learn_batch, loss: {loss.item():.4f}; output {output.shape}: {output[0].detach().cpu().numpy()}')
                     raise Exception('stop')
 
                     # model update
