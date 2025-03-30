@@ -268,13 +268,19 @@ class CodaPrompt(nn.Module):
 
         # strenth of ortho penalty
         self.ortho_mu = prompt_param[2]  # 0.0
-        self.beta_version = False    # not use gram_schmidt, directly offline init ortho and use ortho penalty
+        self.beta_version = False    # True not use gram_schmidt, directly offline init ortho and use ortho penalty
 
         # trigger fixed prompt size (FPS)
         if len(prompt_param) > 3 and int(prompt_param[3]) == 1:
             self.FPS = True
         else:
             self.FPS = False        # set to False to use origin coda-p
+
+        # trigger random init instead of ortho
+        if len(prompt_param) > 3 and int(prompt_param[3]) == 2:
+            self.init_mode = 'rand'
+        else:
+            self.init_mode = 'ortho'    # ori coda
 
         # e prompt init
         for e in self.e_layers:
@@ -286,23 +292,24 @@ class CodaPrompt(nn.Module):
             # in the original paper, we used ortho init at the start - this modification is more 
             # fair in the spirit of continual learning and has little affect on performance
             e_l = self.e_p_length
-            if self.beta_version:
+            if self.beta_version and self.init_mode == 'ortho':
                 p = tensor_prompt(self.e_pool_size, e_l, emb_d, ortho=True)  # [100, 8, 768]
                 k = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)  # [100, 768]
                 a = tensor_prompt(self.e_pool_size, self.key_d, ortho=True)
-                setattr(self, f'e_p_{e}', p)
-                setattr(self, f'e_k_{e}', k)
-                setattr(self, f'e_a_{e}', a)
-            else:
+            elif not self.beta_version and self.init_mode == 'ortho':
                 p = tensor_prompt(self.e_pool_size, e_l, emb_d)  # [100, 8, 768]
                 k = tensor_prompt(self.e_pool_size, self.key_d)  # [100, 768]
                 a = tensor_prompt(self.e_pool_size, self.key_d)
                 p = self.gram_schmidt(p)
                 k = self.gram_schmidt(k)
                 a = self.gram_schmidt(a)
-                setattr(self, f'e_p_{e}', p)
-                setattr(self, f'e_k_{e}', k)
-                setattr(self, f'e_a_{e}', a)
+            else:   # self.init_mode == 'rand'
+                p = tensor_prompt(self.e_pool_size, e_l, emb_d, ortho=False)  # [100, 8, 768]
+                k = tensor_prompt(self.e_pool_size, self.key_d, ortho=False)  # [100, 768]
+                a = tensor_prompt(self.e_pool_size, self.key_d, ortho=False)
+            setattr(self, f'e_p_{e}', p)
+            setattr(self, f'e_k_{e}', k)
+            setattr(self, f'e_a_{e}', a)
 
             # # debug
             # print(f'debug coda prompt init layer {e}: p {p.shape} {p[0, 0, :10]}, k {k.shape} {k[0, :10]}'
@@ -312,7 +319,7 @@ class CodaPrompt(nn.Module):
     def process_task_count(self):
         self.task_count += 1
 
-        if not self.FPS and not self.beta_version:
+        if not self.FPS and not self.beta_version and self.init_mode == 'ortho':
             # in the spirit of continual learning, we will reinit the new components
             # for the new task with Gram Schmidt
             #

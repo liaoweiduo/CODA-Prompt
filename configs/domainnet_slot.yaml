@@ -2,8 +2,8 @@ dataset: DomainNet
 first_split_size: 69
 other_split_size: 69
 schedule:
-- [[50], [0], [50]]   # 实际跑需要大一些 epoch
-- [[50], [0], [50]]   # T * [[epochs for slots], [enhance reuse], [learn new prompt]]
+- [[50], [0], [100]]   # 实际跑需要大一些 epoch
+- [[50], [0], [100]]   # T * [[epochs for slots], [enhance reuse], [learn new prompt]]
 schedule_type: cosine
 slot_schedule_type: cosine
 #batch_size: 32

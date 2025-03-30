@@ -74,7 +74,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
     --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
-    --max_task 10 \
+    --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
 #done

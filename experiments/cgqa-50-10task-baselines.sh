@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/50-10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot_50-10task.yaml
 CONFIG=configs/cgqa_prompt_50-10task.yaml
-REPEAT=3
+REPEAT=5
 OVERWRITE=0
 
 ###############################################################
@@ -29,6 +29,30 @@ mkdir -p $OUTDIR
 #    arg 4 = 1 FPS
 # --oracle_flag --upper_bound_flag \
 # -d
+
+LOGNAME=coda-p
+#docker run -d --rm --runtime=nvidia --gpus device=1 \
+#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+#  -v ~/.cache:/workspace/.cache \
+#  --shm-size 8G liaoweiduo/hide:2.0 \
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 8 0.0 0 \
+   --lr 0.001 \
+   --do_not_eval_during_training \
+   --compositional_testing \
+   --log_dir ${OUTDIR}/${LOGNAME}
+
+# random init coda baseline
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+   --learner_type prompt --learner_name CODAPrompt \
+   --prompt_param 100 8 0.0 2 \
+   --lr 0.001 \
+   --compositional_testing \
+   --log_dir ${OUTDIR}/coda-p-randint
+
+
+
 
 ## concept similar reg + FPS + lr decay
 #devices=(0 1 2 3 4 5); i=-1
@@ -96,19 +120,6 @@ mkdir -p $OUTDIR
 #   --compositional_testing \
 #   --log_dir ${OUTDIR}/${LOGNAME}
 #
-#LOGNAME=coda-l8-p100
-#docker run -d --rm --runtime=nvidia --gpus device=1 \
-#  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-#  -v ~/.cache:/workspace/.cache \
-#  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#   --learner_type prompt --learner_name CODAPrompt \
-#   --prompt_param 100 8 0.0 0 \
-#   --lr ${lr} \
-#   --max_task 2 \
-#   --compositional_testing \
-#   --log_dir ${OUTDIR}/${LOGNAME}
-
 ## cfst
 #for mode in sys pro sub non noc
 #do
@@ -150,11 +161,11 @@ docker run -d --rm --runtime=nvidia --gpus device=2 \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name DualPrompt \
-    --prompt_param 10 8 8 \
+    --prompt_param 6 20 6 \
     --lr 0.001 \
-    --max_task 2 \
+    --do_not_eval_during_training \
     --compositional_testing \
-    --log_dir ${OUTDIR}/dual-prompt-imagenet-p10-e8-g8
+    --log_dir ${OUTDIR}/dual-prompt
 
 
 # L2P++
@@ -169,12 +180,11 @@ docker run -d --rm --runtime=nvidia --gpus device=3 \
   --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name L2P \
-    --prompt_param 10 8 -1 \
+    --prompt_param 30 20 -1 \
     --lr 0.001 \
-    --max_task 2 \
+    --do_not_eval_during_training \
     --compositional_testing \
-    --log_dir ${OUTDIR}/l2p++-imagenet-p10-l8
-
+    --log_dir ${OUTDIR}/l2p++
 
 # vit-pretrain
 #
@@ -189,7 +199,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    --eval_class_wise \
 #    --log_dir ${OUTDIR}/vit_pretrain_SGD
 ##    --oracle_flag --upper_bound_flag \
-#
+
 ## cfst
 #for mode in sys pro sub non noc
 #do
