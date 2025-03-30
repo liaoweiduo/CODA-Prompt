@@ -478,11 +478,11 @@ class CodaPrompt(nn.Module):
             else:
                 loss = 0
 
-            # debug
-            print(f'debug coda prompt forward layer {l}: x_querry {x_querry.shape} {x_querry[0, :10]}, '
-                  f'a_querry {a_querry.shape} {a_querry[0, 0, :10]}'
-                  f'aq_k {aq_k.shape} {aq_k[0, :10]}'
-                  f'P_ {P_.shape} {P_[0, 0, :10]}')
+            # # debug
+            # print(f'debug coda prompt forward layer {l}: x_querry {x_querry.shape} {x_querry[0, :10]}, '
+            #       f'a_querry {a_querry.shape} {a_querry[0, 0, :10]}'
+            #       f'aq_k {aq_k.shape} {aq_k[0, :10]}'
+            #       f'P_ {P_.shape} {P_[0, 0, :10]}')
 
         else:
             loss = 0
