@@ -304,9 +304,9 @@ class CodaPrompt(nn.Module):
                 setattr(self, f'e_k_{e}', k)
                 setattr(self, f'e_a_{e}', a)
 
-            # # debug
-            # print(f'debug coda prompt init layer {e}: p {p.shape} {p[0, 0, :10]}, k {k.shape} {k[0, :10]}'
-            #       f'a {a.shape} {a[0, :10]}')
+            # debug
+            print(f'debug coda prompt init layer {e}: p {p.shape} {p[0, 0, :10]}, k {k.shape} {k[0, :10]}'
+                  f'a {a.shape} {a[0, :10]}')
 
 
     def process_task_count(self):
