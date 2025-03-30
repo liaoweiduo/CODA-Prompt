@@ -27,7 +27,7 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 100 8 0.0 \
     --max_task 10 \
-    --log_dir ${OUTDIR}/coda-p-debug
+    --log_dir ${OUTDIR}/coda-p-debug1
 
 # DualPrompt
 #
