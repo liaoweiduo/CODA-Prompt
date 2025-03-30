@@ -75,8 +75,6 @@ class Debugger:
         self.storage['results'] = {}
         self.storage['loss_df'] = {}
 
-        # todo: number of trainable parameters
-
         self.collect_AA_CA_FF(max_task)
         self.collect_CFST()
         self.collect_losses(draw=draw)
@@ -102,6 +100,7 @@ class Debugger:
                 self.draw_logit_similarity(redraw=draw)
                 self.draw_prompt_selection(redraw=draw)
                 self.draw_concept_similarity(redraw=draw)
+                self.collect_samples_weighted_slot_sim_vs_concept_sim()
             except Exception as e:
                 # Print the error traceback
                 traceback.print_exc()
@@ -565,6 +564,49 @@ class Debugger:
 
         # extend columns
         self.columns.extend(['samples/per_cls/w_slot_sim'])
+
+    def collect_samples_weighted_slot_sim_vs_concept_sim(self, ):
+        """w_slot sim matrix vs concept sim matrix and mae"""
+        maes = []
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        # concept sim
+        concepts = self.storage['samples'][2][:, 0]  # [bs, 21]
+        if 'cos' in self.args['concept_similar_reg_mode']:
+            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+        else:
+            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
+            concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
+        concept_sim_softmax = F.softmax(concept_sim, dim=-1)
+
+        # slot sim
+        for task_id in range(len(self.storage['wslos'])):
+            weighted_slot = self.storage['wslos'][task_id]  # [bs, d128]
+
+            if 'cos' in self.args['slot_logit_similar_reg_mode']:
+                slot_sim = cos(weighted_slot.unsqueeze(1), weighted_slot.unsqueeze(0)
+                               ) * self.args['slot_logit_similar_reg_slot_temp']  # [bs, bs]
+                # normed_slot_sim = slot_sim / slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
+                normed_slot_sim = (slot_sim - slot_sim.min(dim=-1, keepdim=True)[0]) / (
+                        slot_sim.max(dim=-1, keepdim=True)[0] - slot_sim.min(dim=-1, keepdim=True)[0] + 1e-10)
+                # minmax over row to make them positive
+                normed_slot_sim = normed_slot_sim / normed_slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
+            else:
+                slot_sim = torch.matmul(weighted_slot, weighted_slot.t()) * (
+                        self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
+                normed_slot_sim = F.softmax(slot_sim, dim=-1)
+
+            mae = torch.nn.functional.l1_loss(concept_sim_softmax, normed_slot_sim, reduction='none')   # [bs, bs]
+            maes.append(mae)
+
+        if len(maes) > 0:
+            maes = torch.stack(maes)      # [n_task, bs, bs]
+            maes = maes.cpu().detach().numpy()
+            self.storage['results']['samples/per_sample/w_slot_vs_concept_sim_mae'] = {
+                'Details': maes, 'Mean': maes.mean(), 'Std': maes.std(),
+                'CI95': 1.96 * (maes.std() / np.sqrt(np.prod(maes.shape)))}
+
+        # extend columns
+        self.columns.extend(['samples/per_sample/w_slot_vs_concept_sim_mae'])
 
     def draw_slot_weights(self, ax=None, redraw=False):
         # draw ws
