@@ -9,7 +9,7 @@ OUTDIR=outputs/${DATASET}/5-task
 # hard coded inputs
 GPUID='0'
 CONFIG=configs/domainnet_prompt.yaml
-REPEAT=1
+REPEAT=5
 OVERWRITE=0
 
 ###############################################################

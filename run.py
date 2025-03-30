@@ -91,6 +91,7 @@ def create_args():
                         help="The model name to the pre-learned prompt model.")
     parser.add_argument('--use_feature_statistics', action='store_true')
     parser.add_argument('--use_slot_statistics', action='store_true')
+    parser.add_argument('--do_not_eval_during_training', action='store_true')
 
     parser.add_argument('--use_weight_reg', action='store_true')
     parser.add_argument('--weight_reg_coeff', type=float, default=0.0,
@@ -239,8 +240,8 @@ if __name__ == '__main__':
             start_r = avg_metrics[metric_keys[0]][save_keys[0]].shape[-1]
 
             # extend if more repeats left
+            max_task = avg_metrics['acc']['global'].shape[0]
             if start_r < args.repeat:
-                max_task = avg_metrics['acc']['global'].shape[0]
                 for mkey in metric_keys: 
                     avg_metrics[mkey]['global'] = np.append(avg_metrics[mkey]['global'], np.zeros((max_task,args.repeat-start_r)), axis=-1)
                     if (not (mkey in global_only)):

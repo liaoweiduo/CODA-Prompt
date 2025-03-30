@@ -299,7 +299,10 @@ class Trainer:
             # test_loader does not use for training
             self.test_dataset.load_dataset(i, train=True)
             # self.test_dataset.load_dataset(0, train=True)
-            test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
+            if not self.args.do_not_eval_during_training:
+                test_loader  = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
+            else:
+                test_loader = None
 
             model_save_dir = self.model_top_dir + '/models/repeat-'+str(self.seed+1)+'/task-'+self.task_names[i]+'/'
             if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)

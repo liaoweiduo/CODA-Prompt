@@ -9,7 +9,7 @@ OUTDIR=outputs/${DATASET}/10-task
 # hard coded inputs
 GPUID='0'
 CONFIG=configs/imnet-r_prompt.yaml
-REPEAT=1
+REPEAT=5
 OVERWRITE=0
 
 ###############################################################
@@ -26,8 +26,8 @@ mkdir -p $OUTDIR
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type prompt --learner_name CODAPrompt \
     --prompt_param 100 8 0.0 \
-    --max_task 10 \
-    --log_dir ${OUTDIR}/coda-p-debug2
+    --do_not_eval_during_training \
+    --log_dir ${OUTDIR}/coda-p
 
 # DualPrompt
 #
@@ -35,11 +35,11 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = g-prompt pool length
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name DualPrompt \
-#    --prompt_param 10 20 6 \
-#    --max_task 10 \
-#    --log_dir ${OUTDIR}/dual-prompt-orioptimizer
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name DualPrompt \
+    --prompt_param 10 20 6 \
+    --do_not_eval_during_training \
+    --log_dir ${OUTDIR}/dual-prompt
 
 # L2P++
 #
@@ -47,8 +47,8 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #    arg 1 = e-prompt pool size (# tasks)
 #    arg 2 = e-prompt pool length
 #    arg 3 = -1 -> shallow, 1 -> deep
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name L2P \
-#    --prompt_param 30 20 -1 \
-#    --max_task 10 \
-#    --log_dir ${OUTDIR}/l2p++-orioptimizer
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name L2P \
+    --prompt_param 30 20 -1 \
+    --do_not_eval_during_training \
+    --log_dir ${OUTDIR}/l2p++

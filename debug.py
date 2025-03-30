@@ -1616,8 +1616,10 @@ class Debugger:
 
 def unnormalize(sample):
     # 标准化图像的逆变换
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
+    # mean = [0.485, 0.456, 0.406]
+    # std = [0.229, 0.224, 0.225]
+    mean = [0, 0, 0]
+    std = [1, 1, 1]
     unnormalize = transforms.Normalize(mean=[-m / s for m, s in zip(mean, std)],
                                        std=[1 / s for s in std])
 
