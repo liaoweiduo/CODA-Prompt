@@ -35,13 +35,13 @@ slot_lr2=1e-5
 n_slots=10
 n_iters=5
 
-#for intra_consistency_reg_coeff in 0 0.1 1; do
-intra_consistency_reg_coeff=$1    # 0.5
+for intra_consistency_reg_coeff in 0.5 0 1 2; do
+#intra_consistency_reg_coeff=$1    # 0.5
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
-for slot_ortho_reg_coeff in 0.5 0 0.1 1; do
-#slot_ortho_reg_coeff=0.5
+#for slot_ortho_reg_coeff in 0.5 0 0.1 1; do
+slot_ortho_reg_coeff=${intra_consistency_reg_coeff}
 slot_ortho_reg_temp=1   # dot用0.1
 
 s2p_mode=attn+avg     # sig or soft
