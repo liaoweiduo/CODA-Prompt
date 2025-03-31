@@ -36,12 +36,12 @@ n_slots=10
 n_iters=5
 
 #for intra_consistency_reg_coeff in 0 0.1 1; do
-intra_consistency_reg_coeff=0.5    # 0.5
+intra_consistency_reg_coeff=$1    # 0.5
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
-#for slot_ortho_reg_coeff in 0.1 0.5 1 2; do
-slot_ortho_reg_coeff=0.5
+for slot_ortho_reg_coeff in 0.5 0 0.1 1; do
+#slot_ortho_reg_coeff=0.5
 slot_ortho_reg_temp=1   # dot用0.1
 
 s2p_mode=attn+soft     # sig or soft
@@ -55,8 +55,7 @@ s2p_temp=10
 #slot_logit_similar_reg_slot_temp=1
 
 # bs 256
-LOGNAME=rebuttal-k${n_slots}-nt${n_iters}-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8
-#LOGNAME=40-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-cheating-slsrc${slot_logit_similar_reg_coeff}_m${slot_logit_similar_reg_mode}_old_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-p100-l8-k10-nt5
+LOGNAME=50-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -77,7 +76,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
-#done
+done
 #    --larger_prompt_lr \
 #    --concept_weight \
 #    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
