@@ -9,7 +9,7 @@ OUTDIR=outputs/${DATASET}/10-task
 # hard coded inputs
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/imnet-r_slot.yaml
-REPEAT=1
+REPEAT=5
 OVERWRITE=0
 
 ###############################################################
@@ -35,8 +35,8 @@ slot_lr2=1e-5
 n_slots=10
 n_iters=5
 
-for intra_consistency_reg_coeff in 0.5 0 1 2; do
-#intra_consistency_reg_coeff=$1    # 0.5
+#for intra_consistency_reg_coeff in 0.5 0 1 2; do
+intra_consistency_reg_coeff=0.5   # 0.5
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
@@ -73,10 +73,9 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
     --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
-    --max_task 2 \
     --compositional_testing \
     --log_dir ${OUTDIR}/${LOGNAME}
-done
+#done
 #    --larger_prompt_lr \
 #    --concept_weight \
 #    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
