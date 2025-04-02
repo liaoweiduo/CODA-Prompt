@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
-REPEAT=1
+REPEAT=5
 OVERWRITE=0
 
 ###############################################################
@@ -28,88 +28,27 @@ mkdir -p $OUTDIR
 #    arg 3 = ortho penalty loss weight - with updated code, now can be 0!
 # --oracle_flag --upper_bound_flag \
 # -d
-LOGNAME=coda-l8-p100
-device=1
-docker run --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
+LOGNAME=coda
+#device=1
+#docker run --rm --runtime=nvidia --gpus device=${device} \
+# -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
+# -v ~/.cache:/workspace/.cache \
+# --shm-size 8G liaoweiduo/hide:2.0 \
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 \
+   --prompt_param 100 8 0.0 0 \
    --lr 0.001 \
-   --eval_class_wise \
+   --do_not_eval_during_training \
+   --compositional_testing \
    --log_dir ${OUTDIR}/${LOGNAME}
 
-# cfst
-for mode in sys pro sub non noc
-do
-  docker run --rm --runtime=nvidia --gpus device=${device} \
-    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-    -v ~/.cache:/workspace/.cache \
-    --shm-size 8G liaoweiduo/hide:2.0 \
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-      --learner_type prompt --learner_name CODAPrompt \
-      --prompt_param 100 8 0.0 \
-      --log_dir ${OUTDIR}/${LOGNAME} \
-      --mode ${mode}
-  date
-done
-
-LOGNAME=coda-l8-p21
-docker run --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
+# random init coda baseline
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 21 8 0.0 \
+   --prompt_param 100 8 0.0 2 \
    --lr 0.001 \
-   --eval_class_wise \
-   --log_dir ${OUTDIR}/${LOGNAME}
-
-# cfst
-for mode in sys pro sub non noc
-do
-  docker run --rm --runtime=nvidia --gpus device=${device} \
-    -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
-    -v ~/.cache:/workspace/.cache \
-    --shm-size 8G liaoweiduo/hide:2.0 \
-  python -u run_ft.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-      --learner_type prompt --learner_name CODAPrompt \
-      --prompt_param 21 8 0.0 \
-      --log_dir ${OUTDIR}/${LOGNAME} \
-      --mode ${mode}
-  date
-done
-
-LOGNAME=coda-l8-p100
-# finish other runs
-REPEAT=3
-docker run --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 \
-   --lr 0.001 \
-   --eval_class_wise \
-   --log_dir ${OUTDIR}/${LOGNAME}
-
-LOGNAME=coda-l8-p21
-# finish other runs
-REPEAT=3
-docker run --rm --runtime=nvidia --gpus device=${device} \
- -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
- -v ~/.cache:/workspace/.cache \
- --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 21 8 0.0 \
-   --lr 0.001 \
-   --eval_class_wise \
-   --log_dir ${OUTDIR}/${LOGNAME}
+   --compositional_testing \
+   --log_dir ${OUTDIR}/coda-p-randint
 
 
 # DualPrompt
@@ -122,11 +61,13 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name DualPrompt \
-#    --prompt_param 10 40 10 \
-#    --lr 0.001 \
-#    --log_dir ${OUTDIR}/dual-prompt-imagenet-e40-g10
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name DualPrompt \
+    --prompt_param 10 20 6 \
+    --lr 0.001 \
+    --do_not_eval_during_training \
+    --compositional_testing \
+    --log_dir ${OUTDIR}/dual-prompt
 
 
 # L2P++
@@ -139,11 +80,13 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
-#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type prompt --learner_name L2P \
-#    --prompt_param 10 40 -1 \
-#    --lr 0.001 \
-#    --log_dir ${OUTDIR}/l2p++-imagenet-p10-l40
+python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type prompt --learner_name L2P \
+    --prompt_param 30 20 -1 \
+    --lr 0.001 \
+    --do_not_eval_during_training \
+    --compositional_testing \
+    --log_dir ${OUTDIR}/l2p++
 
 
 # vit-pretrain
