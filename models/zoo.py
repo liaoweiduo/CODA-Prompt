@@ -286,7 +286,7 @@ class CodaPrompt(nn.Module):
         if len(prompt_param) > 3 and int(prompt_param[3]) == 3:
             self.linear_baseline_for_slot = True
             self.key_d = 128
-            self.f_2_s = tensor_prompt(self.emb_d, self.key_d)      # 768 -> 128
+            self.f_2_s = nn.Linear(self.emb_d, self.key_d)      # 768 -> 128
         else:
             self.linear_baseline_for_slot = False
 
