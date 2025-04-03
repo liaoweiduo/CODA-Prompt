@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
-REPEAT=5
+REPEAT=1
 OVERWRITE=0
 
 ###############################################################
@@ -33,11 +33,11 @@ lr=1e-3
 slot_lr1=1e-4
 slot_lr2=1e-5
 
-n_slots=$1
+n_slots=10
 n_iters=5
 
-#for intra_consistency_reg_coeff in $1 $2 $3; do
-intra_consistency_reg_coeff=0.1    # 0.5
+for intra_consistency_reg_coeff in $1 $2 $3; do
+#intra_consistency_reg_coeff=0.1    # 0.5
 intra_consistency_reg_mode=map+cos+kl
 
 slot_ortho_reg_mode=cos+ce
@@ -45,7 +45,7 @@ slot_ortho_reg_mode=cos+ce
 slot_ortho_reg_coeff=${intra_consistency_reg_coeff}
 slot_ortho_reg_temp=1   # dot用0.1
 
-s2p_mode=attn+avg     # sig or soft
+s2p_mode=attn+soft     # sig or soft
 #for s2p_temp in $3 $4; do
 s2p_temp=10
 # soft-temp10, sig-temp1
@@ -55,7 +55,7 @@ s2p_temp=10
 #slot_logit_similar_reg_temp=$4
 #slot_logit_similar_reg_slot_temp=1
 
-LOGNAME=51-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
+LOGNAME=52-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -74,8 +74,9 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
     --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
     --compositional_testing \
+    --max_task 2 \
     --log_dir ${OUTDIR}/${LOGNAME}
-#done
+done
 #    --larger_prompt_lr \
 #    --concept_weight \
 #    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
