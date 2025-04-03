@@ -282,6 +282,14 @@ class CodaPrompt(nn.Module):
         else:
             self.init_mode = 'ortho'    # ori coda
 
+        # trigger learn a linear mapping from feature (768d) -> repr (64d) before attn to prompt
+        if len(prompt_param) > 3 and int(prompt_param[3]) == 3:
+            self.linear_baseline_for_slot = True
+            self.key_d = 128
+            self.f_2_s = tensor_prompt(self.emb_d, self.key_d)      # 768 -> 128
+        else:
+            self.linear_baseline_for_slot = False
+
         # e prompt init
         for e in self.e_layers:
             # for model saving/loading simplicity, we init the full paramaters here
@@ -459,6 +467,9 @@ class CodaPrompt(nn.Module):
             # if self.e_pool_size == 1:
             #     aq_k = torch.ones((B, f)).to(p.device)  # just use all prompts with 1; un-condition type
             # else:
+
+            if self.linear_baseline_for_slot:
+                x_querry = self.f_2_s(x_querry)     # [bs, 128]
 
             # b = bs, d = 768, k = 100, l=8
             # with attention and cosine sim

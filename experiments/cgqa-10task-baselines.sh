@@ -34,21 +34,29 @@ LOGNAME=coda
 # -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 # -v ~/.cache:/workspace/.cache \
 # --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-   --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 0 \
-   --lr 0.001 \
-   --do_not_eval_during_training \
-   --compositional_testing \
-   --log_dir ${OUTDIR}/${LOGNAME}
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 100 8 0.0 0 \
+#   --lr 0.001 \
+#   --do_not_eval_during_training \
+#   --compositional_testing \
+#   --log_dir ${OUTDIR}/${LOGNAME}
 
 # random init coda baseline
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 100 8 0.0 2 \
+#   --lr 0.001 \
+#   --compositional_testing \
+#   --log_dir ${OUTDIR}/coda-p-randint
+
+# mapping from feature->slot for prompt selection baseline
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 2 \
+   --prompt_param 100 8 0.0 3 \
    --lr 0.001 \
    --compositional_testing \
-   --log_dir ${OUTDIR}/coda-p-randint
+   --log_dir ${OUTDIR}/coda-p-f2s_linear
 
 
 # DualPrompt
@@ -61,13 +69,13 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name DualPrompt \
-    --prompt_param 10 20 6 \
-    --lr 0.001 \
-    --do_not_eval_during_training \
-    --compositional_testing \
-    --log_dir ${OUTDIR}/dual-prompt
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name DualPrompt \
+#    --prompt_param 10 20 6 \
+#    --lr 0.001 \
+#    --do_not_eval_during_training \
+#    --compositional_testing \
+#    --log_dir ${OUTDIR}/dual-prompt
 
 
 # L2P++
@@ -80,13 +88,13 @@ python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $O
 #  -v ~/CODA-Prompt:/workspace -v /mnt/datasets/datasets:/workspace/data -v ~/checkpoints:/checkpoints \
 #  -v ~/.cache:/workspace/.cache \
 #  --shm-size 8G liaoweiduo/hide:2.0 \
-python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type prompt --learner_name L2P \
-    --prompt_param 30 20 -1 \
-    --lr 0.001 \
-    --do_not_eval_during_training \
-    --compositional_testing \
-    --log_dir ${OUTDIR}/l2p++
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type prompt --learner_name L2P \
+#    --prompt_param 30 20 -1 \
+#    --lr 0.001 \
+#    --do_not_eval_during_training \
+#    --compositional_testing \
+#    --log_dir ${OUTDIR}/l2p++
 
 
 # vit-pretrain
