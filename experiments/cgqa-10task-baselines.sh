@@ -51,13 +51,30 @@ LOGNAME=coda
 #   --log_dir ${OUTDIR}/coda-p-randint
 
 # mapping from feature->slot for prompt selection baseline
+#python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#   --learner_type prompt --learner_name CODAPrompt \
+#   --prompt_param 100 8 0.0 3 \
+#   --lr 0.001 \
+#   --compositional_testing \
+#   --log_dir ${OUTDIR}/coda-p-f2s_linear
+
+# directly use concept to reg logits
+for concept_similar_reg_coeff in $1 $2 $3; do
+#concept_similar_reg_coeff=0.1
+concept_similar_reg_mode=dot+kl
+concept_similar_reg_temp=0.01    # 5 for cos
 python -u run.py --config $CONFIG --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
    --learner_type prompt --learner_name CODAPrompt \
-   --prompt_param 100 8 0.0 3 \
+   --prompt_param 100 8 0.0 0 \
    --lr 0.001 \
+   --concept_weight \
+   --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+   --concept_similar_reg_mode ${concept_similar_reg_mode} \
+   --concept_similar_reg_temp ${concept_similar_reg_temp} \
    --compositional_testing \
-   --log_dir ${OUTDIR}/coda-p-f2s_linear
-
+   --max_task 2 \
+   --log_dir ${OUTDIR}/coda-p-concept-${concept_similar_reg_coeff}
+done
 
 # DualPrompt
 #

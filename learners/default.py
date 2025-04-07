@@ -14,6 +14,8 @@ import sys
 import copy
 import pandas as pd
 from utils.schedulers import CosineSchedule
+from learners.slotmo import cross_entropy_with_soft_labels
+
 
 class NormalNN(nn.Module):
     '''
@@ -285,23 +287,28 @@ class NormalNN(nn.Module):
         # collect concepts
         # self.label_concepts: [100, 2]
         concepts_batch = self.label_concepts[targets.cpu().numpy()]   # [bs, 2]
-        concepts = np.unique(concepts_batch.flatten())
+        num_concepts = self.num_concepts
+        concepts = self.train_dataset.process_concepts(
+            torch.from_numpy(concepts_batch).long(), num_concepts).to(logits.device)
+        # [bs, n_concepts]
 
-        # for each concept
-        losses = []
-        dist = nn.PairwiseDistance(p=2)     # l2-distance
-        for concept in concepts:
-            involved_img_inds = [idx for idx, img_concepts in enumerate(concepts_batch) if concept in img_concepts]
-            if len(involved_img_inds) > 1:
-                involved_logits = logits[involved_img_inds]    # [n_img, 10]
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+        concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
+        if 'cos' in self.config['args'].concept_similar_reg_mode:
+            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * self.config['args'].concept_similar_reg_temp
+        else:       # dot
+            logit_sim = torch.matmul(logits, logits.t()) * (
+                    self.config['args'].concept_similar_reg_temp * (logits.shape[-1] ** -0.5))
 
-                # distance
-                # [n_img, n_img] -> []
-                loss = dist(involved_logits.unsqueeze(0), involved_logits.unsqueeze(1)).mean()
-                losses.append(loss)
-        losses = torch.stack(losses).mean()
+        if 'l2' in self.config['args'].concept_similar_reg_mode:
+            loss = F.mse_loss(torch.sigmoid(logit_sim), concept_sim)
+        elif 'l1' in self.config['args'].concept_similar_reg_mode:
+            loss = F.l1_loss(torch.sigmoid(logit_sim), concept_sim)
+        else:       # kl
+            loss = cross_entropy_with_soft_labels(logit_sim, concept_sim)
 
-        return losses
+        return loss
 
     def update_model(self, inputs, targets, target_scores = None, dw_force = None, kd_index = None):
         

@@ -1192,39 +1192,6 @@ class SLOTPrompt(Prompt):
 
         return intra_consistency_loss
 
-    def _concept_similar_reg(self, features, logits, targets):
-        """Cheating on concept-aware to decrease distance between two imgs that share the same concept"""
-        # features: [bs 768]; logits with full range: [bs, 100]; targets: [bs]
-
-        # preprocess logits
-        logits = logits[:, self.last_valid_out_dim:self.valid_out_dim]      # [bs, 10]
-
-        # collect concepts
-        # self.label_concepts: [100, 2]
-        concepts_batch = self.label_concepts[targets.cpu().numpy()]   # [bs, 2]
-        num_concepts = self.num_concepts
-        concepts = self.train_dataset.process_concepts(
-            torch.from_numpy(concepts_batch).long(), num_concepts).to(logits.device)
-        # [bs, n_concepts]
-
-        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-        concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
-        concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
-        if 'cos' in self.config['args'].concept_similar_reg_mode:
-            logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
-        else:       # dot
-            logit_sim = torch.matmul(logits, logits.t()) * (
-                    self.config['args'].concept_similar_reg_temp * (logits.shape[-1] ** -0.5))
-
-        if 'l2' in self.config['args'].concept_similar_reg_mode:
-            loss = F.mse_loss(torch.sigmoid(logit_sim), concept_sim)
-        elif 'l1' in self.config['args'].concept_similar_reg_mode:
-            loss = F.l1_loss(torch.sigmoid(logit_sim), concept_sim)
-        else:       # kl
-            loss = cross_entropy_with_soft_labels(logit_sim, concept_sim)
-
-        return loss
-
     def _slot_logit_similar_reg(self, slots, weights, w_slots, logits):
         """contrastive on weighted slots and logits
         """
