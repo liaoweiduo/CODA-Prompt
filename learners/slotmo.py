@@ -500,7 +500,7 @@ class SLOTPrompt(Prompt):
             return None
 
     def forward(self, inputs, targets, train=False, learn_slots=True, only_slots=False,
-                prompt_phase='new', model=None):
+                prompt_phase='new', model=None, return_uninstructed_features=False):
         res = dict()
         if model is None:
             model = self.model
@@ -508,6 +508,12 @@ class SLOTPrompt(Prompt):
         #     model = model.module
         # except:
         #     model = model
+
+        if return_uninstructed_features:
+            features, _, _ = model.feat(inputs)
+            features = features[:, 0, :]      # cls token
+            return features     # [bs, 768]
+
         q = model(inputs, obtain_q=True, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
         # q = model.obtain_q(inputs, learn_slots=learn_slots, train=train, prompt_phase=prompt_phase)
         prompts, selections, slot_weights, w_slots, slots, attn, recon_loss = q
@@ -1130,10 +1136,13 @@ class SLOTPrompt(Prompt):
             label_sim = cos(targets_1hot.unsqueeze(1), targets_1hot.unsqueeze(0))      # [bs, bs]
             label_sim = label_sim / label_sim.sum(dim=-1, keepdim=True)    # l1-norm
             if 'dot' in mode:
-                sim = weighted_slots @ weighted_slots.t()     # [b,b]
+                sim = weighted_slots @ weighted_slots.t() * (
+                            self.config['args'].intra_consistency_reg_temp * (weighted_slots.shape[-1] ** -0.5))
+
                 intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim)
             else:
-                sim = cos(weighted_slots.unsqueeze(0), weighted_slots.unsqueeze(1))     # [b,b]
+                sim = cos(weighted_slots.unsqueeze(0), weighted_slots.unsqueeze(1)) * (
+                    self.config['args'].intra_consistency_reg_temp)     # [b,b]
                 intra_consistency_loss = cross_entropy_with_soft_labels(sim, label_sim)
                 # sim = cos(weighted_slots.unsqueeze(1), weighted_slots.unsqueeze(0)
                 #           ) * self.config['args'].slot_logit_similar_reg_slot_temp  # [bs, bs]

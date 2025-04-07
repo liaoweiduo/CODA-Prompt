@@ -23,7 +23,7 @@ import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 
 from learners.pmo_utils import Pool, draw_heatmap, draw_objs, cal_hv, cal_min_crowding_distance
-from learners.slotmo import hungarian_algorithm
+from learners.slotmo import hungarian_algorithm, cross_entropy_with_soft_labels
 
 
 class Debugger:
@@ -99,8 +99,10 @@ class Debugger:
                 self.draw_weighted_mapped_slot_similarity(redraw=draw)
                 self.draw_logit_similarity(redraw=draw)
                 self.draw_prompt_selection(redraw=draw)
+                self.draw_uninstructed_feature_similarity(redraw=draw)
                 self.draw_concept_similarity(redraw=draw)
                 self.collect_samples_weighted_slot_sim_vs_concept_sim()
+                self.collect_uninstructed_feature_sim_vs_concept_sim()
             except Exception as e:
                 # Print the error traceback
                 traceback.print_exc()
@@ -325,8 +327,15 @@ class Debugger:
         self.storage['seles'] = []  # n_task*[bs, k, e, pp]
         self.storage['logis'] = []  # n_task*[bs, 100]
         self.storage['feats'] = []  # n_task*[bs, 768]
+        self.storage['unfea'] = []  # [bs, 768]  uninstructed features
 
         x, y, c = self.storage['samples']
+
+        # collect uninstructed features
+        with torch.no_grad():
+            uninstructed_features = self.learners[0].forward(x, y, return_uninstructed_features=True)       # [bs, 768]
+        self.storage['unfea'] = uninstructed_features
+
         num_tasks = len(self.learners)
         # trainer = prepare(trainer, task_id=-1, load=False)
         for task_id in range(num_tasks):
@@ -566,8 +575,8 @@ class Debugger:
         self.columns.extend(['samples/per_cls/w_slot_sim'])
 
     def collect_samples_weighted_slot_sim_vs_concept_sim(self, ):
-        """w_slot sim matrix vs concept sim matrix and mae"""
-        maes = []
+        """w_slot sim matrix vs concept sim matrix and kl"""
+        errors = []
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         # concept sim
         concepts = self.storage['samples'][2][:, 0]  # [bs, 21]
@@ -595,18 +604,47 @@ class Debugger:
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
                 normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
-            mae = torch.nn.functional.l1_loss(concept_sim_softmax, normed_slot_sim, reduction='none')   # [bs, bs]
-            maes.append(mae)
+            error = cross_entropy_with_soft_labels(normed_slot_sim, concept_sim_softmax, normalized=True)
+            # mae = torch.nn.functional.l1_loss(concept_sim_softmax, normed_slot_sim, reduction='none')   # [bs, bs]
+            errors.append(error)
 
-        if len(maes) > 0:
-            maes = torch.stack(maes)      # [n_task, bs, bs]
-            maes = maes.cpu().detach().numpy()
-            self.storage['results']['samples/per_sample/w_slot_vs_concept_sim_mae'] = {
-                'Details': maes, 'Mean': maes.mean(), 'Std': maes.std(),
-                'CI95': 1.96 * (maes.std() / np.sqrt(np.prod(maes.shape)))}
+        if len(errors) > 0:
+            errors = torch.stack(errors)      # [n_task, bs, bs]
+            errors = errors.cpu().detach().numpy()
+            self.storage['results']['samples/per_sample/w_slot_vs_concept_sim_error'] = {
+                'Details': errors, 'Mean': errors.mean(), 'Std': errors.std(),
+                'CI95': 1.96 * (errors.std() / np.sqrt(np.prod(errors.shape)))}
 
         # extend columns
-        self.columns.extend(['samples/per_sample/w_slot_vs_concept_sim_mae'])
+        self.columns.extend(['samples/per_sample/w_slot_vs_concept_sim_error'])
+
+    def collect_uninstructed_feature_sim_vs_concept_sim(self, ):
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        # concept sim
+        concepts = self.storage['samples'][2][:, 0]  # [bs, 21]
+        if 'cos' in self.args['concept_similar_reg_mode']:
+            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+        else:
+            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
+            concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
+        concept_sim_softmax = F.softmax(concept_sim, dim=-1)
+
+        # uninstructed_feature_sim
+        uninstructed_features = self.storage['unfea']       # [bs, 768]
+        f_sim = cos(uninstructed_features.unsqueeze(1), uninstructed_features.unsqueeze(0)) * 1     # [bs, bs]
+        normed_f_sim = (f_sim - f_sim.min(dim=-1, keepdim=True)[0]) / (
+                f_sim.max(dim=-1, keepdim=True)[0] - f_sim.min(dim=-1, keepdim=True)[0] + 1e-10)
+        # minmax over row to make them positive
+        normed_f_sim = normed_f_sim / normed_f_sim.sum(dim=-1, keepdim=True)  # l1-norm
+
+        error = cross_entropy_with_soft_labels(normed_f_sim, concept_sim_softmax, normalized=True)
+        error = error.cpu().detach().numpy()
+        self.storage['results']['samples/per_sample/uninstructed_feature_sim_vs_concept_sim_error'] = {
+            'Details': error, 'Mean': error.mean(), 'Std': error.std(),
+            'CI95': 1.96 * (error.std() / np.sqrt(np.prod(error.shape)))}
+
+        # extend columns
+        self.columns.extend(['samples/per_sample/uninstructed_feature_sim_vs_concept_sim_error'])
 
     def draw_slot_weights(self, ax=None, redraw=False):
         # draw ws
@@ -838,6 +876,52 @@ class Debugger:
 
         if save:
             fig.suptitle(f'{self.name}-concept-sim', fontsize=16)
+            self.savefig(fig, name)
+
+    def draw_uninstructed_feature_similarity(self, ax=None, redraw=False):
+        name = f'uninstructed_feature-sim.png'
+        if not redraw and self.existfig(name):
+            return
+
+        if self.storage['samples'][2] is None:      # dataset no concept
+            return
+
+        n_row = 2
+        n_column = 2  # cos & dot
+
+        save = False
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots(n_row, n_column, figsize=(n_column * 5, n_row * 5))
+            save = True
+
+        uninstructed_features = self.storage['unfea']  # [bs, 768]
+        if self.check_level('DEBUG'):
+            print(f'draw_uninstructed_feature_similarity => uninstructed_features: {uninstructed_features.shape}.')
+
+        # cos sim
+        cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+        f_sim_cos = cos(uninstructed_features.unsqueeze(1), uninstructed_features.unsqueeze(0)) * 1  # [bs, bs]
+        normed_f_sim_cos = (f_sim_cos - f_sim_cos.min(dim=-1, keepdim=True)[0]) / (
+                f_sim_cos.max(dim=-1, keepdim=True)[0] - f_sim_cos.min(dim=-1, keepdim=True)[0] + 1e-10)
+        # minmax over row to make them positive
+        normed_f_sim_cos = normed_f_sim_cos / normed_f_sim_cos.sum(dim=-1, keepdim=True)  # l1-norm
+
+        # dot
+        f_sim_dot = uninstructed_features @ uninstructed_features.T     # [bs, bs]
+        normed_f_sim_dot = F.softmax(f_sim_dot, dim=-1)
+
+        draw_heatmap(f_sim_cos.cpu().numpy(), verbose=False, ax=ax[0, 0], fmt=".2f")
+        draw_heatmap(normed_f_sim_cos.cpu().numpy(), verbose=False, ax=ax[1, 0], fmt=".2f")
+        draw_heatmap(f_sim_dot.cpu().numpy(), verbose=False, ax=ax[0, 1], fmt=".2f")
+        draw_heatmap(normed_f_sim_dot.cpu().numpy(), verbose=False, ax=ax[1, 1], fmt=".2f")
+        ax[0, 0].set_title(f'cos', fontsize=16)
+        ax[0, 1].set_title(f'dot', fontsize=16)
+        ax[0, 0].set_ylabel('sim')
+        ax[1, 0].set_ylabel('softmax')
+
+        if save:
+            fig.suptitle(f'{self.name}-uninstructed_feature-sim', fontsize=16)
             self.savefig(fig, name)
 
     def draw_prompt_selection(self, select_id=None, ax=None, redraw=False):

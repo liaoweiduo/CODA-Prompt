@@ -37,8 +37,10 @@ n_slots=10
 n_iters=5
 
 for intra_consistency_reg_coeff in $1 $2 $3; do
-#intra_consistency_reg_coeff=0.1    # 0.5
-intra_consistency_reg_mode=map+cos+kl
+#intra_consistency_reg_coeff=0.01    # 0.5
+intra_consistency_reg_mode=map+dot+kl
+#for intra_consistency_reg_temp in $1 $2 $3; do
+intra_consistency_reg_temp=1
 
 slot_ortho_reg_mode=cos+ce
 #for slot_ortho_reg_coeff in 0.5 0 0.1 1; do
@@ -46,16 +48,16 @@ slot_ortho_reg_coeff=${intra_consistency_reg_coeff}
 slot_ortho_reg_temp=1   # dot用0.1
 
 s2p_mode=attn+sig     # sig or soft
-#for s2p_temp in $3 $4; do
+#for s2p_temp in $1 $2 $3; do
 s2p_temp=1
 # soft-temp10, sig-temp1
 
-#slot_logit_similar_reg_mode=map+cos+kl
+slot_logit_similar_reg_mode=${intra_consistency_reg_mode}
 #slot_logit_similar_reg_coeff=$3
 #slot_logit_similar_reg_temp=$4
-#slot_logit_similar_reg_slot_temp=1
+slot_logit_similar_reg_slot_temp=${intra_consistency_reg_temp}
 
-LOGNAME=53-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
+LOGNAME=54-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}_t${intra_consistency_reg_temp}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 \
@@ -69,10 +71,13 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --use_intra_consistency_reg \
     --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
     --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+    --intra_consistency_reg_temp ${intra_consistency_reg_temp} \
     --use_slot_ortho_reg \
     --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
     --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
     --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
+    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
+    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
     --compositional_testing \
     --max_task 2 \
     --log_dir ${OUTDIR}/${LOGNAME}
