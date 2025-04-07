@@ -115,7 +115,7 @@ class Trainer:
                                      first_split_size=args.first_split_size // args.other_split_size,
                                      other_split_size=args.other_split_size // args.other_split_size,
                                      num_cls_per_task=args.other_split_size,
-                                     return_concepts=False,
+                                     return_concepts=args.concept_weight,
                                      mode=args.mode,
                                      )
         # if args.debug_mode == 1:
