@@ -14,7 +14,6 @@ import sys
 import copy
 import pandas as pd
 from utils.schedulers import CosineSchedule
-from learners.slotmo import cross_entropy_with_soft_labels
 
 
 class NormalNN(nn.Module):
@@ -585,3 +584,29 @@ def weight_reset(m):
 def accumulate_acc(output, target, task, meter, topk):
     meter.update(accuracy(output, target, topk), len(target))
     return meter
+
+
+def cross_entropy_with_soft_labels(logits, soft_targets, normalized=False):
+    """
+    Calculate the cross-entropy loss for soft labels.
+
+    Args:
+        logits: Raw, unnormalized scores output from the model (shape: [batch_size, num_classes]).
+        soft_targets: Probability distributions over classes (soft labels) (shape: [batch_size, num_classes]).
+
+    Returns:
+        The mean cross-entropy loss with soft labels.
+    """
+    if not normalized:
+        # Apply log softmax to logits to get the log probabilities
+        log_probs = F.log_softmax(logits, dim=-1)
+    else:
+        log_probs = torch.log(logits)
+    # log_soft_targets = torch.log(soft_targets)
+
+    # Calculate the KL divergence loss
+    loss = F.kl_div(log_probs, soft_targets, reduction='batchmean')     # the M-proj argmin_q KL(p||q), p: target; q: pred
+    # loss = F.kl_div(log_probs, log_soft_targets, reduction='batchmean', log_target=True)
+
+    return loss
+

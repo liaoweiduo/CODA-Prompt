@@ -22,7 +22,7 @@ import pandas as pd
 from datetime import datetime
 from scipy.optimize import linear_sum_assignment
 
-from .default import NormalNN, weight_reset, accumulate_acc
+from .default import NormalNN, weight_reset, accumulate_acc, cross_entropy_with_soft_labels
 from .prompt import Prompt
 from utils.schedulers import CosineSchedule
 from .pmo_utils import Pool, Mixer, available_setting, task_to_device, cal_hv_weights, normalize
@@ -2664,31 +2664,6 @@ def hungarian_algorithm(cost_matrix: Tensor):
     )
     device = cost_matrix.device
     return smallest_cost_matrix.to(device), indices.to(device)
-
-
-def cross_entropy_with_soft_labels(logits, soft_targets, normalized=False):
-    """
-    Calculate the cross-entropy loss for soft labels.
-
-    Args:
-        logits: Raw, unnormalized scores output from the model (shape: [batch_size, num_classes]).
-        soft_targets: Probability distributions over classes (soft labels) (shape: [batch_size, num_classes]).
-
-    Returns:
-        The mean cross-entropy loss with soft labels.
-    """
-    if not normalized:
-        # Apply log softmax to logits to get the log probabilities
-        log_probs = F.log_softmax(logits, dim=-1)
-    else:
-        log_probs = torch.log(logits)
-    # log_soft_targets = torch.log(soft_targets)
-
-    # Calculate the KL divergence loss
-    loss = F.kl_div(log_probs, soft_targets, reduction='batchmean')     # the M-proj argmin_q KL(p||q), p: target; q: pred
-    # loss = F.kl_div(log_probs, log_soft_targets, reduction='batchmean', log_target=True)
-
-    return loss
 
 
 if __name__ == '__main__':
