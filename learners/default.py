@@ -519,7 +519,13 @@ class NormalNN(nn.Module):
     def reset_model(self):
         self.model.apply(weight_reset)
 
-    def forward(self, x):
+    def forward(self, x, return_uninstructed_features=False):
+
+        if return_uninstructed_features:
+            features, _, _ = self.model.feat(x)
+            features = features[:, 0, :]      # cls token
+            return features     # [bs, 768]
+
         return self.model.forward(x)[:, :self.valid_out_dim]
 
     def predict(self, inputs):
