@@ -531,7 +531,7 @@ class SLOTPrompt(Prompt):
             model = self.slot_model
             coda_model = self.model
         else:
-            model = self.mode
+            model = self.model
             coda_model = None
 
         if return_uninstructed_features:
