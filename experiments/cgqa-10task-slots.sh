@@ -33,7 +33,7 @@ lr=1e-3
 slot_lr1=1e-4
 slot_lr2=1e-5
 
-n_slots=10
+n_slots=5
 n_iters=5
 
 #for intra_consistency_reg_coeff in $1 $2 $3; do
