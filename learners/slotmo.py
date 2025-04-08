@@ -135,14 +135,15 @@ class SLOTPrompt(Prompt):
 
             names = []
 
-            if self.config['args'].use_knowledge_distillation:
-                model = self.slot_model
-            else:
-                model = self.model
-            for k, p in model.named_parameters():
-                if 'slot_attn' in k:
+            if self.config['args'].use_knowledge_distillation:      # all params to be frozen
+                for k, p in self.slot_model.named_parameters():
                     p.requires_grad = False
                     names.append(k)
+            else:
+                for k, p in self.model.named_parameters():
+                    if 'slot_attn' in k:
+                        p.requires_grad = False
+                        names.append(k)
             self.log(f'=> Freeze slot model: {names}')
 
         else:
