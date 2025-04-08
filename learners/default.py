@@ -519,7 +519,7 @@ class NormalNN(nn.Module):
     def reset_model(self):
         self.model.apply(weight_reset)
 
-    def forward(self, x, return_uninstructed_features=False):
+    def forward(self, x, y=None, return_uninstructed_features=False):
 
         if return_uninstructed_features:
             features, _, _ = self.model.feat(x)

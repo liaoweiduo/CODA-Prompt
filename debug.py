@@ -87,6 +87,8 @@ class Debugger:
                 self.prepare_trainer(seed=0)
                 self.load_samples(num_samples_per_class=2, label_range=label_range)
                 self.collect_sample_results()       # obtain slots, prompts, attns,...
+                self.draw_logit_similarity(redraw=draw)
+                self.draw_concept_similarity(redraw=draw)
                 self.collect_samples_attns_sim_per_img()
                 for select_id in select_ids:
                     self.draw_attns(select_id=select_id, redraw=draw)
@@ -97,10 +99,8 @@ class Debugger:
                 self.draw_slot_weights(redraw=draw)
                 self.draw_weighted_slot_similarity(redraw=draw)
                 self.draw_weighted_mapped_slot_similarity(redraw=draw)
-                self.draw_logit_similarity(redraw=draw)
                 self.draw_prompt_selection(redraw=draw)
                 # self.draw_uninstructed_feature_similarity(redraw=draw)
-                self.draw_concept_similarity(redraw=draw)
                 self.collect_samples_weighted_slot_sim_vs_concept_sim()
                 # self.collect_uninstructed_feature_sim_vs_concept_sim()
             except Exception as e:
