@@ -68,7 +68,7 @@ def create_args():
                         help="The model name to the pre-learned slot attn model.")
     parser.add_argument('--t0_model_from', type=str, default='none',
                         help="The model name to warm-start from the 2nd task.")
-    parser.add_argument('--slot_lr', nargs="+", type=float, default=[0.0001, 0.0001], help="slot lr")
+    parser.add_argument('--slot_lr', nargs="+", type=float, default=[0.0001, 0.00001], help="slot lr")
     parser.add_argument('--slot_schedule_type', type=str, default='cosine')
     parser.add_argument('--logit_task_mask_top_k', type=int, default=10, help="no use")
 
