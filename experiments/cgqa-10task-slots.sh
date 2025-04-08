@@ -60,7 +60,7 @@ slot_logit_similar_reg_slot_temp=${intra_consistency_reg_temp}
 LOGNAME=50-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 8 \
+    --prompt_param 100 8 0.0 0 \
     --n_slots ${n_slots} \
     --n_iters ${n_iters} \
     --batch_size 256 \

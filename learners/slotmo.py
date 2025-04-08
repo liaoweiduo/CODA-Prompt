@@ -87,6 +87,14 @@ class SLOTPrompt(Prompt):
         prompt_param = [[n_task, tasks], prompt_parameters]
         model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'slot',prompt_param=prompt_param, use_vit_emb=False)
 
+        if self.config['args'].use_knowledge_distillation:
+            self.slot_model = model
+
+            cfg = self.config
+            model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda',prompt_param=self.prompt_param)
+        else:
+            self.slot_model = None
+
         # model.prompt.expert_predictor[0] = nn.Sequential(
         #     nn.Linear(len(cfg['tasks'][0]), len(cfg['tasks'][0])),
         #     nn.ReLU(inplace=True),
@@ -118,11 +126,20 @@ class SLOTPrompt(Prompt):
                         state_dict[f'module.{key}'] = state_dict[key]
                 else:
                     del state_dict[f'{key}']
-            self.model.load_state_dict(state_dict, strict=False)
+
+            if self.config['args'].use_knowledge_distillation:
+                self.slot_model.load_state_dict(state_dict, strict=False)
+            else:
+                self.model.load_state_dict(state_dict, strict=False)
             self.log(f'=> Load Done with params {list(state_dict.keys())}')
 
             names = []
-            for k, p in self.model.named_parameters():
+
+            if self.config['args'].use_knowledge_distillation:
+                model = self.slot_model
+            else:
+                model = self.model
+            for k, p in model.named_parameters():
                 if 'slot_attn' in k:
                     p.requires_grad = False
                     names.append(k)
@@ -167,12 +184,20 @@ class SLOTPrompt(Prompt):
 
         if freeze:
             self.log('=> Freeze backbone')     # on CFST
+            if self.config['args'].use_knowledge_distillation:
+                for k, p in self.slot_model.named_parameters():
+                    if 'last' not in k:
+                        p.requires_grad = False
             for k, p in self.model.named_parameters():
                 if 'last' not in k:
                     p.requires_grad = False
 
         if self.gpu:
+            if self.config['args'].use_knowledge_distillation:
+                self.slot_model = self.slot_model.cuda()
             self.model = self.model.cuda()
+        if self.config['args'].use_knowledge_distillation:
+            self.slot_model.eval()
         self.model.eval()
 
         # if flag:
@@ -500,14 +525,14 @@ class SLOTPrompt(Prompt):
             return None
 
     def forward(self, inputs, targets, train=False, learn_slots=True, only_slots=False,
-                prompt_phase='new', model=None, return_uninstructed_features=False):
+                prompt_phase='new', return_uninstructed_features=False):
         res = dict()
-        if model is None:
-            model = self.model
-        # try:
-        #     model = model.module
-        # except:
-        #     model = model
+        if self.config['args'].use_knowledge_distillation:
+            model = self.slot_model
+            coda_model = self.model
+        else:
+            model = self.mode
+            coda_model = None
 
         if return_uninstructed_features:
             features, _, _ = model.feat(inputs)
@@ -541,19 +566,26 @@ class SLOTPrompt(Prompt):
         # pen: penultimate features; train: same forward as batch training.
         if only_slots:
             with torch.no_grad():
-                out, features = self.model(
+                out, features = model(
                     inputs, q=sum_prompts,
                     pen=True, train=train,
                     # register_blk=hard_l,
                     debug_mode=self.debug_mode)
         else:
-            out, features = self.model(
+            out, features = model(
                 inputs, q=sum_prompts,
                 pen=True, train=train,
                 # register_blk=hard_l,
                 debug_mode=self.debug_mode)
         # features: [bs, 768]
         # out is logits: [bs, 100]
+
+        if self.config['args'].use_knowledge_distillation:
+            res['slot_logits'] = out
+            res['slot_features'] = features
+
+            # forward coda model
+            out, features = coda_model.forward(inputs, pen=True, train=train)
 
         res['logits'] = out
         res['features'] = features

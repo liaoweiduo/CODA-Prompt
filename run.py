@@ -143,6 +143,9 @@ def create_args():
     parser.add_argument('--slot_logit_similar_reg_slot_temp', type=float, default=1,
                         help="temp on logit similarity.")
 
+    parser.add_argument('--use_knowledge_distillation', action='store_true',
+                        help="learn extra coda ")
+
     # CFST Args
     parser.add_argument('--compositional_testing', action='store_true')
     parser.add_argument('--mode', type=str, default='continual',

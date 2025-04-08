@@ -172,6 +172,7 @@ class Slot2Prompt(nn.Module):
             self.selector_mode = 'mlp'
         elif 'gate' in mode:
             self.selector_mode = 'gate'
+
         self.cond_mode = None
         if 'sig' in mode:
             self.cond_mode = 'sig'
@@ -185,6 +186,16 @@ class Slot2Prompt(nn.Module):
             self.cond_mode = 'hard'
         else:
             raise Exception(f'Un-implemented {mode}.')
+
+        if 'ortho' in mode:
+            self.ortho = True
+        else:
+            self.ortho = False
+
+        # if 'coda' in mode:
+        #     self.coda = True
+        # else:
+        #     self.coda = False
 
         print(f'Initial s2p in mode {self.selector_mode} with cond {self.cond_mode}, FPS {self.FPS}.')
 
@@ -216,12 +227,13 @@ class Slot2Prompt(nn.Module):
                 # in the original paper, we used ortho init at the start - this modification is more
                 # fair in the spirit of continual learning and has little affect on performance
                 e_l = self.e_p_length
-                p = init_tensor(self.e_pool_size, e_l, emb_d, ortho=False)   # [100, 8, 768]
-                k = init_tensor(self.e_pool_size, self.key_d, ortho=False)   # [100, 128]
-                a = init_tensor(self.e_pool_size, self.key_d, ortho=False)   # [100, 128]
-                # p = self.gram_schmidt(p)
-                # k = self.gram_schmidt(k)
-                # # a = self.gram_schmidt(a)
+                p = init_tensor(self.e_pool_size, e_l, emb_d, ortho=self.ortho)   # [100, 8, 768]
+                k = init_tensor(self.e_pool_size, self.key_d, ortho=self.ortho)   # [100, 128]
+                a = init_tensor(self.e_pool_size, self.key_d, ortho=self.ortho)   # [100, 128]
+                if self.ortho:
+                    p = self.gram_schmidt(p)
+                    k = self.gram_schmidt(k)
+                    a = self.gram_schmidt(a)
                 setattr(self, f'e_p_{e}', p)
                 setattr(self, f'e_k_{e}', k)
                 setattr(self, f'e_a_{e}', a)
@@ -246,17 +258,17 @@ class Slot2Prompt(nn.Module):
                 self.prompt_map.append(
                     nn.Sequential(nn.Linear(self.key_d, 2*self.key_d), nn.ReLU(inplace=True),
                                   nn.Linear(2*self.key_d, len(self.e_layers) * self.e_p_length * self.emb_d)))
-            # else:
-            #     for e in self.e_layers:
-            #         K = getattr(self, f'e_k_{e}')
-            #         P = getattr(self, f'e_p_{e}')
-            #         A = getattr(self, f'e_a_{e}')
-            #         A = self.gram_schmidt(A)
-            #         K = self.gram_schmidt(K)
-            #         P = self.gram_schmidt(P)
-            #         setattr(self, f'e_p_{e}', P)
-            #         setattr(self, f'e_k_{e}', K)
-            #         setattr(self, f'e_a_{e}', A)
+            elif self.ortho:
+                for e in self.e_layers:
+                    K = getattr(self, f'e_k_{e}')
+                    P = getattr(self, f'e_p_{e}')
+                    A = getattr(self, f'e_a_{e}')
+                    A = self.gram_schmidt(A)
+                    K = self.gram_schmidt(K)
+                    P = self.gram_schmidt(P)
+                    setattr(self, f'e_p_{e}', P)
+                    setattr(self, f'e_k_{e}', K)
+                    setattr(self, f'e_a_{e}', A)
 
     def forward(self, slots, s2p=None, train=False, phase='new', select_mode='coda'):
         """phase reuse: only use detached old prompts; new: use learnable new prompts"""

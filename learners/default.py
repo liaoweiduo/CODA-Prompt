@@ -466,7 +466,17 @@ class NormalNN(nn.Module):
         self.model.eval()
 
     def load_model_other(self, filename, model):
-        model.load_state_dict(torch.load(filename + 'class.pth'))
+        state_dict = torch.load(filename + 'class.pth')
+        # complete with/without module.
+        for key in list(state_dict.keys()):
+            if 'module' in key:
+                state_dict[key[7:]] = state_dict[key]
+            else:
+                state_dict[f'module.{key}'] = state_dict[key]
+        model.load_state_dict(state_dict, strict=False)
+        self.log(f'=> Load Done from {filename}')
+        # self.log(f'=> Load Done with params {list(state_dict.keys())}')
+
         if self.gpu:
             model = model.cuda()
         return model.eval()
