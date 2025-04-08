@@ -99,10 +99,10 @@ class Debugger:
                 self.draw_weighted_mapped_slot_similarity(redraw=draw)
                 self.draw_logit_similarity(redraw=draw)
                 self.draw_prompt_selection(redraw=draw)
-                self.draw_uninstructed_feature_similarity(redraw=draw)
+                # self.draw_uninstructed_feature_similarity(redraw=draw)
                 self.draw_concept_similarity(redraw=draw)
                 self.collect_samples_weighted_slot_sim_vs_concept_sim()
-                self.collect_uninstructed_feature_sim_vs_concept_sim()
+                # self.collect_uninstructed_feature_sim_vs_concept_sim()
             except Exception as e:
                 # Print the error traceback
                 traceback.print_exc()

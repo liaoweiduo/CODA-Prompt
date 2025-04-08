@@ -36,11 +36,11 @@ slot_lr2=1e-5
 n_slots=10
 n_iters=5
 
-for intra_consistency_reg_coeff in $1 $2 $3; do
-#intra_consistency_reg_coeff=0.01    # 0.5
+#for intra_consistency_reg_coeff in $1 $2 $3; do
+intra_consistency_reg_coeff=0.1    # 0.5
 intra_consistency_reg_mode=map+dot+kl
-#for intra_consistency_reg_temp in $1 $2 $3; do
-intra_consistency_reg_temp=1
+for intra_consistency_reg_temp in $1 $2; do
+#intra_consistency_reg_temp=1
 
 slot_ortho_reg_mode=cos+ce
 #for slot_ortho_reg_coeff in 0.5 0 0.1 1; do
