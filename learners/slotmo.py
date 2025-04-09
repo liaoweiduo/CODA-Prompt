@@ -2256,7 +2256,7 @@ class SLOTPrompt(Prompt):
                     self.cls_stats[label]['features'] = avg_features
                     self.cls_stats_n[label] = n_img
 
-        model.train(orig_mode)
+        self.model.train(orig_mode)
 
         self.log(' * Collect statistics: Total time {time:.2f}'
                  .format(time=batch_timer.toc()))
