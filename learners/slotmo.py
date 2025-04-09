@@ -2181,10 +2181,7 @@ class SLOTPrompt(Prompt):
             pickle.dump(slot_centers, f)
         print('=> Save Done')
 
-    def collect_statistics(self, train_loader, train_dataset, model=None, refresh=False):
-        if model is None:
-            model = self.model
-
+    def collect_statistics(self, train_loader, train_dataset, refresh=False):
         # refresh cls_stats for different tasks
         if refresh:
             self.cls_stats = {}
@@ -2193,8 +2190,8 @@ class SLOTPrompt(Prompt):
         batch_timer = Timer()
         batch_timer.tic()
 
-        orig_mode = model.training
-        model.eval()
+        orig_mode = self.model.training
+        self.model.eval()
         batch_timer.tic()
         for i, sample in enumerate(train_loader):
             concepts = None
@@ -2213,7 +2210,7 @@ class SLOTPrompt(Prompt):
 
             with torch.no_grad():
 
-                res = self.forward(x, y, model=model)
+                res = self.forward(x, y)
                 prompts = res['prompts']
                 selections = res['selections']
                 slot_weights = res['slot_weights']
