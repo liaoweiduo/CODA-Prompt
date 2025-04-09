@@ -582,10 +582,10 @@ class Debugger:
         concepts = self.storage['samples'][2][:, 0]  # [bs, 21]
         if 'cos' in self.args['concept_similar_reg_mode']:
             concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+            concept_sim = F.softmax(concept_sim, dim=-1)
         else:
             concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
             concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
-        concept_sim_softmax = F.softmax(concept_sim, dim=-1)
 
         # slot sim
         for task_id in range(len(self.storage['wslos'])):
@@ -606,7 +606,7 @@ class Debugger:
                         self.args['slot_logit_similar_reg_slot_temp'] * weighted_slot.shape[-1] ** -0.5)
                 normed_slot_sim = F.softmax(slot_sim, dim=-1)
 
-            error = cross_entropy_with_soft_labels(normed_slot_sim, concept_sim_softmax, normalized=True)
+            error = cross_entropy_with_soft_labels(normed_slot_sim, concept_sim, normalized=True)
             # mae = torch.nn.functional.l1_loss(concept_sim_softmax, normed_slot_sim, reduction='none')   # [bs, bs]
             errors.append(error)
 
@@ -853,28 +853,24 @@ class Debugger:
                 print(f'draw_concept_similarity => concepts: {concepts.shape}.')
 
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
-            if 'cos' in self.args['concept_similar_reg_mode']:
-                concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
-            else:
-                concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
-                concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
-            concept_sim_softmax = F.softmax(concept_sim, dim=-1)
+            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
+            normed_concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
 
             yi = task_id
             if n_column == 1:
                 draw_heatmap(concept_sim.cpu().numpy(), verbose=False, ax=ax[0], fmt=".2f")
-                draw_heatmap(concept_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
+                draw_heatmap(normed_concept_sim.cpu().numpy(), verbose=False, ax=ax[1], fmt=".2f")
                 ax[0].set_title(f't{task_id}', fontsize=16)
                 if yi == 0:
                     ax[0].set_ylabel('sim')
-                    ax[1].set_ylabel('softmax')
+                    ax[1].set_ylabel('normed')
             else:
                 draw_heatmap(concept_sim.cpu().numpy(), verbose=False, ax=ax[0, yi], fmt=".2f")
-                draw_heatmap(concept_sim_softmax.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
+                draw_heatmap(normed_concept_sim.cpu().numpy(), verbose=False, ax=ax[1, yi], fmt=".2f")
                 ax[0, yi].set_title(f't{task_id}', fontsize=16)
                 if yi == 0:
                     ax[0, yi].set_ylabel('sim')
-                    ax[1, yi].set_ylabel('softmax')
+                    ax[1, yi].set_ylabel('normed')
 
         if save:
             fig.suptitle(f'{self.name}-concept-sim', fontsize=16)
