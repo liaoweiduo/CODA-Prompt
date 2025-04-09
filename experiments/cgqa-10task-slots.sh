@@ -110,8 +110,8 @@ for slot_logit_similar_reg_coeff in $1 $2 $3 $4; do
 #slot_logit_similar_reg_coeff=$1
 slot_logit_similar_reg_mode=${intra_consistency_reg_mode}
 slot_logit_similar_reg_slot_temp=${intra_consistency_reg_temp}
-for slot_logit_similar_reg_temp in 0.001 0.01; do
-#slot_logit_similar_reg_temp=$4    # 0.001
+#for slot_logit_similar_reg_temp in 0.001 0.01; do
+slot_logit_similar_reg_temp=$5    # 0.001
 
 # concept_similar_reg_mode=dot+kl
 LOGNAME=56-prompt-slsrc${slot_logit_similar_reg_coeff}_${slot_logit_similar_reg_mode}_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k${n_slots}-nt${n_iters}
@@ -132,7 +132,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
     --max_task 2 \
     --log_dir ${OUTDIR}/${LOGNAME}
-done
+#done
 done
 
 
