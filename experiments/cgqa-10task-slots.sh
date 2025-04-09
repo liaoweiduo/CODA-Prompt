@@ -114,7 +114,7 @@ for slot_logit_similar_reg_temp in 0.001 0.01 0.1; do
 #slot_logit_similar_reg_temp=$5    # 0.001
 
 # concept_similar_reg_mode=dot+kl
-LOGNAME=56-prompt-slsrc${slot_logit_similar_reg_coeff}_${slot_logit_similar_reg_mode}_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k${n_slots}-nt${n_iters}
+LOGNAME=56-coda-slsrc${slot_logit_similar_reg_coeff}_${slot_logit_similar_reg_mode}_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k${n_slots}-nt${n_iters}
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 0.0 0 \
@@ -124,6 +124,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --s2p_mode ${s2p_mode} \
     --s2p_temp ${s2p_temp} \
     --lr ${lr} ${lr} \
+    --use_knowledge_distillation \
     --use_slot_logit_similar_reg \
     --slot_pre_learn_model 55-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}_t${intra_consistency_reg_temp}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8 \
     --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \

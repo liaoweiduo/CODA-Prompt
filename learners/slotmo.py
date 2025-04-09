@@ -90,6 +90,7 @@ class SLOTPrompt(Prompt):
         if self.config['args'].use_knowledge_distillation:
             self.slot_model = model
 
+            # return a coda model
             cfg = self.config
             model = models.__dict__[cfg['model_type']].__dict__[cfg['model_name']](out_dim=self.out_dim, prompt_flag = 'coda',prompt_param=self.prompt_param)
         else:
