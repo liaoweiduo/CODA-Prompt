@@ -216,6 +216,9 @@ class Debugger:
             model_save_dir = trainer.model_top_dir + '/models/repeat-' + str(trainer.seed + 1) + '/task-' + \
                              trainer.task_names[task_id] + '/'
             try:
+                if self.args.slot_pre_learn_model != 'none':
+                    trainer.learner.load_model(model_save_dir, task_id=task_id,
+                                               slot_pre_learn_model=self.args.slot_pre_learn_model)
                 trainer.learner.load_model(model_save_dir)
 
                 self.learners.append(copy.deepcopy(trainer.learner))

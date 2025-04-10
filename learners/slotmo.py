@@ -186,10 +186,6 @@ class SLOTPrompt(Prompt):
 
         if freeze:
             self.log('=> Freeze backbone')     # on CFST
-            if self.config['args'].use_knowledge_distillation:
-                for k, p in self.slot_model.named_parameters():
-                    if 'last' not in k:
-                        p.requires_grad = False
             for k, p in self.model.named_parameters():
                 if 'last' not in k:
                     p.requires_grad = False
