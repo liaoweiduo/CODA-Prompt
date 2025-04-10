@@ -580,12 +580,12 @@ class Debugger:
         cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
         # concept sim
         concepts = self.storage['samples'][2][:, 0]  # [bs, 21]
-        if 'cos' in self.args['concept_similar_reg_mode']:
-            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
-            concept_sim = F.softmax(concept_sim, dim=-1)
-        else:
-            concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
-            concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
+        # if 'cos' in self.args['concept_similar_reg_mode']:
+        #     concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0)) * 1  # [bs, bs]
+        #     concept_sim = F.softmax(concept_sim, dim=-1)
+        # else:
+        concept_sim = cos(concepts.unsqueeze(1), concepts.unsqueeze(0))
+        concept_sim = concept_sim / concept_sim.sum(dim=-1, keepdim=True)    # l1-norm
 
         # slot sim
         for task_id in range(len(self.storage['wslos'])):
