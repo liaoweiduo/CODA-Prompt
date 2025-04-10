@@ -1246,11 +1246,11 @@ class SLOTPrompt(Prompt):
             cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
             slot_sim = cos(weighted_slots.unsqueeze(1), weighted_slots.unsqueeze(0)
                            ) * self.config['args'].slot_logit_similar_reg_slot_temp  # [bs, bs]
-            normed_slot_sim = F.softmax(slot_sim, dim=-1)
-            # normed_slot_sim = (slot_sim - slot_sim.min(dim=-1, keepdim=True)[0]) / (
-            #         slot_sim.max(dim=-1, keepdim=True)[0] - slot_sim.min(dim=-1, keepdim=True)[0] + 1e-10)
-            # # minmax over row to make them positive
-            # normed_slot_sim = normed_slot_sim / normed_slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
+            # normed_slot_sim = F.softmax(slot_sim, dim=-1)
+            # minmax over row to make them positive
+            normed_slot_sim = (slot_sim - slot_sim.min(dim=-1, keepdim=True)[0]) / (
+                    slot_sim.max(dim=-1, keepdim=True)[0] - slot_sim.min(dim=-1, keepdim=True)[0] + 1e-10)
+            normed_slot_sim = normed_slot_sim / normed_slot_sim.sum(dim=-1, keepdim=True)  # l1-norm
             # # logit_sim = cos(logits.unsqueeze(1), logits.unsqueeze(0)) * 5
             logit_sim = torch.matmul(logits, logits.t()) * (
                     self.config['args'].slot_logit_similar_reg_temp * (logits.shape[-1] ** -0.5))
