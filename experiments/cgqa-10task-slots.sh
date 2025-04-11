@@ -58,31 +58,31 @@ slot_logit_similar_reg_slot_temp=${intra_consistency_reg_temp}
 
 # learn slot --  Teacher
 
-LOGNAME=55-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}_t${intra_consistency_reg_temp}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
-LOGNAME=slot-teacher
-python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-    --learner_type slotmo --learner_name SLOTPrompt \
-    --prompt_param 100 8 0.0 0 \
-    --n_slots ${n_slots} \
-    --n_iters ${n_iters} \
-    --batch_size 256 \
-    --s2p_mode ${s2p_mode} \
-    --s2p_temp ${s2p_temp} \
-    --lr ${lr} ${lr} \
-    --slot_lr ${slot_lr1} ${slot_lr2} \
-    --use_intra_consistency_reg \
-    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
-    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
-    --intra_consistency_reg_temp ${intra_consistency_reg_temp} \
-    --use_slot_ortho_reg \
-    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
-    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
-    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
-    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
-    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
-    --only_learn_slot \
-    --do_not_eval_during_training \
-    --log_dir ${OUTDIR}/${LOGNAME}
+#LOGNAME=55-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}_t${intra_consistency_reg_temp}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8
+#LOGNAME=slot-teacher
+#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+#    --learner_type slotmo --learner_name SLOTPrompt \
+#    --prompt_param 100 8 0.0 0 \
+#    --n_slots ${n_slots} \
+#    --n_iters ${n_iters} \
+#    --batch_size 256 \
+#    --s2p_mode ${s2p_mode} \
+#    --s2p_temp ${s2p_temp} \
+#    --lr ${lr} ${lr} \
+#    --slot_lr ${slot_lr1} ${slot_lr2} \
+#    --use_intra_consistency_reg \
+#    --intra_consistency_reg_coeff ${intra_consistency_reg_coeff} \
+#    --intra_consistency_reg_mode ${intra_consistency_reg_mode} \
+#    --intra_consistency_reg_temp ${intra_consistency_reg_temp} \
+#    --use_slot_ortho_reg \
+#    --slot_ortho_reg_mode ${slot_ortho_reg_mode} \
+#    --slot_ortho_reg_coeff ${slot_ortho_reg_coeff}\
+#    --slot_ortho_reg_temp ${slot_ortho_reg_temp} \
+#    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
+#    --slot_logit_similar_reg_slot_temp ${slot_logit_similar_reg_slot_temp} \
+#    --only_learn_slot \
+#    --do_not_eval_during_training \
+#    --log_dir ${OUTDIR}/${LOGNAME}
 #done
 #    --larger_prompt_lr \
 #    --concept_weight \
@@ -127,7 +127,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 #    --lr ${lr} ${lr} \
 #    --use_knowledge_distillation \
 #    --use_slot_logit_similar_reg \
-#    --slot_pre_learn_model 55-slot-icr${intra_consistency_reg_coeff}_${intra_consistency_reg_mode}_t${intra_consistency_reg_temp}-sor${slot_ortho_reg_coeff}_${slot_ortho_reg_mode}_t${slot_ortho_reg_temp}-s2p_m${s2p_mode}_t${s2p_temp}-slr${slot_lr1}_${slot_lr2}-lr${lr}-k${n_slots}-nt${n_iters}-p100-l8 \
+#    --slot_pre_learn_model slot-teacher \
 #    --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
 #    --slot_logit_similar_reg_coeff ${slot_logit_similar_reg_coeff} \
 #    --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
@@ -140,35 +140,37 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 ###    --compositional_testing \
 
 
-## concept logit reg
-#for concept_similar_reg_coeff in $1 $2 $3; do
-##concept_similar_reg_coeff=
+# concept logit reg
+for concept_similar_reg_coeff in $1 $2 $3; do
+#concept_similar_reg_coeff=
 #for concept_similar_reg_temp in 0.01 0.1; do
-##concept_similar_reg_temp=0.01
-#slot_logit_similar_reg_temp=${concept_similar_reg_temp}
-#concept_similar_reg_mode=dot+kl
-#LOGNAME=56-coda-concept${concept_similar_reg_coeff}_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8
-#python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
-#    --learner_type slotmo --learner_name SLOTPrompt \
-#    --prompt_param 100 8 0.0 0 \
-#    --n_slots ${n_slots} \
-#    --n_iters ${n_iters} \
-#    --batch_size 256 \
-#    --lr ${lr} ${lr} \
-#    --use_knowledge_distillation \
-#    --slot_pre_learn_model 52-slot-icr0.5_map+cos+kl-sor0.5_cos+ce_t1-s2p_mattn+soft_t10-slr1e-4_1e-5-lr1e-3-k10-nt5-p100-l8 \
-#    --concept_weight \
-#    --concept_similar_reg_mode ${concept_similar_reg_mode} \
-#    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
-#    --concept_similar_reg_temp ${concept_similar_reg_temp} \
-#    --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
-#    --max_task 5 \
-#    --do_not_eval_during_training \
-#    --log_dir ${OUTDIR}/${LOGNAME}
+concept_similar_reg_temp=0.01
+slot_logit_similar_reg_temp=${concept_similar_reg_temp}
+concept_similar_reg_mode=dot+kl
+LOGNAME=56-coda-old_no_grad-concept${concept_similar_reg_coeff}_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8
+python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
+    --learner_type slotmo --learner_name SLOTPrompt \
+    --prompt_param 100 8 0.0 0 \
+    --n_slots ${n_slots} \
+    --n_iters ${n_iters} \
+    --batch_size 128 \
+    --lr ${lr} ${lr} \
+    --use_knowledge_distillation \
+    --use_old_samples_for_reg \
+    --use_old_samples_for_reg_no_grad \
+    --slot_pre_learn_model 52-slot-icr0.5_map+cos+kl-sor0.5_cos+ce_t1-s2p_mattn+soft_t10-slr1e-4_1e-5-lr1e-3-k10-nt5-p100-l8 \
+    --concept_weight \
+    --concept_similar_reg_mode ${concept_similar_reg_mode} \
+    --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
+    --concept_similar_reg_temp ${concept_similar_reg_temp} \
+    --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
+    --max_task 5 \
+    --do_not_eval_during_training \
+    --log_dir ${OUTDIR}/${LOGNAME}
 #done
-#done
-##    --compositional_testing \
-##   --do_not_eval_during_training \
+done
+#    --compositional_testing \
+#   --do_not_eval_during_training \
 
 
 
