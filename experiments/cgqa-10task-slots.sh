@@ -115,7 +115,8 @@ slot_logit_similar_reg_slot_temp=${intra_consistency_reg_temp}
 slot_logit_similar_reg_temp=0.001
 
 # concept_similar_reg_mode=dot+kl
-LOGNAME=58-coda-slsrc${slot_logit_similar_reg_coeff}_${slot_logit_similar_reg_mode}_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k${n_slots}-nt${n_iters}
+REPEAT=5
+LOGNAME=58-coda-old_no_grad-slsrc${slot_logit_similar_reg_coeff}_${slot_logit_similar_reg_mode}_t${slot_logit_similar_reg_temp}_${slot_logit_similar_reg_slot_temp}-lr${lr}-p100-l8-k${n_slots}-nt${n_iters}
 python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
     --learner_type slotmo --learner_name SLOTPrompt \
     --prompt_param 100 8 0.0 0 \
@@ -126,6 +127,8 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --s2p_temp ${s2p_temp} \
     --lr ${lr} ${lr} \
     --use_knowledge_distillation \
+    --use_old_samples_for_reg \
+    --use_old_samples_for_reg_no_grad \
     --use_slot_logit_similar_reg \
     --slot_pre_learn_model slot-teacher \
     --slot_logit_similar_reg_mode ${slot_logit_similar_reg_mode} \
@@ -149,6 +152,7 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
 #concept_similar_reg_temp=0.01
 #slot_logit_similar_reg_temp=${concept_similar_reg_temp}
 #concept_similar_reg_mode=dot+kl
+#REPEAT=5
 #LOGNAME=56-coda-concept${concept_similar_reg_coeff}_${concept_similar_reg_mode}_t${concept_similar_reg_temp}-lr${lr}-p100-l8
 #python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwrite $OVERWRITE \
 #    --learner_type slotmo --learner_name SLOTPrompt \
