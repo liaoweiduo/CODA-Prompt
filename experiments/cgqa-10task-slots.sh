@@ -10,7 +10,7 @@ OUTDIR=outputs/${DATASET}/10-task
 GPUID='0'   # '0 1 2 3'
 CONFIG_SLOT=configs/cgqa_slot.yaml
 CONFIG=configs/cgqa_prompt.yaml
-REPEAT=1
+REPEAT=5
 OVERWRITE=0
 
 ###############################################################
@@ -141,8 +141,8 @@ slot_logit_similar_reg_slot_temp=${intra_consistency_reg_temp}
 
 
 # concept logit reg
-for concept_similar_reg_coeff in $1 $2 $3; do
-#concept_similar_reg_coeff=
+#for concept_similar_reg_coeff in $1 $2 $3; do
+concept_similar_reg_coeff=0.001
 #for concept_similar_reg_temp in 0.01 0.1; do
 concept_similar_reg_temp=0.01
 slot_logit_similar_reg_temp=${concept_similar_reg_temp}
@@ -158,17 +158,17 @@ python -u run.py --config $CONFIG_SLOT --gpuid $GPUID --repeat $REPEAT --overwri
     --use_knowledge_distillation \
     --use_old_samples_for_reg \
     --use_old_samples_for_reg_no_grad \
-    --slot_pre_learn_model 52-slot-icr0.5_map+cos+kl-sor0.5_cos+ce_t1-s2p_mattn+soft_t10-slr1e-4_1e-5-lr1e-3-k10-nt5-p100-l8 \
+    --slot_pre_learn_model 51-slot-icr0.1_map+cos+kl-sor0.1_cos+ce_t1-s2p_mattn+avg_t10-slr1e-4_1e-5-lr1e-3-k10-nt5-p100-l8 \
     --concept_weight \
     --concept_similar_reg_mode ${concept_similar_reg_mode} \
     --concept_similar_reg_coeff ${concept_similar_reg_coeff} \
     --concept_similar_reg_temp ${concept_similar_reg_temp} \
     --slot_logit_similar_reg_temp ${slot_logit_similar_reg_temp} \
-    --max_task 5 \
+    --compositional_testing \
     --do_not_eval_during_training \
     --log_dir ${OUTDIR}/${LOGNAME}
 #done
-done
+#done
 #    --compositional_testing \
 #   --do_not_eval_during_training \
 
