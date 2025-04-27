@@ -313,6 +313,7 @@ class Debugger:
                 axes[xi, yi].set_title(f'{x_id} {label} {ori_y_str}')
 
             self.savefig(fig, 'samples.png')
+            plt.close(fig)
 
         return
 
@@ -464,6 +465,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-slot-attn: {label}, {ori_y_str}', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def collect_samples_slots_sim_per_img(self):
         # for every img, cal MAE(slot sim, I) to store in results
@@ -517,6 +519,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-slot-cos-sim: {label}, {ori_y_str}', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def collect_task_wise_attn_slot_change(self):
         """After Hungarian match, attn differences and slot differences"""
@@ -679,6 +682,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-slot-selection', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def draw_weighted_slot_similarity(self, ax=None, redraw=False):
         """obtain w_slots -> according to slot-logit-sim-reg-mode obtain sim"""
@@ -732,6 +736,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-weighted-slot-sim', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def draw_weighted_mapped_slot_similarity(self, ax=None, redraw=False):
         """obtain w_slots -> according to slot-logit-sim-reg-mode obtain sim"""
@@ -784,6 +789,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-weighted-mapped-slot-sim', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def draw_logit_similarity(self, ax=None, redraw=False):
         """obtain logits -> according to slot-logit-sim-reg-mode obtain sim"""
@@ -831,6 +837,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-logit-sim', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def draw_concept_similarity(self, ax=None, redraw=False):
         name = f'concept-sim.png'
@@ -877,6 +884,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-concept-sim', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def draw_uninstructed_feature_similarity(self, ax=None, redraw=False):
         name = f'uninstructed_feature-sim.png'
@@ -923,6 +931,7 @@ class Debugger:
         if save:
             fig.suptitle(f'{self.name}-uninstructed_feature-sim', fontsize=16)
             self.savefig(fig, name)
+            plt.close(fig)
 
     def draw_prompt_selection(self, select_id=None, ax=None, redraw=False):
         """n_column=n_layer, n_row=1. each ax contains """
@@ -980,6 +989,7 @@ class Debugger:
             else:
                 fig.suptitle(f'{self.name}-prompt-selection', fontsize=16)
                 self.savefig(fig, name)
+            plt.close(fig)
 
     def get_label_str(self, related_label):
         try:
